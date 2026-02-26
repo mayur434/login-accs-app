@@ -1,9 +1,9 @@
 const fetch = require('node-fetch')
 const { Core } = require('@adobe/aio-sdk')
+const libDB = require('@adobe/aio-lib-db')
 const { errorResponse, stringParameters, checkMissingRequestInputs } = require('../utils')
 
-// Simple in-memory OTP store. Note: not persistent across cold starts.
-const otpStore = new Map()
+// OTPs persisted to Adobe DB collection 'otps'
 
 function generateOtpValue () {
   return (Math.floor(1000 + Math.random() * 9000)).toString()
@@ -52,7 +52,18 @@ async function graphQLRequest (params, query, variables = {}, logger) {
 }
 
 async function tryLogin (email, password, params, logger) {
-  // Generic login mutation. Adapt to your GraphQL schema if different.
+  // First try generateCustomerToken mutation (some schemas expose this)
+  const genTokenMutation = `mutation generateCustomerToken($email: String!){ generateCustomerToken(email: $email, password: "${password}"){ token } }`
+  try {
+    const genResp = await graphQLRequest(params, genTokenMutation, { email }, logger)
+    if (genResp && genResp.data && genResp.data.generateCustomerToken && genResp.data.generateCustomerToken.token) {
+      return genResp.data.generateCustomerToken.token
+    }
+  } catch (e) {
+    logger.debug && logger.debug('generateCustomerToken attempt failed: ' + e.message)
+  }
+
+  // Fallback to generic login mutation. Adapt to your GraphQL schema if different.
   const loginMutation = `mutation Login($email:String!, $password:String!){ login(email:$email,password:$password){ token } }`
   const resp = await graphQLRequest(params, loginMutation, { email, password }, logger)
   if (resp && resp.data && resp.data.login && resp.data.login.token) return resp.data.login.token
@@ -60,12 +71,17 @@ async function tryLogin (email, password, params, logger) {
 }
 
 async function createUser (email, password, mobile, params, logger) {
-  // Generic create user mutation. Adapt input type to your schema.
-  const createUserMutation = `mutation CreateUser($input: CreateUserInput!){ createUser(input:$input){ user{ id email } } }`
-  const input = { email, password }
-  if (mobile) input.mobile = mobile
-  const resp = await graphQLRequest(params, createUserMutation, { input }, logger)
-  return resp
+  // Use createCustomerV2 for commerce; derive firstname/lastname if missing
+  const firstname = params.firstname || params.firstName || (typeof email === 'string' ? email.split('@')[0] : 'Customer')
+  const lastname = params.lastname || params.lastName || (mobile ? String(mobile) : 'User')
+  const createCustomerMutation = `mutation createCustomerV2($email: String!, $firstname: String!, $lastname: String!){ createCustomerV2(input:{ firstname: $firstname, lastname: $lastname, email: $email, password: "${password}" }){ customer{ firstname lastname email } } }`
+  try {
+    const resp = await graphQLRequest(params, createCustomerMutation, { email, firstname, lastname }, logger)
+    return resp
+  } catch (e) {
+    logger.error && logger.error('createCustomerV2 attempt failed: ' + e.message)
+    throw e
+  }
 }
 
 // main action
@@ -75,33 +91,53 @@ async function main (params) {
     logger.info('OTP action called')
     logger.debug(stringParameters(params))
 
+    // normalize input: accept JSON object in `params` or raw body
+    let req = params
+    if (params.params && typeof params.params === 'object') {
+      req = params.params
+    } else if (params.body) {
+      try { req = (typeof params.body === 'string') ? JSON.parse(params.body) : params.body } catch (e) {}
+    } else if (params.__ow_body) {
+      try { req = (typeof params.__ow_body === 'string') ? JSON.parse(params.__ow_body) : params.__ow_body } catch (e) {}
+    }
+    // carry headers
+    req.__ow_headers = params.__ow_headers || req.__ow_headers
+    const inParams = { ...params, ...req }
+
+    // initialize Adobe DB client and collection for OTPs
+    const region = inParams.AIO_DB_REGION || process.env.AIO_DB_REGION || 'apac'
+    const db = await libDB.init({ region })
+    const dbClient = await db.connect()
+    const otpCollection = await dbClient.collection('otps')
+
     // decide mode: generate (no otpValue) vs validate (has otpValue & otpReferenceId)
-    const isValidate = params.otpValue && params.otpReferenceId
+    const isValidate = inParams.otpValue && inParams.otpReferenceId
 
     if (!isValidate) {
       // generation mode: require loginType and either mobile or email
       const requiredParams = ['loginType']
-      const errorMessage = checkMissingRequestInputs(params, requiredParams, [])
+      const errorMessage = checkMissingRequestInputs(inParams, requiredParams, [])
       if (errorMessage) return errorResponse(400, errorMessage, logger)
 
-      if (params.loginType === 'mobile') {
-        const missing = checkMissingRequestInputs(params, ['mobile'], [])
+      if (inParams.loginType === 'mobile') {
+        const missing = checkMissingRequestInputs(inParams, ['mobile'], [])
         if (missing) return errorResponse(400, missing, logger)
       } else {
-        const missing = checkMissingRequestInputs(params, ['email'], [])
+        const missing = checkMissingRequestInputs(inParams, ['email'], [])
         if (missing) return errorResponse(400, missing, logger)
       }
 
-      const otpValue = generateOtpValue()
-      const ref = createReferenceId()
-      otpStore.set(ref, {
-        otp: otpValue,
-        loginType: params.loginType,
-        mobile: params.mobile,
-        email: params.email,
-        createdAt: Date.now(),
-        expiresAt: Date.now() + (5 * 60 * 1000) // 5 minutes
-      })
+        const otpValue = generateOtpValue()
+        const ref = createReferenceId()
+        await otpCollection.insertOne({
+          otpReferenceId: ref,
+          otp: otpValue,
+          loginType: inParams.loginType,
+          mobile: inParams.mobile,
+          email: inParams.email,
+          createdAt: Date.now(),
+          expiresAt: Date.now() + (5 * 60 * 1000) // 5 minutes
+        })
 
       // NOTE: in production you should send OTP via SMS/email here instead
       return {
@@ -114,23 +150,23 @@ async function main (params) {
     }
 
     // validation mode
-    const missing = checkMissingRequestInputs(params, ['otpReferenceId', 'otpValue', 'loginType'], [])
+    const missing = checkMissingRequestInputs(inParams, ['otpReferenceId', 'otpValue', 'loginType'], [])
     if (missing) return errorResponse(400, missing, logger)
 
-    const record = otpStore.get(params.otpReferenceId)
+    const record = await otpCollection.findOne({ otpReferenceId: inParams.otpReferenceId })
     if (!record) return errorResponse(400, 'invalid otpReferenceId', logger)
     if (Date.now() > record.expiresAt) {
-      otpStore.delete(params.otpReferenceId)
+      await otpCollection.deleteOne({ otpReferenceId: inParams.otpReferenceId })
       return errorResponse(400, 'otp expired', logger)
     }
 
     // fuzzy compare: allow distance 0 or 1
-    const distance = levenshtein(String(params.otpValue), String(record.otp))
+    const distance = levenshtein(String(inParams.otpValue), String(record.otp))
     if (distance > 1) return errorResponse(401, 'invalid otp', logger)
 
     // build user email: if loginType is mobile, create <mobile>@vijaysales.com
     let emailToUse = record.email
-    if (params.loginType === 'mobile') {
+    if (inParams.loginType === 'mobile') {
       if (!record.mobile) return errorResponse(400, 'mobile not present for this reference', logger)
       emailToUse = `${record.mobile}@vijaysales.com`
     }
@@ -139,10 +175,11 @@ async function main (params) {
 
     // try to generate JWT token using GraphQL login
     try {
-      const token = await tryLogin(emailToUse, defaultPassword, params, logger)
+      const token = await tryLogin(emailToUse, defaultPassword, inParams, logger)
       if (token) {
         // cleanup OTP record
-        otpStore.delete(params.otpReferenceId)
+        await otpCollection.deleteOne({ otpReferenceId: inParams.otpReferenceId })
+        await dbClient.close()
         return { statusCode: 200, body: { success: true, token } }
       }
     } catch (err) {
@@ -151,10 +188,11 @@ async function main (params) {
 
     // create user and then try login
     try {
-      await createUser(emailToUse, defaultPassword, record.mobile, params, logger)
-      const tokenAfterCreate = await tryLogin(emailToUse, defaultPassword, params, logger)
+      await createUser(emailToUse, defaultPassword, record.mobile, inParams, logger)
+      const tokenAfterCreate = await tryLogin(emailToUse, defaultPassword, inParams, logger)
       if (tokenAfterCreate) {
-        otpStore.delete(params.otpReferenceId)
+        await otpCollection.deleteOne({ otpReferenceId: inParams.otpReferenceId })
+        await dbClient.close()
         return { statusCode: 200, body: { success: true, token: tokenAfterCreate } }
       }
       return errorResponse(500, 'unable to obtain token after user creation', logger)
@@ -162,10 +200,17 @@ async function main (params) {
       logger.error(err)
       return errorResponse(500, 'server error during user creation/login', logger)
     }
-  } catch (error) {
-    logger.error(error)
-    return errorResponse(500, 'server error', logger)
-  }
+    } catch (error) {
+      logger.error(error)
+      return errorResponse(500, 'server error', logger)
+    } finally {
+      // ensure DB client is closed if still open
+      try {
+        if (typeof dbClient !== 'undefined' && dbClient) await dbClient.close()
+      } catch (e) {
+        logger.debug && logger.debug('error closing DB client: ' + e.message)
+      }
+    }
 }
 
 exports.main = main
