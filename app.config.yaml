@@ -2,6 +2,9 @@ application:
   actions: actions
   web: web-src
   runtimeManifest:
+    database:
+      auto-provision: true
+      region: apac
     packages:
       customerotplogin:
         license: Apache-2.0
