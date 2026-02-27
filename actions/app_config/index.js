@@ -6,6 +6,7 @@ const CONFIG_ID = 'app_config'
 const COLLECTION_NAME = 'app_config'
 const DEFAULT_OTP_EXPIRATION_VALIDITY = 5
 const DEFAULT_OTP_IN_RESPONSE = false
+const DEFAULT_AUTO_LOGIN = false
 
 async function getCollection (params) {
   const region = params.AIO_DB_REGION || process.env.AIO_DB_REGION || 'apac'
@@ -38,6 +39,14 @@ async function main (params) {
         )
         config = await collection.findOne({ _id: CONFIG_ID })
       }
+      if (config && typeof config.auto_login !== 'boolean') {
+        await collection.updateOne(
+          { _id: CONFIG_ID },
+          { $set: { auto_login: DEFAULT_AUTO_LOGIN, updatedAt: Date.now() } },
+          { upsert: true }
+        )
+        config = await collection.findOne({ _id: CONFIG_ID })
+      }
       return {
         statusCode: 200,
         body: {
@@ -47,7 +56,10 @@ async function main (params) {
             : DEFAULT_OTP_EXPIRATION_VALIDITY,
           otp_in_response: typeof (config && config.otp_in_response) === 'boolean'
             ? config.otp_in_response
-            : DEFAULT_OTP_IN_RESPONSE
+            : DEFAULT_OTP_IN_RESPONSE,
+          auto_login: typeof (config && config.auto_login) === 'boolean'
+            ? config.auto_login
+            : DEFAULT_AUTO_LOGIN
         }
       }
     }
@@ -56,12 +68,14 @@ async function main (params) {
       const rawValue = params.is_enabled
       const rawOtpValidity = params.otp_expiration_validity
       const rawOtpInResponse = params.otp_in_response
+      const rawAutoLogin = params.auto_login
       const hasIsEnabled = typeof rawValue === 'boolean'
       const hasOtpValidity = Number.isInteger(rawOtpValidity)
       const hasOtpInResponse = typeof rawOtpInResponse === 'boolean'
+      const hasAutoLogin = typeof rawAutoLogin === 'boolean'
 
-      if (!hasIsEnabled && !hasOtpValidity && !hasOtpInResponse) {
-        return errorResponse(400, 'Provide is_enabled (boolean) and/or otp_expiration_validity (integer minutes) and/or otp_in_response (boolean)', logger)
+      if (!hasIsEnabled && !hasOtpValidity && !hasOtpInResponse && !hasAutoLogin) {
+        return errorResponse(400, 'Provide is_enabled (boolean) and/or otp_expiration_validity (integer minutes) and/or otp_in_response (boolean) and/or auto_login (boolean)', logger)
       }
 
       if (rawValue !== undefined && typeof rawValue !== 'boolean') {
@@ -76,12 +90,20 @@ async function main (params) {
         return errorResponse(400, 'otp_in_response must be boolean true/false', logger)
       }
 
+      if (rawAutoLogin !== undefined && typeof rawAutoLogin !== 'boolean') {
+        return errorResponse(400, 'auto_login must be boolean true/false', logger)
+      }
+
       const updateFields = {
         updatedAt: Date.now()
       }
 
       if (!hasOtpInResponse) {
         updateFields.otp_in_response = DEFAULT_OTP_IN_RESPONSE
+      }
+
+      if (!hasAutoLogin) {
+        updateFields.auto_login = DEFAULT_AUTO_LOGIN
       }
 
       if (hasIsEnabled) {
@@ -94,6 +116,10 @@ async function main (params) {
 
       if (hasOtpInResponse) {
         updateFields.otp_in_response = rawOtpInResponse
+      }
+
+      if (hasAutoLogin) {
+        updateFields.auto_login = rawAutoLogin
       }
 
       await collection.updateOne(
@@ -115,7 +141,10 @@ async function main (params) {
             : DEFAULT_OTP_EXPIRATION_VALIDITY,
           otp_in_response: typeof (updatedConfig && updatedConfig.otp_in_response) === 'boolean'
             ? updatedConfig.otp_in_response
-            : DEFAULT_OTP_IN_RESPONSE
+            : DEFAULT_OTP_IN_RESPONSE,
+          auto_login: typeof (updatedConfig && updatedConfig.auto_login) === 'boolean'
+            ? updatedConfig.auto_login
+            : DEFAULT_AUTO_LOGIN
         }
       }
     }

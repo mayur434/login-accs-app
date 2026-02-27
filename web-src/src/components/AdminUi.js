@@ -11,6 +11,7 @@ const AdminUi = (props) => {
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
+  const [autoLogin, setAutoLogin] = useState(false)
   const [otpValidity, setOtpValidity] = useState(5)
   const [otpBypass, setOtpBypass] = useState(false)
   const [showSaveErrorDialog, setShowSaveErrorDialog] = useState(false)
@@ -27,6 +28,11 @@ const AdminUi = (props) => {
       <Flex alignItems='center' gap='size-200'>
         <Heading level={3}>Enable Module</Heading>
         <Checkbox size='XL' isSelected={isEnabled} isDisabled={isLoading || isSaving} onChange={onToggleModule} />
+      </Flex>
+
+      <Flex alignItems='center' gap='size-200'>
+        <Heading level={4}>Auto Login</Heading>
+        <Checkbox size='XL' isSelected={autoLogin} isDisabled={isLoading || isSaving} onChange={onAutoLoginToggle} />
       </Flex>
 
       <Flex alignItems='center' gap='size-200'>
@@ -112,6 +118,7 @@ const AdminUi = (props) => {
     try {
       const response = await actionWebInvoke(actionUrl, getAuthHeaders(), {}, { method: 'GET' })
       setIsEnabled(Boolean(response.is_enabled))
+      setAutoLogin(Boolean(response.auto_login))
       setOtpValidity(Number.isInteger(response.otp_expiration_validity) ? response.otp_expiration_validity : 5)
       setOtpBypass(typeof response.otp_in_response === 'boolean' ? response.otp_in_response : true)
       setSuccessMessage(null)
@@ -131,6 +138,12 @@ const AdminUi = (props) => {
 
   function otpBypassToggle (selected) {
     setOtpBypass(selected)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+  }
+
+  function onAutoLoginToggle (selected) {
+    setAutoLogin(selected)
     setErrorMessage(null)
     setSuccessMessage(null)
   }
@@ -157,8 +170,9 @@ const AdminUi = (props) => {
     }
 
     try {
-      const response = await actionWebInvoke(actionUrl, getAuthHeaders(), { is_enabled: isEnabled, otp_expiration_validity: otpValidity, otp_in_response: otpBypass }, { method: 'POST' })
+      const response = await actionWebInvoke(actionUrl, getAuthHeaders(), { is_enabled: isEnabled, auto_login: autoLogin, otp_expiration_validity: otpValidity, otp_in_response: otpBypass }, { method: 'POST' })
       setIsEnabled(Boolean(response.is_enabled))
+      setAutoLogin(Boolean(response.auto_login))
       setOtpValidity(Number.isInteger(response.otp_expiration_validity) ? response.otp_expiration_validity : otpValidity)
       setOtpBypass(typeof response.otp_in_response === 'boolean' ? response.otp_in_response : otpBypass)
     } catch (e) {
