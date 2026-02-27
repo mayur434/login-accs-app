@@ -2,6 +2,7 @@ const fetch = require('node-fetch')
 const { Core } = require('@adobe/aio-sdk')
 const libDB = require('@adobe/aio-lib-db')
 const { errorResponse, stringParameters, checkMissingRequestInputs } = require('../utils')
+const DEFAULT_OTP_EXPIRATION_VALIDITY_MINUTES = 5
 
 // OTPs persisted to Adobe DB collection 'otps'
 
@@ -109,6 +110,12 @@ async function main (params) {
     const db = await libDB.init({ region })
     const dbClient = await db.connect()
     const otpCollection = await dbClient.collection('otps')
+    const appConfigCollection = await dbClient.collection('app_config')
+    const appConfig = await appConfigCollection.findOne({ _id: 'app_config' })
+
+    if (!(appConfig && appConfig.is_enabled)) {
+      return errorResponse(403, 'otp module is disabled', logger)
+    }
 
     // decide mode: generate (no otpValue) vs validate (has otpValue & otpReferenceId)
     const isValidate = inParams.otpValue && inParams.otpReferenceId
@@ -129,6 +136,9 @@ async function main (params) {
 
         const otpValue = generateOtpValue()
         const ref = createReferenceId()
+        const otpValidityMinutes = Number.isInteger(appConfig && appConfig.otp_expiration_validity) && appConfig.otp_expiration_validity > 0
+          ? appConfig.otp_expiration_validity
+          : DEFAULT_OTP_EXPIRATION_VALIDITY_MINUTES
         await otpCollection.insertOne({
           otpReferenceId: ref,
           otp: otpValue,
@@ -136,7 +146,8 @@ async function main (params) {
           mobile: inParams.mobile,
           email: inParams.email,
           createdAt: Date.now(),
-          expiresAt: Date.now() + (5 * 60 * 1000) // 5 minutes
+          expiresAt: Date.now() + (otpValidityMinutes * 60 * 1000),
+          otpExpirationValidityMinutes: otpValidityMinutes
         })
 
       // NOTE: in production you should send OTP via SMS/email here instead

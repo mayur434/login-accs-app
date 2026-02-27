@@ -18,7 +18,7 @@ function SideBar () {
                     Home
                 </NavLink>
             </li>
-            <li className="SideNav-item">
+            {/* <li className="SideNav-item">
                 <NavLink
                     className={({ isActive }) => `SideNav-itemLink ${isActive ? 'is-selected' : ''}`}
                     aria-current="page"
@@ -34,6 +34,15 @@ function SideBar () {
                     to="/about"
                 >
                     About App Builder
+                </NavLink>
+            </li> */}
+            <li className="SideNav-item">
+                <NavLink
+                    className={({ isActive }) => `SideNav-itemLink ${isActive ? 'is-selected' : ''}`}
+                    aria-current="page"
+                    to="/admin"
+                >
+                    Admin UI
                 </NavLink>
             </li>
         </ul>

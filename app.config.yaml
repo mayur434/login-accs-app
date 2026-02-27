@@ -27,3 +27,12 @@ application:
             annotations:
               require-adobe-auth: false
               final: true
+          app_config:
+            function: actions/app_config/index.js
+            web: 'yes'
+            runtime: nodejs:22
+            inputs:
+              LOG_LEVEL: debug
+            annotations:
+              require-adobe-auth: false
+              final: true

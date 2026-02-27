@@ -10,6 +10,7 @@ import SideBar from './SideBar'
 import ActionsForm from './ActionsForm'
 import { Home } from './Home'
 import { About } from './About'
+import AdminUi from './AdminUi'
 
 function App (props) {
   console.log('runtime object:', props.runtime)
@@ -36,18 +37,19 @@ function App (props) {
             height='100vh'
             gap='size-100'
           >
-            <View
+            {/* <View
               gridArea='sidebar'
               backgroundColor='gray-200'
               padding='size-200'
             >
               <SideBar></SideBar>
-            </View>
+            </View> */}
             <View gridArea='content' padding='size-200'>
               <Routes>
                 <Route path='/' element={<Home />} />
                 <Route path='/actions' element={<ActionsForm runtime={props.runtime} ims={props.ims} />}/>
                 <Route path='/about' element={<About />}/>
+                <Route path='/admin' element={<AdminUi ims={props.ims} />}/>
               </Routes>
             </View>
           </Grid>
