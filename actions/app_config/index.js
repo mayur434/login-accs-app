@@ -5,6 +5,7 @@ const { errorResponse, stringParameters } = require('../utils')
 const CONFIG_ID = 'app_config'
 const COLLECTION_NAME = 'app_config'
 const DEFAULT_OTP_EXPIRATION_VALIDITY = 5
+const DEFAULT_OTP_IN_RESPONSE = false
 
 async function getCollection (params) {
   const region = params.AIO_DB_REGION || process.env.AIO_DB_REGION || 'apac'
@@ -28,14 +29,25 @@ async function main (params) {
     dbClient = connectedClient
 
     if (method === 'GET') {
-      const config = await collection.findOne({ _id: CONFIG_ID })
+      let config = await collection.findOne({ _id: CONFIG_ID })
+      if (config && typeof config.otp_in_response !== 'boolean') {
+        await collection.updateOne(
+          { _id: CONFIG_ID },
+          { $set: { otp_in_response: DEFAULT_OTP_IN_RESPONSE, updatedAt: Date.now() } },
+          { upsert: true }
+        )
+        config = await collection.findOne({ _id: CONFIG_ID })
+      }
       return {
         statusCode: 200,
         body: {
           is_enabled: Boolean(config && config.is_enabled),
           otp_expiration_validity: Number.isInteger(config && config.otp_expiration_validity)
             ? config.otp_expiration_validity
-            : DEFAULT_OTP_EXPIRATION_VALIDITY
+            : DEFAULT_OTP_EXPIRATION_VALIDITY,
+          otp_in_response: typeof (config && config.otp_in_response) === 'boolean'
+            ? config.otp_in_response
+            : DEFAULT_OTP_IN_RESPONSE
         }
       }
     }
@@ -43,11 +55,13 @@ async function main (params) {
     if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
       const rawValue = params.is_enabled
       const rawOtpValidity = params.otp_expiration_validity
+      const rawOtpInResponse = params.otp_in_response
       const hasIsEnabled = typeof rawValue === 'boolean'
       const hasOtpValidity = Number.isInteger(rawOtpValidity)
+      const hasOtpInResponse = typeof rawOtpInResponse === 'boolean'
 
-      if (!hasIsEnabled && !hasOtpValidity) {
-        return errorResponse(400, 'Provide is_enabled (boolean) and/or otp_expiration_validity (integer minutes)', logger)
+      if (!hasIsEnabled && !hasOtpValidity && !hasOtpInResponse) {
+        return errorResponse(400, 'Provide is_enabled (boolean) and/or otp_expiration_validity (integer minutes) and/or otp_in_response (boolean)', logger)
       }
 
       if (rawValue !== undefined && typeof rawValue !== 'boolean') {
@@ -58,8 +72,16 @@ async function main (params) {
         return errorResponse(400, 'otp_expiration_validity must be a positive integer (minutes)', logger)
       }
 
+      if (rawOtpInResponse !== undefined && typeof rawOtpInResponse !== 'boolean') {
+        return errorResponse(400, 'otp_in_response must be boolean true/false', logger)
+      }
+
       const updateFields = {
         updatedAt: Date.now()
+      }
+
+      if (!hasOtpInResponse) {
+        updateFields.otp_in_response = DEFAULT_OTP_IN_RESPONSE
       }
 
       if (hasIsEnabled) {
@@ -68,6 +90,10 @@ async function main (params) {
 
       if (hasOtpValidity) {
         updateFields.otp_expiration_validity = rawOtpValidity
+      }
+
+      if (hasOtpInResponse) {
+        updateFields.otp_in_response = rawOtpInResponse
       }
 
       await collection.updateOne(
@@ -86,7 +112,10 @@ async function main (params) {
           is_enabled: Boolean(updatedConfig && updatedConfig.is_enabled),
           otp_expiration_validity: Number.isInteger(updatedConfig && updatedConfig.otp_expiration_validity)
             ? updatedConfig.otp_expiration_validity
-            : DEFAULT_OTP_EXPIRATION_VALIDITY
+            : DEFAULT_OTP_EXPIRATION_VALIDITY,
+          otp_in_response: typeof (updatedConfig && updatedConfig.otp_in_response) === 'boolean'
+            ? updatedConfig.otp_in_response
+            : DEFAULT_OTP_IN_RESPONSE
         }
       }
     }

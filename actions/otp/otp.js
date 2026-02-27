@@ -3,6 +3,7 @@ const { Core } = require('@adobe/aio-sdk')
 const libDB = require('@adobe/aio-lib-db')
 const { errorResponse, stringParameters, checkMissingRequestInputs } = require('../utils')
 const DEFAULT_OTP_EXPIRATION_VALIDITY_MINUTES = 5
+const DEFAULT_OTP_IN_RESPONSE = true
 
 // OTPs persisted to Adobe DB collection 'otps'
 
@@ -139,6 +140,9 @@ async function main (params) {
         const otpValidityMinutes = Number.isInteger(appConfig && appConfig.otp_expiration_validity) && appConfig.otp_expiration_validity > 0
           ? appConfig.otp_expiration_validity
           : DEFAULT_OTP_EXPIRATION_VALIDITY_MINUTES
+        const otpInResponse = typeof (appConfig && appConfig.otp_in_response) === 'boolean'
+          ? appConfig.otp_in_response
+          : DEFAULT_OTP_IN_RESPONSE
         await otpCollection.insertOne({
           otpReferenceId: ref,
           otp: otpValue,
@@ -153,10 +157,14 @@ async function main (params) {
       // NOTE: in production you should send OTP via SMS/email here instead
       return {
         statusCode: 200,
-        body: {
-          otpReferenceId: ref,
-          otpValue // returned for testing/demo purposes
-        }
+        body: otpInResponse
+          ? {
+              otpReferenceId: ref,
+              otpValue
+            }
+          : {
+              otpReferenceId: ref
+            }
       }
     }
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import PropTypes from 'prop-types'
-import { ActionButton, Button, Checkbox, Flex, Heading, NumberField, ProgressCircle, StatusLight, Tooltip, TooltipTrigger, View } from '@adobe/react-spectrum'
+import { ActionButton, AlertDialog, Button, Checkbox, DialogContainer, Flex, Heading, NumberField, ProgressCircle, StatusLight, Tooltip, TooltipTrigger, View } from '@adobe/react-spectrum'
 import allActions from '../config.json'
 import actionWebInvoke from '../utils'
 import Info from '@spectrum-icons/workflow/Info'
@@ -12,6 +12,10 @@ const AdminUi = (props) => {
   const [errorMessage, setErrorMessage] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
   const [otpValidity, setOtpValidity] = useState(5)
+  const [otpBypass, setOtpBypass] = useState(false)
+  const [showSaveErrorDialog, setShowSaveErrorDialog] = useState(false)
+  const [saveErrorDialogMessage, setSaveErrorDialogMessage] = useState('Unable to update module setting')
+
 
   useEffect(() => {
     loadConfig()
@@ -24,7 +28,18 @@ const AdminUi = (props) => {
         <Heading level={3}>Enable Module</Heading>
         <Checkbox size='XL' isSelected={isEnabled} isDisabled={isLoading || isSaving} onChange={onToggleModule} />
       </Flex>
-      
+
+      <Flex alignItems='center' gap='size-200'>
+         <Heading level={4}>Enable OTP Bypass</Heading>
+        <TooltipTrigger delay={0}>
+          <ActionButton isQuiet aria-label='Set the duration for which the OTP is valid'>
+            <Info size='S' />
+          </ActionButton>
+          <Tooltip>includes the OTP in the response for testing purposes.</Tooltip>
+        </TooltipTrigger>
+        <Checkbox size='XL' isSelected={otpBypass} isDisabled={isLoading || isSaving} onChange={otpBypassToggle} />
+      </Flex>
+
       <Flex alignItems='center' gap='size-200'>
         <Heading level={4}>OTP expiration validity </Heading>
         <TooltipTrigger delay={0}>
@@ -51,20 +66,36 @@ const AdminUi = (props) => {
       )}
 
       <Flex marginTop='size-200'>
-        <Button variant='primary' onPress={saveConfig} isDisabled={isLoading || isSaving}>Save</Button>
+        <Button variant='accent' onPress={saveConfig} isDisabled={isLoading || isSaving}>Save</Button>
       </Flex>
 
-      <Flex marginTop='size-200' gap='size-200' alignItems='center'>
+      <DialogContainer onDismiss={closeSaveErrorDialog}>
+        {showSaveErrorDialog && (
+          <AlertDialog
+            title='Failed to save configuration'
+            variant='error'
+            primaryActionLabel='Try Again'
+            cancelLabel='Close'
+            onPrimaryAction={saveConfig}
+            onCancel={closeSaveErrorDialog}
+          >
+            {saveErrorDialogMessage}
+          </AlertDialog>
+        )}
+      </DialogContainer>
+
+      {/* <Flex marginTop='size-200' gap='size-200' alignItems='center'>
         <Heading level={4}>Business Requirement Document</Heading>
         <a href='#' ></a>
       </Flex>
       <Flex gap='size-200' alignItems='center'>
         <Heading level={4}>Technical Document</Heading>
          <a href='#' ></a>
-      </Flex>
-      <Flex gap='size-200' alignItems='center'>
-        <Heading level={4}>API Collection</Heading>
-         <a href='#' ></a>
+      </Flex> */}
+      <Flex marginTop='size-300' gap='size-200' alignItems='center'>
+         <a href='https://documenter.getpostman.com/view/35158574/2sBXcHhJYk#d3985841-bd9e-4dda-8b4e-2c5a181e6245'>
+         <em>API Documentation</em>
+         </a>
       </Flex>
     </View>
   )
@@ -82,6 +113,7 @@ const AdminUi = (props) => {
       const response = await actionWebInvoke(actionUrl, getAuthHeaders(), {}, { method: 'GET' })
       setIsEnabled(Boolean(response.is_enabled))
       setOtpValidity(Number.isInteger(response.otp_expiration_validity) ? response.otp_expiration_validity : 5)
+      setOtpBypass(typeof response.otp_in_response === 'boolean' ? response.otp_in_response : true)
       setSuccessMessage(null)
     } catch (e) {
       setErrorMessage(getActionErrorMessage(e, 'load'))
@@ -97,6 +129,12 @@ const AdminUi = (props) => {
     setSuccessMessage(null)
   }
 
+  function otpBypassToggle (selected) {
+    setOtpBypass(selected)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+  }
+
   function onOtpValidityChange (value) {
     const nextValue = Number.isFinite(value) ? Math.max(1, Math.round(value)) : 1
     setOtpValidity(nextValue)
@@ -108,6 +146,8 @@ const AdminUi = (props) => {
     setIsSaving(true)
     setErrorMessage(null)
     setSuccessMessage(null)
+    let saveFailed = false
+    let saveErrorText = ''
 
     const actionUrl = allActions['customerotplogin/app_config']
     if (!actionUrl) {
@@ -117,16 +157,28 @@ const AdminUi = (props) => {
     }
 
     try {
-      const response = await actionWebInvoke(actionUrl, getAuthHeaders(), { is_enabled: isEnabled, otp_expiration_validity: otpValidity }, { method: 'POST' })
+      const response = await actionWebInvoke(actionUrl, getAuthHeaders(), { is_enabled: isEnabled, otp_expiration_validity: otpValidity, otp_in_response: otpBypass }, { method: 'POST' })
       setIsEnabled(Boolean(response.is_enabled))
       setOtpValidity(Number.isInteger(response.otp_expiration_validity) ? response.otp_expiration_validity : otpValidity)
-      setSuccessMessage('Configuration saved')
+      setOtpBypass(typeof response.otp_in_response === 'boolean' ? response.otp_in_response : otpBypass)
     } catch (e) {
-      setErrorMessage(getActionErrorMessage(e, 'save'))
+      saveFailed = true
+      saveErrorText = getActionErrorMessage(e, 'save')
+      setErrorMessage(saveErrorText)
+      setSaveErrorDialogMessage(saveErrorText)
+      setShowSaveErrorDialog(true)
       console.error(e)
     } finally {
       setIsSaving(false)
+      await loadConfig()
+      if (!saveFailed) {
+        setSuccessMessage('Configuration saved')
+      }
     }
+  }
+
+  function closeSaveErrorDialog () {
+    setShowSaveErrorDialog(false)
   }
 
   function getActionErrorMessage (error, operation) {
