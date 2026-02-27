@@ -99,7 +99,7 @@ const AdminUi = (props) => {
          <a href='#' ></a>
       </Flex> */}
       <Flex marginTop='size-300' gap='size-200' alignItems='center'>
-         <a href='https://documenter.getpostman.com/view/35158574/2sBXcHhJYk#d3985841-bd9e-4dda-8b4e-2c5a181e6245'>
+         <a href='https://documenter.getpostman.com/view/35158574/2sBXcHhJYk#d3985841-bd9e-4dda-8b4e-2c5a181e6245' target="_blank">
          <em>API Documentation</em>
          </a>
       </Flex>
