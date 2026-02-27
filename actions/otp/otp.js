@@ -179,7 +179,7 @@ async function main (params) {
     let emailToUse = record.email
     if (inParams.loginType === 'mobile') {
       if (!record.mobile) return errorResponse(400, 'mobile not present for this reference', logger)
-      emailToUse = `${record.mobile}@vijaysales.com`
+      emailToUse = `${record.mobile}@email.com`
     }
 
     const defaultPassword = 'Pass@123'
