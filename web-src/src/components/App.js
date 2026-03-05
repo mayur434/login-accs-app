@@ -11,6 +11,7 @@ import ActionsForm from './ActionsForm'
 import { Home } from './Home'
 import { About } from './About'
 import AdminUi from './AdminUi'
+import ExtensionRegistration from './ExtensionRegistration'
 
 function App (props) {
   console.log('runtime object:', props.runtime)
@@ -46,7 +47,7 @@ function App (props) {
             </View> */}
             <View gridArea='content' padding='size-200'>
               <Routes>
-                <Route path='/' element={<Home />} />
+                <Route path='/' element={<ExtensionRegistration runtime={props.runtime} ims={props.ims} />} />
                 <Route path='/actions' element={<ActionsForm runtime={props.runtime} ims={props.ims} />}/>
                 <Route path='/about' element={<About />}/>
                 <Route path='/admin' element={<AdminUi ims={props.ims} />}/>

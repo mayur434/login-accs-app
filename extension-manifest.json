@@ -1,0 +1,8 @@
+{
+  "name": "customer module",
+  "displayName": "Customer Module on App Builder",
+  "description": "Customer Module on App Builder",
+  "platform": "web",
+  "id": "customer-module",
+  "version": "1.0.0"
+}

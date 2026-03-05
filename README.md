@@ -78,3 +78,8 @@ and make sure you have the below config added
     }
   } 
 ```
+
+## Documents
+
+- Technical documentation: [TECHNICAL_README.md](TECHNICAL_README.md)
+- Business documentation: [BUSINESS_README.md](BUSINESS_README.md)

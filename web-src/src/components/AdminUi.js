@@ -17,14 +17,19 @@ const AdminUi = (props) => {
   const [showSaveErrorDialog, setShowSaveErrorDialog] = useState(false)
   const [saveErrorDialogMessage, setSaveErrorDialogMessage] = useState('Unable to update module setting')
 
-
   useEffect(() => {
+    const hasToken = Boolean(props.ims && props.ims.token)
+    if (!hasToken) {
+      setIsLoading(false)
+      setErrorMessage('Waiting for Adobe IMS session...')
+      return
+    }
     loadConfig()
-  }, [])
+  }, [props.ims && props.ims.token, props.ims && props.ims.org])
 
   return (
     <View width="size-6000">
-      <Heading level={1}>Custom Module Admin Dashboard</Heading>
+      <Heading level={1}>Login App Admin - ACCS</Heading>
       <Flex alignItems='center' gap='size-200'>
         <Heading level={3}>Enable Module</Heading>
         <Checkbox size='XL' isSelected={isEnabled} isDisabled={isLoading || isSaving} onChange={onToggleModule} />
@@ -90,11 +95,14 @@ const AdminUi = (props) => {
         )}
       </DialogContainer>
 
-      {/* <Flex marginTop='size-200' gap='size-200' alignItems='center'>
-        <Heading level={4}>Business Requirement Document</Heading>
-        <a href='#' ></a>
+       <Flex marginTop='size-200' gap='size-200' alignItems='center'>
+        <a href='https://docs.google.com/document/d/1DLiipwI7Ppq0j8xZSSejzOjDizT-Com73chVAElpvF4/edit?tab=t.0' target='_blank' >
+        <em>
+          App Document
+        </em>
+        </a>
       </Flex>
-      <Flex gap='size-200' alignItems='center'>
+      {/*<Flex gap='size-200' alignItems='center'>
         <Heading level={4}>Technical Document</Heading>
          <a href='#' ></a>
       </Flex> */}
@@ -109,6 +117,12 @@ const AdminUi = (props) => {
   async function loadConfig () {
     setIsLoading(true)
     setErrorMessage(null)
+    const authHeaders = getAuthHeaders()
+    if (!authHeaders.authorization) {
+      setErrorMessage('Missing Adobe IMS session. Open this extension from Adobe Commerce Admin and wait for context load.')
+      setIsLoading(false)
+      return
+    }
     const actionUrl = allActions['customerotplogin/app_config']
     if (!actionUrl) {
       setErrorMessage('app_config action URL is missing in config.json')
@@ -116,7 +130,7 @@ const AdminUi = (props) => {
       return
     }
     try {
-      const response = await actionWebInvoke(actionUrl, getAuthHeaders(), {}, { method: 'GET' })
+      const response = await actionWebInvoke(actionUrl, authHeaders, {}, { method: 'GET' })
       setIsEnabled(Boolean(response.is_enabled))
       setAutoLogin(Boolean(response.auto_login))
       setOtpValidity(Number.isInteger(response.otp_expiration_validity) ? response.otp_expiration_validity : 5)
@@ -161,6 +175,13 @@ const AdminUi = (props) => {
     setSuccessMessage(null)
     let saveFailed = false
     let saveErrorText = ''
+    const authHeaders = getAuthHeaders()
+
+    if (!authHeaders.authorization) {
+      setErrorMessage('Missing Adobe IMS session. Open this extension from Adobe Commerce Admin and wait for context load.')
+      setIsSaving(false)
+      return
+    }
 
     const actionUrl = allActions['customerotplogin/app_config']
     if (!actionUrl) {
@@ -170,7 +191,7 @@ const AdminUi = (props) => {
     }
 
     try {
-      const response = await actionWebInvoke(actionUrl, getAuthHeaders(), { is_enabled: isEnabled, auto_login: autoLogin, otp_expiration_validity: otpValidity, otp_in_response: otpBypass }, { method: 'POST' })
+      const response = await actionWebInvoke(actionUrl, authHeaders, { is_enabled: isEnabled, auto_login: autoLogin, otp_expiration_validity: otpValidity, otp_in_response: otpBypass }, { method: 'POST' })
       setIsEnabled(Boolean(response.is_enabled))
       setAutoLogin(Boolean(response.auto_login))
       setOtpValidity(Number.isInteger(response.otp_expiration_validity) ? response.otp_expiration_validity : otpValidity)

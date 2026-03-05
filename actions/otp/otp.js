@@ -37,9 +37,7 @@ async function graphQLRequest (params, query, variables = {}, logger) {
   if (!endpoint) throw new Error('GRAPHQL_ENDPOINT not configured in params or env')
 
   const headers = { 'Content-Type': 'application/json' }
-  if (params.__ow_headers && params.__ow_headers.authorization) {
-    headers.authorization = params.__ow_headers.authorization
-  } else if (process.env.GRAPHQL_API_KEY) {
+  if (process.env.GRAPHQL_API_KEY) {
     headers.authorization = `Bearer ${process.env.GRAPHQL_API_KEY}`
   }
 
