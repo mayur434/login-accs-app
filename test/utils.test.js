@@ -9,6 +9,7 @@ test('interface', () => {
   expect(typeof utils.stringParameters).toBe('function')
   expect(typeof utils.checkMissingRequestInputs).toBe('function')
   expect(typeof utils.getBearerToken).toBe('function')
+  expect(typeof utils.normalizeMobile).toBe('function')
 })
 
 describe('errorResponse', () => {
@@ -107,5 +108,31 @@ describe('getBearerToken', () => {
   })
   test('({ __ow_headers: { authorization: Bearer fake Bearer fake} })', () => {
     expect(utils.getBearerToken({ __ow_headers: { authorization: 'Bearer fake Bearer fake' } })).toEqual('fake Bearer fake')
+  })
+})
+
+describe('normalizeMobile', () => {
+  test('9876543210 -> +919876543210', () => {
+    expect(utils.normalizeMobile('9876543210')).toEqual('+919876543210')
+  })
+
+  test('919876543210 -> +919876543210', () => {
+    expect(utils.normalizeMobile('919876543210')).toEqual('+919876543210')
+  })
+
+  test('+919876543210 -> +919876543210', () => {
+    expect(utils.normalizeMobile('+919876543210')).toEqual('+919876543210')
+  })
+
+  test('remove spaces and special chars', () => {
+    expect(utils.normalizeMobile(' +91 98765-43210 ')).toEqual('+919876543210')
+  })
+
+  test('throws for invalid number', () => {
+    expect(() => utils.normalizeMobile('1234567890')).toThrow('invalid indian mobile number')
+  })
+
+  test('throws for non-10-digit mobile after normalization', () => {
+    expect(() => utils.normalizeMobile('987654321')).toThrow('invalid indian mobile number')
   })
 })

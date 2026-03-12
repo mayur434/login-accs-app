@@ -1,0 +1,17 @@
+{
+  "meshConfig": {
+    "sources": [
+      {
+        "name": "Commerce",
+        "handler": {
+          "graphql": {
+            "endpoint": "https://na1-sandbox.api.commerce.adobe.com/7k8EEaou2ToLpUVmBc8LE7/graphql",
+            "operationHeaders": {
+             "Authorization": "{context.headers.authorization}"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

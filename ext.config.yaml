@@ -43,6 +43,20 @@ runtimeManifest:
           annotations:
             require-adobe-auth: true
             final: true
+        customerAuth:
+          function: actions/customerAuth/index.js
+          web: 'yes'
+          runtime: nodejs:22
+          inputs:
+            LOG_LEVEL: debug
+            apikey: $SERVICE_API_KEY
+            GRAPHQL_ENDPOINT: $GRAPHQL_ENDPOINT
+            GRAPHQL_API_KEY: $GRAPHQL_API_KEY
+            AIO_DB_REGION: apac
+          annotations:
+            require-adobe-auth: true
+            include-ims-credentials: true
+            final: true
         registration:
           function: actions/registration/index.js
           web: 'yes'

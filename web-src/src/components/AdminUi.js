@@ -12,6 +12,7 @@ const AdminUi = (props) => {
   const [errorMessage, setErrorMessage] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
   const [autoLogin, setAutoLogin] = useState(false)
+  const [allowKeyInfoUpdate, setAllowKeyInfoUpdate] = useState(false)
   const [otpValidity, setOtpValidity] = useState(5)
   const [otpBypass, setOtpBypass] = useState(false)
   const [showSaveErrorDialog, setShowSaveErrorDialog] = useState(false)
@@ -61,6 +62,17 @@ const AdminUi = (props) => {
         </TooltipTrigger>
 
         <NumberField value={otpValidity} onChange={onOtpValidityChange} minValue={1} step={1} width='size-2000' isDisabled={isLoading || isSaving} />
+      </Flex>
+
+        <Flex alignItems='center' gap='size-200'>
+        <Heading level={4}>Allow Key Info Update</Heading>
+        <TooltipTrigger delay={0}>
+          <ActionButton isQuiet aria-label='Allow customer key info updates'>
+            <Info size='S' />
+          </ActionButton>
+          <Tooltip>Allows user identifier updates such as mobile/email mapping changes.</Tooltip>
+        </TooltipTrigger>
+        <Checkbox size='XL' isSelected={allowKeyInfoUpdate} isDisabled={isLoading || isSaving} onChange={onAllowKeyInfoUpdateToggle} />
       </Flex>
 
       {(isLoading || isSaving) && <ProgressCircle aria-label='loading config' isIndeterminate marginTop='size-100' />}
@@ -133,6 +145,7 @@ const AdminUi = (props) => {
       const response = await actionWebInvoke(actionUrl, authHeaders, {}, { method: 'GET' })
       setIsEnabled(Boolean(response.is_enabled))
       setAutoLogin(Boolean(response.auto_login))
+      setAllowKeyInfoUpdate(Boolean(response.allow_key_info_update))
       setOtpValidity(Number.isInteger(response.otp_expiration_validity) ? response.otp_expiration_validity : 5)
       setOtpBypass(typeof response.otp_in_response === 'boolean' ? response.otp_in_response : true)
       setSuccessMessage(null)
@@ -158,6 +171,12 @@ const AdminUi = (props) => {
 
   function onAutoLoginToggle (selected) {
     setAutoLogin(selected)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+  }
+
+  function onAllowKeyInfoUpdateToggle (selected) {
+    setAllowKeyInfoUpdate(selected)
     setErrorMessage(null)
     setSuccessMessage(null)
   }
@@ -191,9 +210,21 @@ const AdminUi = (props) => {
     }
 
     try {
-      const response = await actionWebInvoke(actionUrl, authHeaders, { is_enabled: isEnabled, auto_login: autoLogin, otp_expiration_validity: otpValidity, otp_in_response: otpBypass }, { method: 'POST' })
+      const response = await actionWebInvoke(
+        actionUrl,
+        authHeaders,
+        {
+          is_enabled: isEnabled,
+          auto_login: autoLogin,
+          allow_key_info_update: allowKeyInfoUpdate,
+          otp_expiration_validity: otpValidity,
+          otp_in_response: otpBypass
+        },
+        { method: 'POST' }
+      )
       setIsEnabled(Boolean(response.is_enabled))
       setAutoLogin(Boolean(response.auto_login))
+      setAllowKeyInfoUpdate(Boolean(response.allow_key_info_update))
       setOtpValidity(Number.isInteger(response.otp_expiration_validity) ? response.otp_expiration_validity : otpValidity)
       setOtpBypass(typeof response.otp_in_response === 'boolean' ? response.otp_in_response : otpBypass)
     } catch (e) {

@@ -7,6 +7,7 @@ const COLLECTION_NAME = 'app_config'
 const DEFAULT_OTP_EXPIRATION_VALIDITY = 5
 const DEFAULT_OTP_IN_RESPONSE = false
 const DEFAULT_AUTO_LOGIN = false
+const DEFAULT_ALLOW_KEY_INFO_UPDATE = false
 
 async function getCollection (params) {
   const region = params.AIO_DB_REGION || process.env.AIO_DB_REGION || 'apac'
@@ -27,7 +28,10 @@ function normalizeConfig (config) {
       : DEFAULT_OTP_IN_RESPONSE,
     auto_login: typeof (config && config.auto_login) === 'boolean'
       ? config.auto_login
-      : DEFAULT_AUTO_LOGIN
+      : DEFAULT_AUTO_LOGIN,
+    allow_key_info_update: typeof (config && config.allow_key_info_update) === 'boolean'
+      ? config.allow_key_info_update
+      : DEFAULT_ALLOW_KEY_INFO_UPDATE
   }
 }
 
@@ -49,6 +53,14 @@ async function getDocDbConfig (collection) {
     )
     config = await collection.findOne({ _id: CONFIG_ID })
   }
+  if (config && typeof config.allow_key_info_update !== 'boolean') {
+    await collection.updateOne(
+      { _id: CONFIG_ID },
+      { $set: { allow_key_info_update: DEFAULT_ALLOW_KEY_INFO_UPDATE, updatedAt: Date.now() } },
+      { upsert: true }
+    )
+    config = await collection.findOne({ _id: CONFIG_ID })
+  }
   return normalizeConfig(config)
 }
 
@@ -57,13 +69,15 @@ function validateUpdatePayload (params, logger) {
   const rawOtpValidity = params.otp_expiration_validity
   const rawOtpInResponse = params.otp_in_response
   const rawAutoLogin = params.auto_login
+  const rawAllowKeyInfoUpdate = params.allow_key_info_update
   const hasIsEnabled = typeof rawValue === 'boolean'
   const hasOtpValidity = Number.isInteger(rawOtpValidity)
   const hasOtpInResponse = typeof rawOtpInResponse === 'boolean'
   const hasAutoLogin = typeof rawAutoLogin === 'boolean'
+  const hasAllowKeyInfoUpdate = typeof rawAllowKeyInfoUpdate === 'boolean'
 
-  if (!hasIsEnabled && !hasOtpValidity && !hasOtpInResponse && !hasAutoLogin) {
-    return { error: errorResponse(400, 'Provide is_enabled (boolean) and/or otp_expiration_validity (integer minutes) and/or otp_in_response (boolean) and/or auto_login (boolean)', logger) }
+  if (!hasIsEnabled && !hasOtpValidity && !hasOtpInResponse && !hasAutoLogin && !hasAllowKeyInfoUpdate) {
+    return { error: errorResponse(400, 'Provide is_enabled (boolean) and/or otp_expiration_validity (integer minutes) and/or otp_in_response (boolean) and/or auto_login (boolean) and/or allow_key_info_update (boolean)', logger) }
   }
 
   if (rawValue !== undefined && typeof rawValue !== 'boolean') {
@@ -82,6 +96,10 @@ function validateUpdatePayload (params, logger) {
     return { error: errorResponse(400, 'auto_login must be boolean true/false', logger) }
   }
 
+  if (rawAllowKeyInfoUpdate !== undefined && typeof rawAllowKeyInfoUpdate !== 'boolean') {
+    return { error: errorResponse(400, 'allow_key_info_update must be boolean true/false', logger) }
+  }
+
   const updateFields = {
     updatedAt: Date.now()
   }
@@ -92,6 +110,10 @@ function validateUpdatePayload (params, logger) {
 
   if (!hasAutoLogin) {
     updateFields.auto_login = DEFAULT_AUTO_LOGIN
+  }
+
+  if (!hasAllowKeyInfoUpdate) {
+    updateFields.allow_key_info_update = DEFAULT_ALLOW_KEY_INFO_UPDATE
   }
 
   if (hasIsEnabled) {
@@ -108,6 +130,10 @@ function validateUpdatePayload (params, logger) {
 
   if (hasAutoLogin) {
     updateFields.auto_login = rawAutoLogin
+  }
+
+  if (hasAllowKeyInfoUpdate) {
+    updateFields.allow_key_info_update = rawAllowKeyInfoUpdate
   }
 
   return { updateFields }

@@ -101,6 +101,31 @@ function getBearerToken (params) {
   }
   return undefined
 }
+
+function getLoginType (identifier) {
+  const value = String(identifier || '').trim()
+
+  if (value.includes('@')) {
+    return { type: 'email' }
+  }
+
+  return { type: 'mobile' }
+}
+
+function normalizeMobile (mobile) {
+  const digitsOnly = String(mobile || '').replace(/\D/g, '')
+
+  let localMobile = digitsOnly
+  if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) {
+    localMobile = digitsOnly.slice(2)
+  }
+
+  if (!/^([6-9]\d{9})$/.test(localMobile)) {
+    throw new Error('invalid indian mobile number')
+  }
+
+  return `+91${localMobile}`
+}
 /**
  *
  * Returns an error response object and attempts to log.info the status code and error message
@@ -132,6 +157,8 @@ function errorResponse (statusCode, message, logger) {
 module.exports = {
   errorResponse,
   getBearerToken,
+  getLoginType,
+  normalizeMobile,
   stringParameters,
   checkMissingRequestInputs
 }
