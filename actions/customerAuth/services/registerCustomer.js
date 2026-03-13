@@ -278,12 +278,7 @@ async function graphQLRequest(params, query, variables, logger) {
     throw new Error('GRAPHQL_ENDPOINT not configured in params or env')
   }
 
-  const apiKey = params.GRAPHQL_API_KEY || process.env.GRAPHQL_API_KEY
   const headers = { 'Content-Type': 'application/json' }
-  if (apiKey) {
-    headers.authorization = `Bearer ${apiKey}`
-  }
-
   const response = await fetch(endpoint, {
     method: 'POST',
     headers,
@@ -472,7 +467,7 @@ async function createCommerceAndSyncIdentity(params, logger, collection, prepare
 }
 
 async function connectDb(params, logger) {
-  const region = params.AIO_DB_REGION || process.env.AIO_DB_REGION || 'apac'
+  const region = 'apac'
   const rawToken = params.AIO_DB_TOKEN || process.env.AIO_DB_TOKEN
 
   const token = typeof rawToken === 'string' ? rawToken : rawToken?.access_token
@@ -490,8 +485,7 @@ async function connectDb(params, logger) {
   const db = await libDB.init({ region, token: token })
   const dbClient = await db.connect()
   const collection = await dbClient.collection(COLLECTION_NAME)
-  const test = await collection.findOne({ mobile_number: '+919284411900', status: 'active' });
-  console.log(test);
+
   return { dbClient, collection }
 }
 

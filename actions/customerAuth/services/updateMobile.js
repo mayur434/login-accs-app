@@ -163,6 +163,7 @@ function getPreparedUpdateInput(params) {
 
   let normalizedMobile = null
   let resolvedEmail = null
+  let password = null
 
   if (hasMobile) {
     try {
@@ -178,6 +179,10 @@ function getPreparedUpdateInput(params) {
     } catch (error) {
       return { error: badRequest(error.message || 'invalid email') }
     }
+    if (!hasValue(params.password)) {
+      return { error: badRequest("missing parameter 'password' for email update") }
+    }
+    password = String(params.password).trim()
   }
 
   return {
@@ -185,7 +190,8 @@ function getPreparedUpdateInput(params) {
       hasMobile,
       hasEmail,
       normalizedMobile,
-      resolvedEmail
+      resolvedEmail,
+      password
     }
   }
 }
@@ -293,8 +299,6 @@ async function graphQLRequest(params, query, variables, logger) {
   // updateCustomerV2 requires a customer context token; prefer it when present.
   if (customerToken) {
     headers.authorization = `Bearer ${customerToken}`
-  } else if (apiKey) {
-    headers.authorization = `Bearer ${apiKey}`
   }
 
   logger.info(`calling GraphQL ${endpoint}`)
@@ -324,12 +328,27 @@ function isUnauthorizedCommerceError(error) {
 
 async function updateCommerceKeyInfo(params, customerId, prepared, logger) {
   if (prepared.hasEmail && prepared.hasMobile) {
+    const emailMutation = `
+      mutation UpdateCustomerEmail($email: String!, $password: String!){
+        updateCustomerEmail(email: $email, password: $password) {
+          customer {
+            email
+          }
+        }
+      }
+    `
+    await graphQLRequest(
+      params,
+      emailMutation,
+      { email: prepared.resolvedEmail, password: prepared.password },
+      logger
+    )
+
     const commerceMobile = getCommerceMobileValue(prepared.normalizedMobile)
-    const mutation = `
-      mutation updateCustomerV2($email: String!, $mobile: String!) {
+    const mobileMutation = `
+      mutation updateCustomerV2($mobile: String!) {
         updateCustomerV2(
           input: {
-            email: $email
             custom_attributes: [
               {
                 attribute_code: "mobile_number"
@@ -341,28 +360,22 @@ async function updateCommerceKeyInfo(params, customerId, prepared, logger) {
           customer {
             id
             email
+            custom_attributes {
+              code
+              ...on AttributeValue { value }
+            }
           }
         }
       }
     `
-    return graphQLRequest(
-      params,
-      mutation,
-      { email: prepared.resolvedEmail, mobile: commerceMobile },
-      logger
-    )
+    return graphQLRequest(params, mobileMutation, { mobile: commerceMobile }, logger)
   }
 
   if (prepared.hasEmail) {
     const mutation = `
-      mutation updateCustomerV2($email: String!, $password: String!) {
+      mutation UpdateCustomerEmail($email: String!, $password: String!){
         updateCustomerEmail(email: $email, password: $password) {
-           customer {
-              email
-            }
-          } {
           customer {
-            id
             email
           }
         }
@@ -372,7 +385,7 @@ async function updateCommerceKeyInfo(params, customerId, prepared, logger) {
     return graphQLRequest(
       params,
       mutation,
-      { email: prepared.resolvedEmail },
+      { email: prepared.resolvedEmail, password: prepared.password },
       logger
     )
   }
@@ -380,27 +393,26 @@ async function updateCommerceKeyInfo(params, customerId, prepared, logger) {
   const commerceMobile = getCommerceMobileValue(prepared.normalizedMobile)
   const mutation = `
     mutation updateCustomerV2($mobile: String!) {
-    updateCustomerV2(
+      updateCustomerV2(
         input: {
-            
-            custom_attributes: [
-                {
-                    attribute_code: "mobile_number"
-                    value: $mobile
-                }
-            ]
+          custom_attributes: [
+            {
+              attribute_code: "mobile_number"
+              value: $mobile
+            }
+          ]
         }
-    ) {
+      ) {
         customer {
-            id
-            email
+          id
+          email
           custom_attributes {
             code
             ...on AttributeValue {value}
           }
         }
+      }
     }
-}
   `
 
   return graphQLRequest(params, mutation, { mobile: commerceMobile }, logger)
@@ -421,8 +433,6 @@ module.exports = async function updateMobile(params, logger) {
     const dbConnection = await connectDb(params)
     dbClient = dbConnection.dbClient
     const collection = dbConnection.collection
-
-    logger.info('here before iskeyinfoupdated')
 
     const allowKeyInfoUpdate = await isKeyInfoUpdateAllowed(dbClient)
     if (!allowKeyInfoUpdate) {
@@ -467,7 +477,7 @@ module.exports = async function updateMobile(params, logger) {
           customer_id: customerId,
           mobile_number: updatedMobile,
           email: updatedEmail,
-          commerce: commerceResponse.data.updateCustomerV2
+          commerce: commerceResponse.data.updateCustomerV2 || commerceResponse.data.updateCustomerEmail
         }
       }
     } catch (commerceError) {
