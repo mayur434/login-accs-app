@@ -1,11 +1,34 @@
 const fetch = require('node-fetch')
 const { Core } = require('@adobe/aio-sdk')
+const { generateAccessToken } = Core.AuthClient
 const libDB = require('@adobe/aio-lib-db')
 const { errorResponse, stringParameters, checkMissingRequestInputs } = require('../utils')
 const DEFAULT_OTP_EXPIRATION_VALIDITY_MINUTES = 5
 const DEFAULT_OTP_IN_RESPONSE = false
 
 // OTPs persisted to Adobe DB collection 'otps'
+
+function getRequestParams (params) {
+  let req = params
+
+  if (params.params && typeof params.params === 'object') {
+    req = params.params
+  } else if (params.body) {
+    try {
+      req = typeof params.body === 'string' ? JSON.parse(params.body) : params.body
+    } catch {
+      req = params
+    }
+  } else if (params.__ow_body) {
+    try {
+      req = typeof params.__ow_body === 'string' ? JSON.parse(params.__ow_body) : params.__ow_body
+    } catch {
+      req = params
+    }
+  }
+
+  return { ...params, ...req }
+}
 
 function generateOtpValue () {
   return (Math.floor(1000 + Math.random() * 9000)).toString()
@@ -106,7 +129,11 @@ async function main (params) {
 
     // initialize Adobe DB client and collection for OTPs
     const region = inParams.AIO_DB_REGION || process.env.AIO_DB_REGION || 'apac'
-    const db = await libDB.init({ region })
+
+    const requestParams = getRequestParams(params)
+
+    const tokenResponse = await generateAccessToken(requestParams);
+    const db = await libDB.init({ region, token: tokenResponse.access_token })
     const dbClient = await db.connect()
     const otpCollection = await dbClient.collection('otps')
     const appConfigCollection = await dbClient.collection('app_config')
@@ -148,14 +175,17 @@ async function main (params) {
       }
 
       const autoLogin = !!(appConfig && appConfig.auto_login)
+      const registerFlag = (typeof inParams.register === 'string')
+        ? inParams.register.toLowerCase() === 'true'
+        : Boolean(inParams.register)
 
       if (!token) {
         // user not present or token not obtainable
-        if (!autoLogin) {
+        if (!autoLogin && !registerFlag) {
           return errorResponse(404, 'user is not registered, kindly register first', logger)
         }
 
-        // attempt to create user then login with default password
+        // attempt to create user then login with default password (when autoLogin is enabled or register flag provided)
         try {
           await createUser(emailForLogin, defaultPassword, inParams.mobile, inParams, logger)
           token = await tryLogin(emailForLogin, defaultPassword, inParams, logger)
@@ -241,9 +271,12 @@ async function main (params) {
       logger.info('login attempt failed: ' + err.message)
     }
 
-    // if auto_login not enabled in DB, report user not found instead of creating user
+    // if auto_login not enabled in DB, report user not found unless `register` flag provided
     const autoLogin = !!(appConfig && appConfig.auto_login)
-    if (!autoLogin) {
+    const registerFlag = (typeof inParams.register === 'string')
+      ? inParams.register.toLowerCase() === 'true'
+      : Boolean(inParams.register)
+    if (!autoLogin && !registerFlag) {
       return errorResponse(404, 'user is not present in commerce', logger)
     }
 

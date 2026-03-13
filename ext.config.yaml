@@ -42,6 +42,7 @@ runtimeManifest:
             apikey: $SERVICE_API_KEY
           annotations:
             require-adobe-auth: true
+            include-ims-credentials: true
             final: true
         customerAuth:
           function: actions/customerAuth/index.js
