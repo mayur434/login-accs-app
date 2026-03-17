@@ -298,34 +298,32 @@ async function graphQLRequest(params, query, variables, logger) {
   return payload
 }
 
-async function createCommerceCustomer(params, email, password, mobileNumber, logger) {
+async function createCommerceCustomerAndToken(params, email, password, mobileNumber, logger) {
   const firstname = params.firstname || params.firstName || email.split('@')[0] || 'Customer'
-  const lastname = params.lastname || params.lastName || (mobileNumber ? mobileNumber.replaceAll(/\D/g, '') : 'User')
+  const lastname = params.lastname || params.lastName || 'User' // never fallback to mobile
   const commerceMobile = getCommerceMobileValue(mobileNumber)
 
-  if (commerceMobile) {
-    const mutationWithMobile = `
-      mutation createCustomerV2(
+  const mutation = commerceMobile
+    ? `
+      mutation CreateAndLogin(
         $firstname: String!
         $lastname: String!
         $email: String!
         $password: String!
         $mobile: String!
       ) {
-        createCustomerV2(
-          input: {
-            firstname: $firstname
-            lastname: $lastname
-            email: $email
-            password: $password
-            custom_attributes: [
-              {
-                attribute_code: "mobile_number"
-                value: $mobile
-              }
-            ]
-          }
-        ) {
+        createCustomerWrapper: createCustomerV2(input: {
+          firstname: $firstname
+          lastname: $lastname
+          email: $email
+          password: $password
+          custom_attributes: [
+            {
+              attribute_code: "mobile_number"
+              value: $mobile
+            }
+          ]
+        }) {
           customer {
             id
             firstname
@@ -333,43 +331,42 @@ async function createCommerceCustomer(params, email, password, mobileNumber, log
             email
           }
         }
+        generateCustomerToken: generateCustomerToken(email: $email, password: $password) {
+          token
+        }
       }
     `
-
-    return graphQLRequest(
-      params,
-      mutationWithMobile,
-      { firstname, lastname, email, password, mobile: commerceMobile },
-      logger
-    )
-  }
-
-  const mutation = `
-    mutation createCustomerV2($firstname: String!, $lastname: String!, $email: String!, $password: String!) {
-      createCustomerV2(
-        input: {
+    : `
+      mutation CreateAndLogin(
+        $firstname: String!
+        $lastname: String!
+        $email: String!
+        $password: String!
+      ) {
+        createCustomerWrapper: createCustomerV2(input: {
           firstname: $firstname
           lastname: $lastname
           email: $email
           password: $password
+        }) {
+          customer {
+            id
+            firstname
+            lastname
+            email
+          }
         }
-      ) {
-        customer {
-          id
-          firstname
-          lastname
-          email
+        generateCustomerToken: generateCustomerToken(email: $email, password: $password) {
+          token
         }
       }
-    }
-  `
+    `
 
-  return graphQLRequest(
-    params,
-    mutation,
-    { firstname, lastname, email, password },
-    logger
-  )
+  const variables = commerceMobile
+    ? { firstname, lastname, email, password, mobile: commerceMobile }
+    : { firstname, lastname, email, password }
+
+  return graphQLRequest(params, mutation, variables, logger)
 }
 
 async function upsertIdentityDocument(collection, filter, doc) {
@@ -419,7 +416,8 @@ async function findExistingIdentity(collection, prepared, logger) {
 }
 
 async function createCommerceAndSyncIdentity(params, logger, collection, prepared) {
-  const createCustomerResponse = await createCommerceCustomer(
+  // single batched request: create + token
+  const response = await createCommerceCustomerAndToken(
     params,
     prepared.resolvedEmail,
     prepared.password,
@@ -427,9 +425,12 @@ async function createCommerceAndSyncIdentity(params, logger, collection, prepare
     logger
   )
 
-  const customerId = await resolveCustomerId(params, createCustomerResponse, prepared, logger)
+  const customerData = response?.data?.createCustomerWrapper?.customer
+  const customerToken = response?.data?.generateCustomerToken?.token || null
+
+  const customerId = await resolveCustomerId(params, { data: { createCustomerV2: { customer: customerData } } }, prepared, logger)
   if (!customerId) {
-    throw new Error('customer id missing in createCustomerV2 response')
+    throw new Error('customer id missing in createCustomer response')
   }
 
   const now = new Date()
@@ -451,7 +452,7 @@ async function createCommerceAndSyncIdentity(params, logger, collection, prepare
     )
   } catch (dbError) {
     if (isUniqueConstraintError(dbError)) {
-      const existingIdentity = await findExistingIdentity(collection, prepared)
+      const existingIdentity = await findExistingIdentity(collection, prepared, logger)
       if (existingIdentity) {
         return conflict(`${existingIdentity.reason} already exists`)
       }
@@ -462,7 +463,17 @@ async function createCommerceAndSyncIdentity(params, logger, collection, prepare
 
   return {
     statusCode: 200,
-    body: createCustomerResponse.data.createCustomerV2
+    body: {
+      customer_id: customerId,
+      customer_token: customerToken,
+      login_type: prepared.loginType,
+      customer: {
+        firstname: customerData.firstname,
+        lastname: customerData.lastname,
+        email: customerData.email,
+        mobile_number: prepared.normalizedMobile || null // added
+      }
+    }
   }
 }
 
@@ -518,7 +529,7 @@ module.exports = async function registerCustomer(params, logger) {
       message: error?.message
     })
     return serverError(error?.message || 'server error')
-    
+
   } finally {
     try {
       if (dbClient) await dbClient.close()

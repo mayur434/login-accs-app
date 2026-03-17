@@ -154,45 +154,47 @@ function isUniqueConstraintError(error) {
 }
 
 function getPreparedUpdateInput(params) {
-  const hasMobile = hasValue(params.mobile_number)
-  const hasEmail = hasValue(params.email)
+  try {
+    const mobileInput = hasValue(params.mobile_number) ? String(params.mobile_number).trim() : null
+    const hasMobile = !!mobileInput
+    const normalizedMobile = hasMobile ? normalizeMobile(mobileInput) : null
 
-  if (!hasMobile && !hasEmail) {
-    return { error: badRequest("missing parameter(s) 'mobile_number,email'") }
-  }
+    const hasEmail = hasValue(params.new_email)
+    const resolvedEmail = hasEmail ? normalizeEmailInput(params.new_email) : null
+    const password = hasEmail ? String(params.password || '').trim() : null
 
-  let normalizedMobile = null
-  let resolvedEmail = null
-  let password = null
+    const firstName = hasValue(params.firstName)
+      ? String(params.firstName).trim()
+      : (hasValue(params.firstname) ? String(params.firstname).trim() : null)
 
-  if (hasMobile) {
-    try {
-      normalizedMobile = normalizeMobile(params.mobile_number)
-    } catch (error) {
-      return { error: badRequest(error.message || 'invalid indian mobile number') }
+    const lastName = hasValue(params.lastName)
+      ? String(params.lastName).trim()
+      : (hasValue(params.lastname) ? String(params.lastname).trim() : null)
+
+    if (!hasMobile && !hasEmail && !firstName && !lastName) {
+      return {
+        error: badRequest("provide at least one field: 'mobile_number', 'new_email', 'firstName', 'lastName'")
+      }
     }
-  }
 
-  if (hasEmail) {
-    try {
-      resolvedEmail = normalizeEmailInput(params.email)
-    } catch (error) {
-      return { error: badRequest(error.message || 'invalid email') }
+    if (hasEmail && !password) {
+      return { error: badRequest("missing parameter(s) 'password' for email update") }
     }
-    if (!hasValue(params.password)) {
-      return { error: badRequest("missing parameter 'password' for email update") }
-    }
-    password = String(params.password).trim()
-  }
 
-  return {
-    prepared: {
-      hasMobile,
-      hasEmail,
-      normalizedMobile,
-      resolvedEmail,
-      password
+    return {
+      prepared: {
+        hasMobile,
+        hasEmail,
+        normalizedMobile,
+        resolvedEmail,
+        password,
+        firstName,
+        lastName
+      }
     }
+  } catch (e) {
+    if (e && e.statusCode === 400) return { error: e }
+    return { error: badRequest(e.message || 'invalid input') }
   }
 }
 
@@ -416,6 +418,31 @@ async function updateCommerceKeyInfo(params, customerId, prepared, logger) {
   `
 
   return graphQLRequest(params, mutation, { mobile: commerceMobile }, logger)
+}
+
+async function updateCommerceProfile(params, prepared, logger) {
+  if (!prepared.firstName && !prepared.lastName && !prepared.newEmail) return null
+
+  const mutation = `
+    mutation updateCustomerV2($input: CustomerInput!) {
+      updateCustomerV2(input: $input) {
+        customer {
+          id
+          firstname
+          lastname
+          email
+        }
+      }
+    }
+  `
+
+  const input = {}
+  if (prepared.firstName) input.firstname = prepared.firstName
+  if (prepared.lastName) input.lastname = prepared.lastName
+  if (prepared.newEmail) input.email = prepared.newEmail
+
+  const payload = await graphQLRequest(params, mutation, { input }, logger)
+  return payload?.data?.updateCustomerV2?.customer || null
 }
 
 module.exports = async function updateMobile(params, logger) {

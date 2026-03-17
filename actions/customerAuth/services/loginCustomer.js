@@ -35,17 +35,16 @@ function hasValue(value) {
   return value !== undefined && value !== null && String(value).trim() !== ''
 }
 
-async function graphQLRequest(params, query, variables, logger) {
+async function graphQLRequest(params, query, variables, logger, authToken) {
   const endpoint = params.GRAPHQL_ENDPOINT || process.env.GRAPHQL_ENDPOINT
   if (!endpoint) {
     throw new Error('GRAPHQL_ENDPOINT not configured in params or env')
   }
 
-  // const apiKey = params.GRAPHQL_API_KEY || process.env.GRAPHQL_API_KEY
   const headers = { 'Content-Type': 'application/json' }
-  // if (apiKey) {
-  //   headers.authorization = `Bearer ${apiKey}`
-  // }
+  if (authToken) {
+    headers.authorization = `Bearer ${authToken}`
+  }
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -64,6 +63,21 @@ async function graphQLRequest(params, query, variables, logger) {
   }
 
   return payload
+}
+
+async function fetchCustomerDetails(params, customerToken, logger) {
+  const query = `
+    query {
+      customer {
+        id
+        firstname
+        lastname
+        email
+      }
+    }
+  `
+  const payload = await graphQLRequest(params, query, {}, logger, customerToken)
+  return payload?.data?.customer || null
 }
 
 async function generateCustomerToken(params, email, password, logger) {
@@ -150,10 +164,13 @@ module.exports = async function loginCustomer(params, logger) {
       logger
     )
 
+    const customer = await fetchCustomerDetails(params, token, logger)
+
     return {
       statusCode: 200,
       body: {
-        token
+        token,
+        customer
       }
     }
   } catch (error) {

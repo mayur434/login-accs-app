@@ -30,8 +30,10 @@ runtimeManifest:
             apikey: $SERVICE_API_KEY
             GRAPHQL_ENDPOINT: $GRAPHQL_ENDPOINT
             GRAPHQL_API_KEY: $GRAPHQL_API_KEY
+            AIO_DB_REGION: apac
           annotations:
             require-adobe-auth: true
+            include-ims-credentials: true
             final: true
         app_config:
           function: actions/app_config/index.js

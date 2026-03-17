@@ -60,9 +60,9 @@ async function graphQLRequest (params, query, variables = {}, logger) {
   if (!endpoint) throw new Error('GRAPHQL_ENDPOINT not configured in params or env')
 
   const headers = { 'Content-Type': 'application/json' }
-  if (process.env.GRAPHQL_API_KEY) {
-    headers.authorization = `Bearer ${process.env.GRAPHQL_API_KEY}`
-  }
+  // if (process.env.GRAPHQL_API_KEY) {
+  //   headers.authorization = `Bearer ${process.env.GRAPHQL_API_KEY}`
+  // }
 
   logger.info(`calling GraphQL ${endpoint}`)
   const res = await fetch(endpoint, {
@@ -76,7 +76,7 @@ async function graphQLRequest (params, query, variables = {}, logger) {
 
 async function tryLogin (email, password, params, logger) {
   // First try generateCustomerToken mutation (some schemas expose this)
-  const genTokenMutation = `mutation generateCustomerToken($email: String!){ generateCustomerToken(email: $email, password: "user@123"){ token } }`
+  const genTokenMutation = `mutation generateCustomerToken($email: String!){ generateCustomerToken(email: $email, password: "pass@123"){ token } }`
   try {
     const genResp = await graphQLRequest(params, genTokenMutation, { email }, logger)
     if (genResp && genResp.data && genResp.data.generateCustomerToken && genResp.data.generateCustomerToken.token) {
@@ -87,7 +87,7 @@ async function tryLogin (email, password, params, logger) {
   }
 
   // Fallback to generic login mutation. Adapt to your GraphQL schema if different.
-  const loginMutation = `mutation Login($email:String!, $password:String!){ login(email:$email,password:"user@123"){ token } }`
+  const loginMutation = `mutation Login($email:String!, $password:String!){ login(email:$email,password:"pass@123"){ token } }`
   const resp = await graphQLRequest(params, loginMutation, { email, password }, logger)
   if (resp && resp.data && resp.data.login && resp.data.login.token) return resp.data.login.token
   return null
@@ -97,7 +97,7 @@ async function createUser (email, password, mobile, params, logger) {
   // Use createCustomerV2 for commerce; derive firstname/lastname if missing
   const firstname = params.firstname || params.firstName || (typeof email === 'string' ? email.split('@')[0] : 'Customer')
   const lastname = params.lastname || params.lastName || (mobile ? String(mobile) : 'User')
-  const createCustomerMutation = `mutation createCustomerV2($email: String!, $firstname: String!, $lastname: String!){ createCustomerV2(input:{ firstname: $firstname, lastname: $lastname, email: $email, password: "user@123" }){ customer{ firstname lastname email } } }`
+  const createCustomerMutation = `mutation createCustomerV2($email: String!, $firstname: String!, $lastname: String!){ createCustomerV2(input:{ firstname: $firstname, lastname: $lastname, email: $email, password: "pass@123" }){ customer{ firstname lastname email } } }`
   try {
     const resp = await graphQLRequest(params, createCustomerMutation, { email, firstname, lastname }, logger)
     return resp
@@ -160,7 +160,7 @@ async function main (params) {
         if (missing) return errorResponse(400, missing, logger)
       }
       // before creating OTP, try to obtain access token for the customer
-      const defaultPassword = 'Pass@123'
+      const defaultPassword = 'pass@123'
       let emailForLogin = inParams.email
       if (inParams.loginType === 'mobile') {
         emailForLogin = `${inParams.mobile}@email.com`
