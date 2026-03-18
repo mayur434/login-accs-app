@@ -3,7 +3,7 @@ const { generateAccessToken } = Core.AuthClient
 const { stringParameters } = require('../utils')
 const registerCustomer = require('./services/registerCustomer')
 const loginCustomer = require('./services/loginCustomer')
-const updateMobile = require('./services/updateMobile')
+const updateCustomerDetails = require('./services/updateMobile')
 const { handleOtp } = require('./services/handleOtp.js');
 
 const INTERNAL_CUSTOMER_PASSWORD = 'pass@123'
@@ -165,8 +165,8 @@ exports.main = async (params) => {
         return await registerCustomer(requestParams, logger)
       case 'login':
         return await loginCustomer(requestParams, logger)
-      case 'updateMobile':
-        return await updateMobile(requestParams, logger)
+      case 'updateCustomerDetails':
+        return await updateCustomerDetails(requestParams, logger)
       default:
         return badRequest(`invalid operation: ${operation}`)
     }

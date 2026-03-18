@@ -109,7 +109,7 @@ function getCommerceMobileValue(mobileNumber) {
 }
 
 function getCustomerId(createCustomerResponse) {
-  const customer = createCustomerResponse?.data?.createCustomerV2?.customer
+  const customer = createCustomerResponse?.data?.createCustomerV2?.customer || createCustomerResponse?.data?.createCustomerWrapper?.customer
   if (!customer) {
     return null
   }
@@ -148,24 +148,22 @@ function parseCustomerIdValue(value) {
     return directNumber
   }
 
-  const trailingDigits = textValue.match(/(\d+)$/)
-  if (trailingDigits) {
-    const trailingNumber = Number(trailingDigits[1])
-    if (!Number.isNaN(trailingNumber) && trailingNumber > 0) {
-      return trailingNumber
-    }
-  }
-
   try {
     const decoded = Buffer.from(textValue, 'base64').toString('utf8').trim()
     const decodedNumber = Number(decoded)
     if (!Number.isNaN(decodedNumber) && decodedNumber > 0) {
       return decodedNumber
     }
+    const trailingDigits = decoded.match(/(\d+)$/)
+    if (trailingDigits) {
+      const trailingNumber = Number(trailingDigits[1])
+      if (!Number.isNaN(trailingNumber) && trailingNumber > 0) {
+        return trailingNumber
+      }
+    }
   } catch {
     return null
   }
-
   return null
 }
 
