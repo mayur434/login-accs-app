@@ -1,82 +1,112 @@
 # login-module
 
-Welcome to my Adobe I/O Application!
+OTP-based customer authentication module for Adobe Commerce, built on Adobe App Builder.
 
-## Setup
+## What This App Does
 
-- Populate the `.env` file in the project root and fill it as shown [below](#env)
+This module adds OTP (One-Time Password) based customer authentication to Adobe Commerce. It runs as an App Builder extension inside the Commerce Admin panel, providing:
 
-## Local Dev
+- **Customer Registration** — OTP-verified registration that creates customers in Commerce and maintains an identity mapping (mobile ↔ email ↔ Commerce customer ID)
+- **Customer Login** — OTP-gated login via mobile number or email, with automatic mobile-to-email resolution
+- **Customer Profile Update** — Update mobile, email, or name with automatic Commerce sync and rollback safety
+- **Admin Configuration** — Self-service UI in Commerce Admin to control OTP validity, auto-login, module enable/disable, and more
+- **Standalone OTP** — Independent OTP generate/verify endpoint with auto-register capability
 
-- `aio app run` to start your local Dev server
-- App will run on `localhost:9080` by default
+## Business Use Case
 
-By default the UI will be served locally but actions will be deployed and served from Adobe I/O Runtime. To run your actions locally use the `aio app dev` option.
+Commerce operations teams need controlled, OTP-based customer authentication — without requiring code deployments for every policy change. This module solves:
 
-For more information on the difference between `aio app run` and `aio app dev`, see [here](https://developer.adobe.com/app-builder/docs/guides/development/#aio-app-dev-vs-aio-app-run)
+- **Mobile-first identity** — Customers register/login using mobile numbers. The module maps mobiles to Commerce email accounts transparently.
+- **Centralized policy control** — Admin users toggle OTP settings, auto-login behavior, and profile update permissions from the Commerce Admin UI.
+- **No-code operations** — Config changes take effect immediately via the Admin UI. No redeployment required.
+- **Secure onboarding** — Every register/login is OTP-gated. OTPs use cryptographic randomness, expiry windows, and single-use enforcement.
 
-## Test & Coverage
+## Where to Integrate
 
-- Run `aio app test` to run unit tests for ui and actions
-- Run `aio app test --e2e` to run e2e tests
+This extension is designed to be called from:
 
-## Deploy & Cleanup
+- **Headless / PWA storefronts** — Call the `customer` action's REST API from any frontend (React, Next.js, mobile apps) for register/login/update flows
+- **Commerce Admin** — The Admin UI extension is auto-registered under **Customer Module → Login Module** in the Commerce Admin sidebar
+- **Third-party systems** — Any system with valid IMS credentials can call the REST APIs for customer operations
+- **Mobile apps** — Use the OTP flow for mobile-first authentication without requiring email at registration
 
-- `aio app deploy` to build and deploy all actions on Runtime and static files to CDN
-- `aio app undeploy` to undeploy the app
+### Integration Points
 
-## Config
+| Use Case | Action | Endpoint |
+|---|---|---|
+| Register customer | `customer` | `POST /customer` with `operation: register` |
+| Login customer | `customer` | `POST /customer` with `operation: login` |
+| Update profile | `customer` | `POST /customer` with `operation: updateCustomerDetails` |
+| Manage module settings | `config` | `GET/POST/PUT/PATCH/DELETE /config` |
+| Standalone OTP | `otp` | `POST /otp` |
+| Admin menu registration | `registration` | `POST /registration` |
 
-### `.env`
+### API Base URLs
 
-You can generate this file using the command `aio app use`. 
+| Environment | Base URL |
+|---|---|
+| Local dev | `https://localhost:9080/api/v1/web/login-module` |
+| Deployed | `https://<namespace>.adobeioruntime.net/api/v1/web/login-module` |
+
+## Requirements
+
+### Platform
+
+- Adobe App Builder workspace with I/O Runtime
+- Adobe Commerce instance with GraphQL endpoint
+- Adobe Doc DB (auto-provisioned via `app.config.yaml`)
+- Node.js >= 18
+
+### Adobe Developer Console APIs
+
+- I/O Management API
+- App Builder Data Services (for Doc DB)
+
+### Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `AIO_runtime_namespace` | Yes | I/O Runtime namespace |
+| `AIO_runtime_auth` | Yes | I/O Runtime auth key |
+| `IMS_OAUTH_S2S_CLIENT_ID` | Yes | OAuth S2S client ID |
+| `IMS_OAUTH_S2S_CLIENT_SECRET` | Yes | OAuth S2S client secret |
+| `IMS_OAUTH_S2S_ORG_ID` | Yes | IMS organization ID |
+| `GRAPHQL_ENDPOINT` | Yes | Commerce GraphQL URL |
+| `GRAPHQL_API_KEY` | Yes | Commerce API key |
+| `SERVICE_API_KEY` | Yes | Service API key |
+
+Generate via `aio app use`, then add Commerce-specific variables.
+
+## Quick Start
 
 ```bash
-# This file must **not** be committed to source control
-
-## please provide your Adobe I/O Runtime credentials
-# AIO_RUNTIME_AUTH=
-# AIO_RUNTIME_NAMESPACE=
+npm install
+aio app use            # generate .env
+npm run setup-db       # create collections & indexes
+aio app dev -e commerce/backend-ui/1   # start local dev
 ```
 
-### `app.config.yaml`
+Or use the all-in-one dev script:
 
-- Main configuration file that defines an application's implementation. 
-- More information on this file, application configuration, and extension configuration 
-  can be found [here](https://developer.adobe.com/app-builder/docs/guides/configuration/#appconfigyaml)
-
-#### Action Dependencies
-
-- You have two options to resolve your actions' dependencies:
-
-  1. **Packaged action file**: Add your action's dependencies to the root
-   `package.json` and install them using `npm install`. Then set the `function`
-   field in `app.config.yaml` to point to the **entry file** of your action
-   folder. We will use `webpack` to package your code and dependencies into a
-   single minified js file. The action will then be deployed as a single file.
-   Use this method if you want to reduce the size of your actions.
-
-  2. **Zipped action folder**: In the folder containing the action code add a
-     `package.json` with the action's dependencies. Then set the `function`
-     field in `app.config.yaml` to point to the **folder** of that action. We will
-     install the required dependencies within that directory and zip the folder
-     before deploying it as a zipped action. Use this method if you want to keep
-     your action's dependencies separated.
-
-## Debugging in VS Code
-
-While running your local server (`aio app dev`), both UI and actions can be debugged. To do so follow the instructions [here](https://developer.adobe.com/app-builder/docs/guides/development/#debugging)
-
-## Typescript support for UI
-
-To use typescript use `.tsx` extension for react components and add a `tsconfig.json` 
-and make sure you have the below config added
+```bash
+npm run dev
 ```
- {
-  "compilerOptions": {
-      "jsx": "react"
-    }
-  } 
+
+## Deploy
+
+```bash
+aio app deploy         # build, deploy actions + static UI
+aio app undeploy       # remove deployment
+```
+
+The `post-app-deploy` hook automatically runs `npm run setup-db` after each deploy.
+
+## Test
+
+```bash
+npm test               # unit tests (Jest)
+npm run e2e            # end-to-end tests
+npm run lint           # ESLint
 ```
 
 ## Project Structure
@@ -100,5 +130,6 @@ e2e/              # End-to-end tests
 
 - [Setup Guide](SETUP_GUIDE.md) — prerequisites, installation, configuration, and deployment
 - [Testing Guide](TESTING_GUIDE.md) — running tests, writing new tests, mocking, and CI
+- [Dev & Integration Testing Guide](DEV_INTEGRATION_GUIDE.md) — cURL samples, Postman setup, request/response reference, end-to-end flows
 - [Technical Documentation](TECHNICAL_README.md) — architecture, APIs, shared libraries, and engineering notes
 - [Business Documentation](BUSINESS_README.md) — objectives, success criteria, rollout plan, and risks
