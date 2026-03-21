@@ -1,8 +1,8 @@
 {
-  "name": "customer module",
-  "displayName": "Customer Module on App Builder",
-  "description": "Customer Module on App Builder",
+  "name": "login-module",
+  "displayName": "Login Module for Adobe Commerce",
+  "description": "OTP-based customer authentication extension for Adobe Commerce — provides passwordless login, registration, and profile management via API Mesh and Admin UI SDK.",
   "platform": "web",
-  "id": "customer-module",
+  "id": "login-module",
   "version": "1.0.0"
 }

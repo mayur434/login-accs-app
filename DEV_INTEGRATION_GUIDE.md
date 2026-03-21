@@ -1,34 +1,40 @@
 # Dev & Integration Testing Guide
 
-Complete reference for testing all actions locally or via deployed endpoints using cURL / Postman.
+Complete reference for testing all actions — via Admin UI SDK (direct calls) and API Mesh (frontend consumption).
 
 ---
 
-## Base URL
+## Access Layers
 
-| Environment | Base URL |
-|---|---|
-| Local (aio app dev) | `https://localhost:9080/api/v1/web/login-module` |
-| Deployed (Runtime) | `https://<namespace>.adobeioruntime.net/api/v1/web/login-module` |
+This module has two distinct access layers. Use the correct base URL for each:
 
-Replace `<namespace>` with your I/O Runtime namespace (from `.env` → `AIO_runtime_namespace`).
+| Layer | Consumer | Base URL | Auth |
+|---|---|---|---|
+| **Admin UI SDK** | Commerce Admin | `https://localhost:9080/api/v1/web/login-module` (local) or deployed URL | IMS token (automatic from host) |
+| **API Mesh** | Storefronts, mobile apps | `https://<mesh-id>.runtime.adobe.io/<api-path>` | None required (mesh is the security boundary) |
 
-> **Auth Header:** All actions except `registration` require `Authorization: Bearer <IMS_TOKEN>` and `x-gw-ims-org-id: <ORG_ID>`.
+> **Important:** The `otp` and `customer` actions have `require-adobe-auth: false` and are accessible through API Mesh for frontend consumers. The `config` and `registration` actions have `require-adobe-auth: true` and are only accessible via Admin UI SDK (direct call with IMS auth). Direct action URLs for `otp`/`customer` are not published — the mesh URL is the only frontend endpoint.
 
 ---
 
-## 1. Registration Action
+## Part 1: Admin UI SDK — Direct Action Calls
 
-Returns the Commerce Admin menu structure. No auth required.
+These actions are called directly from the Commerce Admin UI extension. IMS auth is provided by the Commerce Admin host context.
 
-### cURL
+### 1. Registration Action
+
+Returns the Commerce Admin menu structure.
+
+#### cURL
 
 ```bash
-curl -X POST "{{BASE_URL}}/registration" \
-  -H "Content-Type: application/json"
+curl -X POST "{{ADMIN_BASE_URL}}/registration" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {{IMS_TOKEN}}" \
+  -H "x-gw-ims-org-id: {{ORG_ID}}"
 ```
 
-### Response (200)
+#### Response (200)
 
 ```json
 {
@@ -54,16 +60,14 @@ curl -X POST "{{BASE_URL}}/registration" \
 }
 ```
 
----
+### 2. Config Action
 
-## 2. Config Action
+CRUD operations for module configuration. Called from Admin UI SDK only.
 
-CRUD operations for module configuration. All requests require auth headers.
-
-### 2.1 Get Config
+#### 2.1 Get Config
 
 ```bash
-curl -X GET "{{BASE_URL}}/config" \
+curl -X GET "{{ADMIN_BASE_URL}}/config" \
   -H "Authorization: Bearer {{IMS_TOKEN}}" \
   -H "x-gw-ims-org-id: {{ORG_ID}}"
 ```
@@ -80,10 +84,10 @@ curl -X GET "{{BASE_URL}}/config" \
 }
 ```
 
-### 2.2 Update Config (POST / PUT / PATCH)
+#### 2.2 Update Config (POST / PUT / PATCH)
 
 ```bash
-curl -X POST "{{BASE_URL}}/config" \
+curl -X POST "{{ADMIN_BASE_URL}}/config" \
   -H "Authorization: Bearer {{IMS_TOKEN}}" \
   -H "x-gw-ims-org-id: {{ORG_ID}}" \
   -H "Content-Type: application/json" \
@@ -117,10 +121,10 @@ curl -X POST "{{BASE_URL}}/config" \
 }
 ```
 
-### 2.3 Delete Config
+#### 2.3 Delete Config
 
 ```bash
-curl -X DELETE "{{BASE_URL}}/config" \
+curl -X DELETE "{{ADMIN_BASE_URL}}/config" \
   -H "Authorization: Bearer {{IMS_TOKEN}}" \
   -H "x-gw-ims-org-id: {{ORG_ID}}"
 ```
@@ -134,7 +138,7 @@ curl -X DELETE "{{BASE_URL}}/config" \
 }
 ```
 
-### Config Field Reference
+#### Config Field Reference
 
 | Field | Type | Default | Description |
 |---|---|---|---|
@@ -146,16 +150,20 @@ curl -X DELETE "{{BASE_URL}}/config" \
 
 ---
 
-## 3. Standalone OTP Action
+## Part 2: API Mesh — Frontend Consumption
 
-Standalone OTP generate/verify with auto-login capability. Used independently of the customer action.
+These endpoints are consumed by storefronts, mobile apps, and websites through the API Mesh gateway. **No auth headers required** — the mesh acts as the security boundary. The `otp` and `customer` actions have `require-adobe-auth: false`.
 
-### 3.1 Generate OTP (Mobile)
+> **`{{MESH_URL}}`** = your API Mesh endpoint URL (get it via `cd mesh && npm run get`)
+
+### 3. Standalone OTP Action
+
+Standalone OTP generate/verify with auto-login capability.
+
+#### 3.1 Generate OTP (Mobile)
 
 ```bash
-curl -X POST "{{BASE_URL}}/otp" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+curl -X POST "{{MESH_URL}}/otp" \
   -H "Content-Type: application/json" \
   -d '{
     "loginType": "mobile",
@@ -180,12 +188,10 @@ curl -X POST "{{BASE_URL}}/otp" \
 }
 ```
 
-### 3.2 Generate OTP (Email)
+#### 3.2 Generate OTP (Email)
 
 ```bash
-curl -X POST "{{BASE_URL}}/otp" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+curl -X POST "{{MESH_URL}}/otp" \
   -H "Content-Type: application/json" \
   -d '{
     "loginType": "email",
@@ -193,12 +199,10 @@ curl -X POST "{{BASE_URL}}/otp" \
   }'
 ```
 
-### 3.3 Validate OTP
+#### 3.3 Validate OTP
 
 ```bash
-curl -X POST "{{BASE_URL}}/otp" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+curl -X POST "{{MESH_URL}}/otp" \
   -H "Content-Type: application/json" \
   -d '{
     "otpReferenceId": "otp_1711017600000_12345",
@@ -217,12 +221,10 @@ curl -X POST "{{BASE_URL}}/otp" \
 }
 ```
 
-### 3.4 Validate OTP with Auto-Register
+#### 3.4 Validate OTP with Auto-Register
 
 ```bash
-curl -X POST "{{BASE_URL}}/otp" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+curl -X POST "{{MESH_URL}}/otp" \
   -H "Content-Type: application/json" \
   -d '{
     "otpReferenceId": "otp_1711017600000_12345",
@@ -234,7 +236,7 @@ curl -X POST "{{BASE_URL}}/otp" \
 
 > **Note:** Auto-register also triggers if `auto_login: true` in app config.
 
-### Standalone OTP Error Responses
+#### Standalone OTP Error Responses
 
 | Status | Error | When |
 |---|---|---|
@@ -250,16 +252,14 @@ curl -X POST "{{BASE_URL}}/otp" \
 
 ---
 
-## 4. Customer Action
+### 4. Customer Action (via API Mesh)
 
 Multi-operation router for customer register, login, and profile update. Uses OTP gate for register/login.
 
-### 4.1 Register — Step 1: Request OTP
+#### 4.1 Register — Step 1: Request OTP
 
 ```bash
-curl -X POST "{{BASE_URL}}/customer" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "register",
@@ -282,12 +282,10 @@ curl -X POST "{{BASE_URL}}/customer" \
 
 > `otpValue` only appears when `otp_in_response: true` in config.
 
-### 4.2 Register — Step 2: Verify OTP & Complete Registration
+#### 4.2 Register — Step 2: Verify OTP & Complete Registration
 
 ```bash
-curl -X POST "{{BASE_URL}}/customer" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "register",
@@ -314,12 +312,10 @@ curl -X POST "{{BASE_URL}}/customer" \
 }
 ```
 
-### 4.3 Login — Step 1: Request OTP
+#### 4.3 Login — Step 1: Request OTP
 
 ```bash
-curl -X POST "{{BASE_URL}}/customer" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "login",
@@ -328,12 +324,10 @@ curl -X POST "{{BASE_URL}}/customer" \
   }'
 ```
 
-### 4.4 Login — Step 2: Verify OTP & Authenticate
+#### 4.4 Login — Step 2: Verify OTP & Authenticate
 
 ```bash
-curl -X POST "{{BASE_URL}}/customer" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "login",
@@ -356,12 +350,10 @@ curl -X POST "{{BASE_URL}}/customer" \
 }
 ```
 
-### 4.5 Login via Email
+#### 4.5 Login via Email
 
 ```bash
-curl -X POST "{{BASE_URL}}/customer" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "login",
@@ -370,15 +362,12 @@ curl -X POST "{{BASE_URL}}/customer" \
   }'
 ```
 
-### 4.6 Update Customer Profile
+#### 4.6 Update Customer Profile
 
-No OTP gate — requires a valid customer token.
+No OTP gate — requires a valid customer token in the payload.
 
 ```bash
-curl -X POST "{{BASE_URL}}/customer" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
-  -H "x-customer-id: 42" \
+curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "updateCustomerDetails",
@@ -412,13 +401,10 @@ curl -X POST "{{BASE_URL}}/customer" \
 }
 ```
 
-### 4.7 Update — Mobile Only
+#### 4.7 Update — Mobile Only
 
 ```bash
-curl -X POST "{{BASE_URL}}/customer" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
-  -H "x-customer-id: 42" \
+curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "updateCustomerDetails",
@@ -427,13 +413,10 @@ curl -X POST "{{BASE_URL}}/customer" \
   }'
 ```
 
-### 4.8 Update — Name Only
+#### 4.8 Update — Name Only
 
 ```bash
-curl -X POST "{{BASE_URL}}/customer" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
-  -H "x-customer-id: 42" \
+curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "updateCustomerDetails",
@@ -442,14 +425,13 @@ curl -X POST "{{BASE_URL}}/customer" \
   }'
 ```
 
-### Customer Action Error Responses
+#### Customer Action Error Responses
 
 | Status | Error | When |
 |---|---|---|
 | 400 | `missing parameter(s) 'operation'` | No operation specified |
 | 400 | `provide exactly one identifier: 'email' or 'mobile_number'` | Login: both or neither provided |
 | 400 | `provide at least one identifier: 'email' or 'mobile_number'` | Register: neither provided |
-| 400 | `missing parameter(s) 'password'` | Register/login: password missing (set internally) |
 | 400 | `missing parameter(s) 'password' for email update` | Email update without password |
 | 400 | `provide at least one field...` | Update with no fields |
 | 400 | `authenticated customer_id not found in request context` | Update without customer ID |
@@ -472,20 +454,18 @@ curl -X POST "{{BASE_URL}}/customer" \
 
 ## 5. Complete Flows
 
-### Flow A: Mobile Registration (End-to-End)
+### Flow A: Mobile Registration (End-to-End via API Mesh)
 
 ```bash
-# 1. Enable module
-curl -X POST "{{BASE_URL}}/config" \
+# 1. Enable module (Admin UI SDK — direct call)
+curl -X POST "{{ADMIN_BASE_URL}}/config" \
   -H "Authorization: Bearer {{IMS_TOKEN}}" \
   -H "x-gw-ims-org-id: {{ORG_ID}}" \
   -H "Content-Type: application/json" \
   -d '{"is_enabled": true, "otp_in_response": true}'
 
-# 2. Request OTP for registration
-curl -X POST "{{BASE_URL}}/customer" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+# 2. Request OTP for registration (API Mesh — no auth needed)
+curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "register",
@@ -497,10 +477,8 @@ curl -X POST "{{BASE_URL}}/customer" \
   }'
 # → { "otpReferenceId": "otp_...", "otpValue": "1234" }
 
-# 3. Verify OTP and complete registration
-curl -X POST "{{BASE_URL}}/customer" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+# 3. Verify OTP and complete registration (API Mesh)
+curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "register",
@@ -510,13 +488,11 @@ curl -X POST "{{BASE_URL}}/customer" \
 # → { "customer_id": 42, "customer_token": "...", ... }
 ```
 
-### Flow B: Mobile Login (End-to-End)
+### Flow B: Mobile Login (End-to-End via API Mesh)
 
 ```bash
-# 1. Request OTP for login
-curl -X POST "{{BASE_URL}}/customer" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+# 1. Request OTP for login (API Mesh)
+curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "login",
@@ -525,10 +501,8 @@ curl -X POST "{{BASE_URL}}/customer" \
   }'
 # → { "otpReferenceId": "otp_..." }
 
-# 2. Verify OTP and authenticate
-curl -X POST "{{BASE_URL}}/customer" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+# 2. Verify OTP and authenticate (API Mesh)
+curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "login",
@@ -541,18 +515,15 @@ curl -X POST "{{BASE_URL}}/customer" \
 ### Flow C: Profile Update (End-to-End)
 
 ```bash
-# 1. Enable key info updates
-curl -X POST "{{BASE_URL}}/config" \
+# 1. Enable key info updates (Admin UI SDK — direct call)
+curl -X POST "{{ADMIN_BASE_URL}}/config" \
   -H "Authorization: Bearer {{IMS_TOKEN}}" \
   -H "x-gw-ims-org-id: {{ORG_ID}}" \
   -H "Content-Type: application/json" \
   -d '{"allow_key_info_update": true}'
 
-# 2. Update profile
-curl -X POST "{{BASE_URL}}/customer" \
-  -H "Authorization: Bearer {{IMS_TOKEN}}" \
-  -H "x-gw-ims-org-id: {{ORG_ID}}" \
-  -H "x-customer-id: 42" \
+# 2. Update profile (API Mesh — no auth needed)
+curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "updateCustomerDetails",
@@ -571,41 +542,44 @@ curl -X POST "{{BASE_URL}}/customer" \
 
 Create a Postman environment with:
 
-| Variable | Value |
-|---|---|
-| `BASE_URL` | `https://localhost:9080/api/v1/web/login-module` or deployed URL |
-| `IMS_TOKEN` | Your IMS bearer token |
-| `ORG_ID` | Your IMS org ID |
+| Variable | Value | Usage |
+|---|---|---|
+| `ADMIN_BASE_URL` | `https://localhost:9080/api/v1/web/login-module` or deployed URL | Config / Registration (Admin UI SDK) |
+| `MESH_URL` | Your API Mesh endpoint URL | OTP / Customer (Frontend) |
+| `IMS_TOKEN` | Your IMS bearer token | Admin UI SDK calls only |
+| `ORG_ID` | Your IMS org ID | Admin UI SDK calls only |
 
 ### Postman Collection Structure
 
 ```
 📁 Login Module
-├── 📁 Config
-│   ├── GET Config
-│   ├── POST Update Config
-│   └── DELETE Reset Config
-├── 📁 Standalone OTP
-│   ├── POST Generate OTP (Mobile)
-│   ├── POST Generate OTP (Email)
-│   └── POST Validate OTP
-├── 📁 Customer - Register
-│   ├── POST Register Step 1 (Request OTP)
-│   └── POST Register Step 2 (Verify & Complete)
-├── 📁 Customer - Login
-│   ├── POST Login Step 1 (Request OTP - Mobile)
-│   ├── POST Login Step 1 (Request OTP - Email)
-│   └── POST Login Step 2 (Verify & Authenticate)
-├── 📁 Customer - Update
-│   ├── POST Update Mobile
-│   ├── POST Update Email
-│   ├── POST Update Name
-│   └── POST Update All Fields
-└── 📁 Registration
-    └── POST Get Menu Registration
+├── 📁 Admin UI SDK (Direct — requires IMS auth)
+│   ├── 📁 Config
+│   │   ├── GET Config
+│   │   ├── POST Update Config
+│   │   └── DELETE Reset Config
+│   └── 📁 Registration
+│       └── POST Get Menu Registration
+├── 📁 API Mesh (Frontend — no auth needed)
+│   ├── 📁 Standalone OTP
+│   │   ├── POST Generate OTP (Mobile)
+│   │   ├── POST Generate OTP (Email)
+│   │   └── POST Validate OTP
+│   ├── 📁 Customer - Register
+│   │   ├── POST Register Step 1 (Request OTP)
+│   │   └── POST Register Step 2 (Verify & Complete)
+│   ├── 📁 Customer - Login
+│   │   ├── POST Login Step 1 (Request OTP - Mobile)
+│   │   ├── POST Login Step 1 (Request OTP - Email)
+│   │   └── POST Login Step 2 (Verify & Authenticate)
+│   └── 📁 Customer - Update
+│       ├── POST Update Mobile
+│       ├── POST Update Email
+│       ├── POST Update Name
+│       └── POST Update All Fields
 ```
 
-### Generating an IMS Token
+### Generating an IMS Token (Admin UI SDK testing only)
 
 ```bash
 # Using aio CLI
@@ -619,13 +593,15 @@ curl -X POST "https://ims-na1.adobelogin.com/ims/token/v3" \
   -d "grant_type=client_credentials&client_id={{CLIENT_ID}}&client_secret={{CLIENT_SECRET}}&scope={{SCOPES}}"
 ```
 
+> **Note:** IMS tokens are only needed for testing Admin UI SDK calls (config/registration). API Mesh calls do not require any auth \u2014 the mesh is the security boundary.
+
 ---
 
 ## 7. Database Collections Reference
 
 ### `app_config`
 
-Singleton document (`_id: 'app_config'`) holding module settings.
+Singleton document (`_id: 'app_config'`) holding module settings. Managed via Admin UI SDK (config action).
 
 | Field | Type | Description |
 |---|---|---|
@@ -638,7 +614,7 @@ Singleton document (`_id: 'app_config'`) holding module settings.
 
 ### `otps`
 
-Temporary OTP records.
+Temporary OTP records. Created via API Mesh (otp/customer actions).
 
 | Field | Type | Description |
 |---|---|---|
@@ -657,7 +633,7 @@ Temporary OTP records.
 
 ### `customer_mobile_identity`
 
-Customer identity mapping between Commerce and the module.
+Customer identity mapping between Commerce and the module. Written by API Mesh (customer action).
 
 | Field | Type | Indexed | Description |
 |---|---|---|---|

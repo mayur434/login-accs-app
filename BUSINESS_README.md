@@ -2,62 +2,87 @@
 
 ## Business Problem
 
-Commerce operations teams need controlled OTP-based customer authentication (registration, login, profile management) and centralized configuration, without code deployments for every policy change.
+Commerce operations teams need controlled OTP-based customer authentication (registration, login, profile management) and centralized configuration, without code deployments for every policy change. Additionally, storefronts and mobile apps need a secure, credential-free way to access the authentication APIs.
 
 ## Business Objective
 
-Provide a secure Admin module that allows authorized users to:
+Provide two distinct service layers:
+
+### For Commerce Admin Teams (Admin UI SDK)
 
 - Enable/disable OTP module
 - Configure OTP validity and response behavior
 - Control auto-login behavior
 - Toggle key info updates (mobile, email, name) for customers
-- Manage customer registration and login flows with OTP verification
-- Support both email and mobile-based authentication
+
+### For Storefronts & Mobile Apps (API Mesh)
+
+- Customer registration and login via OTP verification
+- Customer profile updates with Commerce sync
+- Standalone OTP generation and validation
+- **No authentication credentials required** from the frontend — handled automatically by API Mesh
+
+## Solution Architecture
+
+| Layer | Consumer | Access Method | Auth |
+|---|---|---|---|
+| **Admin UI SDK** | Commerce Admin users | Direct action calls | IMS token (automatic from Commerce host) |
+| **API Mesh** | Storefronts, mobile apps, websites | Mesh gateway URL | None required (mesh is the security boundary) |
 
 ## Target Users
 
-- Commerce Admin users
-- Support/Operations teams
-- Platform administrators
-- End customers (via OTP-based registration and login)
+- **Commerce Admin users** — configure the module via the Admin UI SDK extension
+- **Support/Operations teams** — manage OTP settings and customer policies
+- **End customers** — register, login, and update profiles via storefront/mobile (through API Mesh)
+- **Frontend developers** — integrate customer auth flows using the API Mesh endpoint (no IMS tokens needed)
 
 ## Business Value
 
-- Faster operational changes (self-service from Admin UI)
-- Improved governance via authenticated access
-- Reduced dependency on engineering for routine config updates
-- Consistent managed storage model with Adobe App Builder Doc DB
-- Seamless customer onboarding via OTP-gated registration and login
-- Mobile-first customer identity with email fallback
+- **Credential-free frontend integration** — Storefronts call API Mesh with no auth headers. The mesh URL is the only published endpoint.
+- **Faster operational changes** — Self-service config from Admin UI, no redeployment needed
+- **Clear separation of concerns** — Admin config is isolated from customer-facing APIs
+- **Secure by default** — Admin UI actions are IMS-protected. Frontend actions are gated by the mesh as the security boundary.
+- **Mobile-first customer identity** — Customers register/login using mobile numbers, with email fallback
+- **Single gateway** — API Mesh combines Commerce GraphQL + Login Module REST into one endpoint
 
 ## Security and Compliance Intent
 
-- Access to Admin actions is restricted to authenticated Adobe users.
+- All App Builder actions for Admin UI require Adobe authentication (`require-adobe-auth: true`).
+- Frontend-facing actions (`otp`, `customer`) have `require-adobe-auth: false` — the API Mesh acts as the security boundary.
+- Admin UI actions are accessible only within Commerce Admin context (IMS auth from host).
+- Customer-facing actions are accessible only through API Mesh — direct action URLs are not published.
+- Actions cannot be called directly from storefronts — the mesh URL is the only frontend gateway.
 - Customer operations are OTP-gated to prevent unauthorized access.
 - Profile updates require a valid customer token.
-- Configuration updates are executed through controlled backend actions.
 - OTP generation uses cryptographically secure randomness.
 
 ## Success Criteria
 
-- Admin user can update OTP and module settings from Commerce UI.
+- Admin user can update OTP and module settings from Commerce Admin UI (Admin UI SDK).
 - Config changes persist and are reflected in OTP runtime behavior.
-- Customers can register and login via OTP (email or mobile).
+- Storefronts can register and login customers via API Mesh without passing IMS credentials.
 - Customer profile updates (mobile, email, name) sync to Commerce and identity store.
-- Unauthorized API access is blocked.
+- Direct action calls from storefronts are blocked (actions not published; mesh is the only gateway).
+- API Mesh correctly proxies all frontend requests.
 
 ## Operational Rollout Plan
 
-1. Enable in Stage, validate auth and config flows.
-2. Validate Doc DB persistence and OTP configuration behavior.
-3. Test customer registration, login, and profile update end-to-end.
-4. Run UAT with operations/admin stakeholders.
-5. Promote to Production with monitoring enabled.
+1. Deploy actions and Admin UI to Stage environment.
+2. Deploy API Mesh pointing to Stage actions (`cd mesh && npm run create`).
+3. Validate Admin UI config flows (Admin UI SDK → Config action).
+4. Validate storefront flows (API Mesh → OTP / Customer actions).
+5. Test Doc DB persistence and OTP configuration behavior.
+6. Test customer registration, login, and profile update end-to-end via mesh.
+7. Run UAT with operations/admin stakeholders (Admin UI) and frontend team (API Mesh).
+8. Promote to Production: deploy actions, then update mesh with production `ACTION_BASE_URL` (`cd mesh && npm run update`).
+9. Enable monitoring on both action logs and mesh metrics.
 
 ## Risks and Mitigations
 
-- **Risk:** Host auth context unavailable leads to blocked config actions.
+- **Risk:** Mesh configuration mismatch causes frontend API failures.
+  - **Mitigation:** Ensure `ACTION_BASE_URL` in `mesh/secrets.yaml` matches the deployed action URL. Use `cd mesh && npm run update` after redeployment.
+
+- **Risk:** Host auth context unavailable leads to blocked Admin UI config actions.
   - **Mitigation:** Ensure launch from Commerce Admin shell and verify IMS context handshake.
 
 - **Risk:** Commerce GraphQL errors during customer operations.

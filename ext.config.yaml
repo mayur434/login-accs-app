@@ -25,8 +25,7 @@ runtimeManifest:
             GRAPHQL_API_KEY: $GRAPHQL_API_KEY
             AIO_DB_REGION: apac
           annotations:
-            require-adobe-auth: true
-            include-ims-credentials: true
+            require-adobe-auth: false
             final: true
         config:
           function: actions/config/index.js
@@ -50,8 +49,7 @@ runtimeManifest:
             GRAPHQL_API_KEY: $GRAPHQL_API_KEY
             AIO_DB_REGION: apac
           annotations:
-            require-adobe-auth: true
-            include-ims-credentials: true
+            require-adobe-auth: false
             final: true
         registration:
           function: actions/registration/index.js
@@ -60,5 +58,5 @@ runtimeManifest:
           inputs:
             LOG_LEVEL: debug
           annotations:
-            require-adobe-auth: false
+            require-adobe-auth: true
             final: true

@@ -1,0 +1,190 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Login Module API",
+    "version": "1.0.0",
+    "description": "OTP-based customer authentication actions for Adobe Commerce — OTP generation/validation and customer operations (register, login, update profile)."
+  },
+  "servers": [
+    {
+      "url": "{env.ACTION_BASE_URL}",
+      "description": "Injected from mesh/secrets.yaml at deploy time"
+    }
+  ],
+  "paths": {
+    "/otp": {
+      "post": {
+        "operationId": "invokeOtp",
+        "summary": "Generate or validate an OTP",
+        "description": "When otpValue and otpReferenceId are absent, a new OTP is generated. When both are provided, the OTP is validated and a token is returned.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "loginType": {
+                    "type": "string",
+                    "enum": ["email", "mobile"],
+                    "description": "Identifier type for the customer."
+                  },
+                  "email": {
+                    "type": "string",
+                    "description": "Customer email (required when loginType is email)."
+                  },
+                  "mobile": {
+                    "type": "string",
+                    "description": "Customer mobile number (required when loginType is mobile)."
+                  },
+                  "register": {
+                    "type": "boolean",
+                    "description": "If true, auto-register the customer during OTP generation."
+                  },
+                  "firstname": {
+                    "type": "string"
+                  },
+                  "lastname": {
+                    "type": "string"
+                  },
+                  "otpReferenceId": {
+                    "type": "string",
+                    "description": "Reference ID returned during OTP generation (for validation)."
+                  },
+                  "otpValue": {
+                    "type": "string",
+                    "description": "OTP value to validate."
+                  }
+                },
+                "required": ["loginType"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP generated or validated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "otpReferenceId": { "type": "string" },
+                    "otpValue": { "type": "string" },
+                    "success": { "type": "boolean" },
+                    "token": { "type": "string" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Missing or invalid parameters." },
+          "403": { "description": "Module disabled." },
+          "404": { "description": "User not registered." },
+          "500": { "description": "Internal server error." }
+        }
+      }
+    },
+    "/customer": {
+      "post": {
+        "operationId": "invokeCustomer",
+        "summary": "Execute a customer operation",
+        "description": "The `operation` field determines which flow is executed: register, login, or updateCustomerDetails. Register and login require prior OTP verification (otpReferenceId + otpValue).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": ["register", "login", "updateCustomerDetails"],
+                    "description": "The customer operation to perform."
+                  },
+                  "loginType": {
+                    "type": "string",
+                    "enum": ["email", "mobile"],
+                    "description": "Identifier type (required for register/login)."
+                  },
+                  "email": {
+                    "type": "string",
+                    "description": "Customer email address."
+                  },
+                  "mobile": {
+                    "type": "string",
+                    "description": "Customer mobile number."
+                  },
+                  "firstname": {
+                    "type": "string"
+                  },
+                  "lastname": {
+                    "type": "string"
+                  },
+                  "otpReferenceId": {
+                    "type": "string",
+                    "description": "OTP reference ID from the OTP generation step."
+                  },
+                  "otpValue": {
+                    "type": "string",
+                    "description": "OTP value for verification."
+                  },
+                  "customer_token": {
+                    "type": "string",
+                    "description": "Commerce customer token (required for updateCustomerDetails)."
+                  },
+                  "new_email": {
+                    "type": "string",
+                    "description": "New email for updateCustomerDetails."
+                  },
+                  "new_mobile": {
+                    "type": "string",
+                    "description": "New mobile for updateCustomerDetails."
+                  },
+                  "new_firstname": {
+                    "type": "string",
+                    "description": "New first name for updateCustomerDetails."
+                  },
+                  "new_lastname": {
+                    "type": "string",
+                    "description": "New last name for updateCustomerDetails."
+                  }
+                },
+                "required": ["operation"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operation completed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "token": { "type": "string" },
+                    "customer_id": { "type": "string" },
+                    "customer": {
+                      "type": "object",
+                      "description": "Customer profile data."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Missing or invalid parameters." },
+          "401": { "description": "OTP verification failed or invalid token." },
+          "403": { "description": "Operation not permitted." },
+          "404": { "description": "Customer not found." },
+          "409": { "description": "Identity conflict (e.g. email already in use)." },
+          "500": { "description": "Internal server error." }
+        }
+      }
+    }
+  }
+}

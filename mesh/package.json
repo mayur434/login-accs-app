@@ -1,0 +1,12 @@
+{
+  "name": "login-module-mesh",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API Mesh configuration and deployment for the Login Module",
+  "scripts": {
+    "create": "node deploy.js create",
+    "update": "node deploy.js update",
+    "get": "aio api-mesh:get",
+    "describe": "aio api-mesh:describe"
+  }
+}

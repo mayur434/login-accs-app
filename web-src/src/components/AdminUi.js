@@ -1,25 +1,83 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import PropTypes from 'prop-types'
-import { ActionButton, AlertDialog, Button, Checkbox, DialogContainer, Flex, Heading, NumberField, ProgressCircle, StatusLight, Tooltip, TooltipTrigger, View } from '@adobe/react-spectrum'
+import {
+  ActionButton, AlertDialog, Button, DialogContainer, Divider,
+  Flex, Heading, Link, NumberField, ProgressCircle, StatusLight,
+  Switch, Text, Tooltip, TooltipTrigger, View, Well
+} from '@adobe/react-spectrum'
 import allActions from '../config.json'
 import actionWebInvoke from '../utils'
 import Info from '@spectrum-icons/workflow/Info'
+import Refresh from '@spectrum-icons/workflow/Refresh'
+
+/* ── Helpers ──────────────────────────────────────────────── */
+
+function InfoTip ({ label }) {
+  return (
+    <TooltipTrigger delay={0}>
+      <ActionButton isQuiet aria-label={label}><Info size='S' /></ActionButton>
+      <Tooltip>{label}</Tooltip>
+    </TooltipTrigger>
+  )
+}
+
+function Section ({ title, children, description }) {
+  return (
+    <Well marginTop='size-200'>
+      <Heading level={3} marginBottom='size-50'>{title}</Heading>
+      {description && <Text UNSAFE_style={{ color: 'var(--spectrum-global-color-gray-600)', fontSize: 13 }}>{description}</Text>}
+      <Divider size='S' marginTop='size-100' marginBottom='size-150' />
+      {children}
+    </Well>
+  )
+}
+
+/* ── Component ────────────────────────────────────────────── */
 
 const AdminUi = (props) => {
+  // ── Saved (server) state snapshot ──
+  const savedRef = useRef(null)
+
+  // ── Form state ──
   const [isEnabled, setIsEnabled] = useState(false)
+  const [autoLogin, setAutoLogin] = useState(false)
+  const [otpBypass, setOtpBypass] = useState(false)
+  const [otpValidity, setOtpValidity] = useState(5)
+  const [allowKeyInfoUpdate, setAllowKeyInfoUpdate] = useState(false)
+
+  // ── UI state ──
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
-  const [autoLogin, setAutoLogin] = useState(false)
-  const [allowKeyInfoUpdate, setAllowKeyInfoUpdate] = useState(false)
-  const [otpValidity, setOtpValidity] = useState(5)
-  const [otpBypass, setOtpBypass] = useState(false)
   const [showSaveErrorDialog, setShowSaveErrorDialog] = useState(false)
   const [saveErrorDialogMessage, setSaveErrorDialogMessage] = useState('Unable to update module setting')
 
   const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  const formDisabled = isLoading || isSaving
 
+  // ── Dirty detection ──
+  const isDirty = (() => {
+    if (!savedRef.current) return false
+    const s = savedRef.current
+    return isEnabled !== s.isEnabled ||
+      autoLogin !== s.autoLogin ||
+      otpBypass !== s.otpBypass ||
+      otpValidity !== s.otpValidity ||
+      allowKeyInfoUpdate !== s.allowKeyInfoUpdate
+  })()
+
+  // ── Auto-dismiss success after 4s ──
+  const successTimer = useRef(null)
+  useEffect(() => {
+    if (successMessage) {
+      clearTimeout(successTimer.current)
+      successTimer.current = setTimeout(() => setSuccessMessage(null), 4000)
+    }
+    return () => clearTimeout(successTimer.current)
+  }, [successMessage])
+
+  // ── Load config on mount / token change ──
   useEffect(() => {
     const hasToken = Boolean(props.ims && props.ims.token)
     if (!hasToken && !isLocal) {
@@ -30,70 +88,118 @@ const AdminUi = (props) => {
     loadConfig()
   }, [props.ims && props.ims.token, props.ims && props.ims.org])
 
+  // ── Render ──
   return (
-    <View width="size-6000">
-      <Heading level={1}>Login App Admin - ACCS</Heading>
-      <Flex alignItems='center' gap='size-200'>
-        <Heading level={3}>Enable Module</Heading>
-        <Checkbox size='XL' isSelected={isEnabled} isDisabled={isLoading || isSaving} onChange={onToggleModule} />
-      </Flex>
-
-      <Flex alignItems='center' gap='size-200'>
-        <Heading level={4}>Auto Login</Heading>
-        <Checkbox size='XL' isSelected={autoLogin} isDisabled={isLoading || isSaving} onChange={onAutoLoginToggle} />
-      </Flex>
-
-      <Flex alignItems='center' gap='size-200'>
-         <Heading level={4}>Enable OTP Bypass</Heading>
+    <View maxWidth='size-6000'>
+      {/* ── Header ── */}
+      <Flex alignItems='center' justifyContent='space-between'>
+        <Flex alignItems='center' gap='size-100'>
+          <Heading level={1} marginBottom='size-0'>Login Module</Heading>
+          {!isLoading && (
+            <StatusLight variant={isEnabled ? 'positive' : 'neutral'} marginTop='size-50'>
+              {isEnabled ? 'Active' : 'Inactive'}
+            </StatusLight>
+          )}
+        </Flex>
         <TooltipTrigger delay={0}>
-          <ActionButton isQuiet aria-label='Set the duration for which the OTP is valid'>
-            <Info size='S' />
+          <ActionButton isQuiet onPress={loadConfig} isDisabled={formDisabled} aria-label='Refresh configuration'>
+            <Refresh size='S' />
           </ActionButton>
-          <Tooltip>includes the OTP in the response for testing purposes.</Tooltip>
+          <Tooltip>Reload configuration from server</Tooltip>
         </TooltipTrigger>
-        <Checkbox size='XL' isSelected={otpBypass} isDisabled={isLoading || isSaving} onChange={otpBypassToggle} />
       </Flex>
 
-      <Flex alignItems='center' gap='size-200'>
-        <Heading level={4}>OTP expiration validity </Heading>
-        <TooltipTrigger delay={0}>
-          <ActionButton isQuiet aria-label='Set the duration for which the OTP is valid'>
-            <Info size='S' />
-          </ActionButton>
-          <Tooltip>in minutes</Tooltip>
-        </TooltipTrigger>
+      <Text UNSAFE_style={{ color: 'var(--spectrum-global-color-gray-600)', fontSize: 13 }}>
+        Manage OTP-based customer authentication for Adobe Commerce.
+      </Text>
 
-        <NumberField value={otpValidity} onChange={onOtpValidityChange} minValue={1} step={1} width='size-2000' isDisabled={isLoading || isSaving} />
-      </Flex>
+      {/* ── Loading bar ── */}
+      {(isLoading || isSaving) && (
+        <Flex alignItems='center' gap='size-100' marginTop='size-200'>
+          <ProgressCircle aria-label={isSaving ? 'Saving…' : 'Loading…'} isIndeterminate size='S' />
+          <Text>{isSaving ? 'Saving configuration…' : 'Loading configuration…'}</Text>
+        </Flex>
+      )}
 
-        <Flex alignItems='center' gap='size-200'>
-        <Heading level={4}>Allow Key Info Update</Heading>
-        <TooltipTrigger delay={0}>
-          <ActionButton isQuiet aria-label='Allow customer key info updates'>
-            <Info size='S' />
-          </ActionButton>
-          <Tooltip>Allows user identifier updates such as mobile/email mapping changes.</Tooltip>
-        </TooltipTrigger>
-        <Checkbox size='XL' isSelected={allowKeyInfoUpdate} isDisabled={isLoading || isSaving} onChange={onAllowKeyInfoUpdateToggle} />
-      </Flex>
-
-      {(isLoading || isSaving) && <ProgressCircle aria-label='loading config' isIndeterminate marginTop='size-100' />}
+      {/* ── Notifications ── */}
       {errorMessage && (
-        <View marginTop='size-100'>
+        <View marginTop='size-150'>
           <StatusLight variant='negative'>{errorMessage}</StatusLight>
         </View>
       )}
-
-       {successMessage && (
-        <View marginTop='size-100'>
+      {successMessage && (
+        <View marginTop='size-150'>
           <StatusLight variant='positive'>{successMessage}</StatusLight>
         </View>
       )}
 
-      <Flex marginTop='size-200'>
-        <Button variant='accent' onPress={saveConfig} isDisabled={isLoading || isSaving}>Save</Button>
+      {/* ───── Section: Module ───── */}
+      <Section title='Module' description='Master toggle for the login module.'>
+        <Switch isSelected={isEnabled} isDisabled={formDisabled} onChange={onToggle(setIsEnabled)}>
+          Enable Module
+        </Switch>
+      </Section>
+
+      {/* ───── Section: Authentication ───── */}
+      <Section title='Authentication' description='Control how customers authenticate after OTP verification.'>
+        <Flex direction='column' gap='size-100'>
+          <Flex alignItems='center' gap='size-100'>
+            <Switch isSelected={autoLogin} isDisabled={formDisabled || !isEnabled} onChange={onToggle(setAutoLogin)}>
+              Auto Login
+            </Switch>
+            <InfoTip label='Automatically log the customer in after successful OTP verification.' />
+          </Flex>
+        </Flex>
+      </Section>
+
+      {/* ───── Section: OTP ───── */}
+      <Section title='OTP Settings' description='Configure one-time password behaviour.'>
+        <Flex direction='column' gap='size-150'>
+          <Flex alignItems='center' gap='size-100'>
+            <Switch isSelected={otpBypass} isDisabled={formDisabled || !isEnabled} onChange={onToggle(setOtpBypass)}>
+              OTP Bypass (Dev)
+            </Switch>
+            <InfoTip label='Include the OTP value in the API response for testing purposes. Disable in production.' />
+          </Flex>
+
+          <Flex alignItems='center' gap='size-100'>
+            <NumberField
+              label='OTP Expiration (minutes)'
+              value={otpValidity}
+              onChange={onOtpValidityChange}
+              minValue={1}
+              step={1}
+              width='size-2400'
+              isDisabled={formDisabled || !isEnabled}
+            />
+            <InfoTip label='Duration in minutes before an issued OTP expires.' />
+          </Flex>
+        </Flex>
+      </Section>
+
+      {/* ───── Section: Security ───── */}
+      <Section title='Security' description='Control what customers are allowed to update.'>
+        <Flex alignItems='center' gap='size-100'>
+          <Switch isSelected={allowKeyInfoUpdate} isDisabled={formDisabled || !isEnabled} onChange={onToggle(setAllowKeyInfoUpdate)}>
+            Allow Key Info Update
+          </Switch>
+          <InfoTip label='Allows customers to update identity fields such as mobile-to-email mappings.' />
+        </Flex>
+      </Section>
+
+      {/* ── Actions Bar ── */}
+      <Flex marginTop='size-300' gap='size-200' alignItems='center'>
+        <Button variant='accent' onPress={saveConfig} isDisabled={formDisabled || !isDirty}>
+          {isSaving ? 'Saving…' : 'Save Configuration'}
+        </Button>
+        {isDirty && (
+          <Text UNSAFE_style={{ color: 'var(--spectrum-global-color-orange-600)', fontSize: 13, fontStyle: 'italic' }}>
+            Unsaved changes
+          </Text>
+        )}
       </Flex>
 
+      {/* ── Save Error Dialog ── */}
       <DialogContainer onDismiss={closeSaveErrorDialog}>
         {showSaveErrorDialog && (
           <AlertDialog
@@ -109,24 +215,40 @@ const AdminUi = (props) => {
         )}
       </DialogContainer>
 
-       <Flex marginTop='size-200' gap='size-200' alignItems='center'>
-        <a href='https://docs.google.com/document/d/1DLiipwI7Ppq0j8xZSSejzOjDizT-Com73chVAElpvF4/edit?tab=t.0' target='_blank' >
-        <em>
-          App Document
-        </em>
-        </a>
-      </Flex>
-      {/*<Flex gap='size-200' alignItems='center'>
-        <Heading level={4}>Technical Document</Heading>
-         <a href='#' ></a>
-      </Flex> */}
-      <Flex marginTop='size-300' gap='size-200' alignItems='center'>
-         <a href='https://documenter.getpostman.com/view/35158574/2sBXcHhJYk#d3985841-bd9e-4dda-8b4e-2c5a181e6245' target="_blank">
-         <em>API Documentation</em>
-         </a>
+      {/* ───── Section: Resources ───── */}
+      <Divider size='S' marginTop='size-400' marginBottom='size-200' />
+      <Heading level={4}>Resources</Heading>
+      <Flex direction='column' gap='size-100' marginTop='size-50'>
+        <Link>
+          <a href='https://documenter.getpostman.com/view/38215772/2sBXijJBVG' target='_blank' rel='noopener noreferrer'>
+            API Documentation (Postman)
+          </a>
+        </Link>
+        <Link>
+          <a href='https://docs.google.com/document/d/1DLiipwI7Ppq0j8xZSSejzOjDizT-Com73chVAElpvF4/edit?tab=t.0' target='_blank' rel='noopener noreferrer'>
+            App Document
+          </a>
+        </Link>
       </Flex>
     </View>
   )
+
+  /* ── Handlers ─────────────────────────────────────────── */
+
+  function onToggle (setter) {
+    return function (selected) {
+      setter(selected)
+      setErrorMessage(null)
+      setSuccessMessage(null)
+    }
+  }
+
+  function onOtpValidityChange (value) {
+    const nextValue = Number.isFinite(value) ? Math.max(1, Math.round(value)) : 1
+    setOtpValidity(nextValue)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+  }
 
   async function loadConfig () {
     setIsLoading(true)
@@ -145,11 +267,19 @@ const AdminUi = (props) => {
     }
     try {
       const response = await actionWebInvoke(actionUrl, authHeaders, {}, { method: 'GET' })
-      setIsEnabled(Boolean(response.is_enabled))
-      setAutoLogin(Boolean(response.auto_login))
-      setAllowKeyInfoUpdate(Boolean(response.allow_key_info_update))
-      setOtpValidity(Number.isInteger(response.otp_expiration_validity) ? response.otp_expiration_validity : 5)
-      setOtpBypass(typeof response.otp_in_response === 'boolean' ? response.otp_in_response : true)
+      const loaded = {
+        isEnabled: Boolean(response.is_enabled),
+        autoLogin: Boolean(response.auto_login),
+        allowKeyInfoUpdate: Boolean(response.allow_key_info_update),
+        otpValidity: Number.isInteger(response.otp_expiration_validity) ? response.otp_expiration_validity : 5,
+        otpBypass: typeof response.otp_in_response === 'boolean' ? response.otp_in_response : true
+      }
+      setIsEnabled(loaded.isEnabled)
+      setAutoLogin(loaded.autoLogin)
+      setAllowKeyInfoUpdate(loaded.allowKeyInfoUpdate)
+      setOtpValidity(loaded.otpValidity)
+      setOtpBypass(loaded.otpBypass)
+      savedRef.current = loaded
       setSuccessMessage(null)
     } catch (e) {
       setErrorMessage(getActionErrorMessage(e, 'load'))
@@ -157,37 +287,6 @@ const AdminUi = (props) => {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  function onToggleModule (selected) {
-    setIsEnabled(selected)
-    setErrorMessage(null)
-    setSuccessMessage(null)
-  }
-
-  function otpBypassToggle (selected) {
-    setOtpBypass(selected)
-    setErrorMessage(null)
-    setSuccessMessage(null)
-  }
-
-  function onAutoLoginToggle (selected) {
-    setAutoLogin(selected)
-    setErrorMessage(null)
-    setSuccessMessage(null)
-  }
-
-  function onAllowKeyInfoUpdateToggle (selected) {
-    setAllowKeyInfoUpdate(selected)
-    setErrorMessage(null)
-    setSuccessMessage(null)
-  }
-
-  function onOtpValidityChange (value) {
-    const nextValue = Number.isFinite(value) ? Math.max(1, Math.round(value)) : 1
-    setOtpValidity(nextValue)
-    setErrorMessage(null)
-    setSuccessMessage(null)
   }
 
   async function saveConfig () {
@@ -224,11 +323,19 @@ const AdminUi = (props) => {
         },
         { method: 'POST' }
       )
-      setIsEnabled(Boolean(response.is_enabled))
-      setAutoLogin(Boolean(response.auto_login))
-      setAllowKeyInfoUpdate(Boolean(response.allow_key_info_update))
-      setOtpValidity(Number.isInteger(response.otp_expiration_validity) ? response.otp_expiration_validity : otpValidity)
-      setOtpBypass(typeof response.otp_in_response === 'boolean' ? response.otp_in_response : otpBypass)
+      const saved = {
+        isEnabled: Boolean(response.is_enabled),
+        autoLogin: Boolean(response.auto_login),
+        allowKeyInfoUpdate: Boolean(response.allow_key_info_update),
+        otpValidity: Number.isInteger(response.otp_expiration_validity) ? response.otp_expiration_validity : otpValidity,
+        otpBypass: typeof response.otp_in_response === 'boolean' ? response.otp_in_response : otpBypass
+      }
+      setIsEnabled(saved.isEnabled)
+      setAutoLogin(saved.autoLogin)
+      setAllowKeyInfoUpdate(saved.allowKeyInfoUpdate)
+      setOtpValidity(saved.otpValidity)
+      setOtpBypass(saved.otpBypass)
+      savedRef.current = saved
     } catch (e) {
       saveFailed = true
       saveErrorText = getActionErrorMessage(e, 'save')
@@ -238,9 +345,8 @@ const AdminUi = (props) => {
       console.error(e)
     } finally {
       setIsSaving(false)
-      await loadConfig()
       if (!saveFailed) {
-        setSuccessMessage('Configuration saved')
+        setSuccessMessage('Configuration saved successfully')
       }
     }
   }

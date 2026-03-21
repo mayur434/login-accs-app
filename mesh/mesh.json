@@ -5,9 +5,20 @@
         "name": "Commerce",
         "handler": {
           "graphql": {
-            "endpoint": "https://na1-sandbox.api.commerce.adobe.com/7k8EEaou2ToLpUVmBc8LE7/graphql",
+            "endpoint": "{env.COMMERCE_GRAPHQL_ENDPOINT}",
             "operationHeaders": {
-             "Authorization": "{context.headers.authorization}"
+              "Authorization": "{context.headers.authorization}"
+            }
+          }
+        }
+      },
+      {
+        "name": "LoginModule",
+        "handler": {
+          "openapi": {
+            "source": "./mesh/openapi.json",
+            "operationHeaders": {
+              "Content-Type": "application/json"
             }
           }
         }

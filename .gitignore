@@ -13,6 +13,9 @@ config.json
 .env*
 .aio
 
+# Mesh secrets (contains tokens & URLs)
+mesh/secrets.yaml
+
 # Adobe I/O console config
 console.json
 
