@@ -18,9 +18,11 @@ const AdminUi = (props) => {
   const [showSaveErrorDialog, setShowSaveErrorDialog] = useState(false)
   const [saveErrorDialogMessage, setSaveErrorDialogMessage] = useState('Unable to update module setting')
 
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+
   useEffect(() => {
     const hasToken = Boolean(props.ims && props.ims.token)
-    if (!hasToken) {
+    if (!hasToken && !isLocal) {
       setIsLoading(false)
       setErrorMessage('Waiting for Adobe IMS session...')
       return
@@ -130,14 +132,14 @@ const AdminUi = (props) => {
     setIsLoading(true)
     setErrorMessage(null)
     const authHeaders = getAuthHeaders()
-    if (!authHeaders.authorization) {
+    if (!authHeaders.authorization && !isLocal) {
       setErrorMessage('Missing Adobe IMS session. Open this extension from Adobe Commerce Admin and wait for context load.')
       setIsLoading(false)
       return
     }
-    const actionUrl = allActions['customerotplogin/app_config']
+    const actionUrl = allActions['login-module/config']
     if (!actionUrl) {
-      setErrorMessage('app_config action URL is missing in config.json')
+      setErrorMessage('config action URL is missing in config.json')
       setIsLoading(false)
       return
     }
@@ -196,15 +198,15 @@ const AdminUi = (props) => {
     let saveErrorText = ''
     const authHeaders = getAuthHeaders()
 
-    if (!authHeaders.authorization) {
+    if (!authHeaders.authorization && !isLocal) {
       setErrorMessage('Missing Adobe IMS session. Open this extension from Adobe Commerce Admin and wait for context load.')
       setIsSaving(false)
       return
     }
 
-    const actionUrl = allActions['customerotplogin/app_config']
+    const actionUrl = allActions['login-module/config']
     if (!actionUrl) {
-      setErrorMessage('app_config action URL is missing in config.json')
+      setErrorMessage('config action URL is missing in config.json')
       setIsSaving(false)
       return
     }
@@ -250,7 +252,7 @@ const AdminUi = (props) => {
   function getActionErrorMessage (error, operation) {
     const message = (error && error.message) ? error.message : ''
     if (message.includes('status: 404')) {
-      return 'app_config action is not available (404). Restart aio app dev/run or deploy the updated app.'
+      return 'config action is not available (404). Restart aio app dev/run or deploy the updated app.'
     }
     return operation === 'load' ? 'Unable to load app config' : 'Unable to update module setting'
   }

@@ -1,153 +1,66 @@
-const fetch = require('node-fetch')
 const { Core } = require('@adobe/aio-sdk')
 const { generateAccessToken } = Core.AuthClient
-const libDB = require('@adobe/aio-lib-db')
-const { errorResponse, stringParameters, checkMissingRequestInputs } = require('../utils')
-const DEFAULT_OTP_EXPIRATION_VALIDITY_MINUTES = 5
-const DEFAULT_OTP_IN_RESPONSE = false
+const { stringParameters, checkMissingRequestInputs } = require('../utils')
+const { errorResponse } = require('../lib/http')
+const { getCollection, closeDb, getAppConfig, APP_CONFIG_DEFAULTS } = require('../lib/db')
+const { graphQLRequest } = require('../lib/graphql')
+const { generateOtpValue, createReferenceId, levenshtein } = require('../lib/otp')
+const { getRequestParams } = require('../lib/params')
+const { INTERNAL_CUSTOMER_PASSWORD } = require('../lib/customer')
 
-// OTPs persisted to Adobe DB collection 'otps'
-
-function getRequestParams (params) {
-  let req = params
-
-  if (params.params && typeof params.params === 'object') {
-    req = params.params
-  } else if (params.body) {
-    try {
-      req = typeof params.body === 'string' ? JSON.parse(params.body) : params.body
-    } catch {
-      req = params
-    }
-  } else if (params.__ow_body) {
-    try {
-      req = typeof params.__ow_body === 'string' ? JSON.parse(params.__ow_body) : params.__ow_body
-    } catch {
-      req = params
-    }
-  }
-
-  return { ...params, ...req }
-}
-
-function generateOtpValue () {
-  return (Math.floor(1000 + Math.random() * 9000)).toString()
-}
-
-function createReferenceId () {
-  return `otp_${Date.now()}_${Math.floor(Math.random() * 100000)}`
-}
-
-function levenshtein (a, b) {
-  if (!a) return b ? b.length : 0
-  if (!b) return a.length
-  const m = a.length
-  const n = b.length
-  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
-  for (let i = 0; i <= m; i++) dp[i][0] = i
-  for (let j = 0; j <= n; j++) dp[0][j] = j
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1
-      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost)
-    }
-  }
-  return dp[m][n]
-}
-
-async function graphQLRequest (params, query, variables = {}, logger) {
-  const endpoint = (params.GRAPHQL_ENDPOINT || process.env.GRAPHQL_ENDPOINT)
-  if (!endpoint) throw new Error('GRAPHQL_ENDPOINT not configured in params or env')
-
-  const headers = { 'Content-Type': 'application/json' }
-  // if (process.env.GRAPHQL_API_KEY) {
-  //   headers.authorization = `Bearer ${process.env.GRAPHQL_API_KEY}`
-  // }
-
-  logger.info(`calling GraphQL ${endpoint}`)
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ query, variables })
-  })
-  const json = await res.json()
-  return json
-}
+// ── Commerce helpers ────────────────────────────────────────────────────
 
 async function tryLogin (email, password, params, logger) {
-  // First try generateCustomerToken mutation (some schemas expose this)
-  const genTokenMutation = `mutation generateCustomerToken($email: String!){ generateCustomerToken(email: $email, password: "pass@123"){ token } }`
+  const mutation = `mutation generateCustomerToken($email: String!){ generateCustomerToken(email: $email, password: "${INTERNAL_CUSTOMER_PASSWORD}"){ token } }`
   try {
-    const genResp = await graphQLRequest(params, genTokenMutation, { email }, logger)
-    if (genResp && genResp.data && genResp.data.generateCustomerToken && genResp.data.generateCustomerToken.token) {
-      return genResp.data.generateCustomerToken.token
-    }
+    const resp = await graphQLRequest(params, mutation, { email }, logger)
+    if (resp?.data?.generateCustomerToken?.token) return resp.data.generateCustomerToken.token
   } catch (e) {
     logger.debug && logger.debug('generateCustomerToken attempt failed: ' + e.message)
   }
-
-  // Fallback to generic login mutation. Adapt to your GraphQL schema if different.
-  const loginMutation = `mutation Login($email:String!, $password:String!){ login(email:$email,password:"pass@123"){ token } }`
-  const resp = await graphQLRequest(params, loginMutation, { email, password }, logger)
-  if (resp && resp.data && resp.data.login && resp.data.login.token) return resp.data.login.token
   return null
 }
 
 async function createUser (email, password, mobile, params, logger) {
-  // Use createCustomerV2 for commerce; derive firstname/lastname if missing
   const firstname = params.firstname || params.firstName || (typeof email === 'string' ? email.split('@')[0] : 'Customer')
   const lastname = params.lastname || params.lastName || (mobile ? String(mobile) : 'User')
-  const createCustomerMutation = `mutation createCustomerV2($email: String!, $firstname: String!, $lastname: String!){ createCustomerV2(input:{ firstname: $firstname, lastname: $lastname, email: $email, password: "pass@123" }){ customer{ firstname lastname email } } }`
-  try {
-    const resp = await graphQLRequest(params, createCustomerMutation, { email, firstname, lastname }, logger)
-    return resp
-  } catch (e) {
-    logger.error && logger.error('createCustomerV2 attempt failed: ' + e.message)
-    throw e
-  }
+  const mutation = `mutation createCustomerV2($email: String!, $firstname: String!, $lastname: String!){ createCustomerV2(input:{ firstname: $firstname, lastname: $lastname, email: $email, password: "${INTERNAL_CUSTOMER_PASSWORD}" }){ customer{ firstname lastname email } } }`
+  return graphQLRequest(params, mutation, { email, firstname, lastname }, logger)
 }
 
-// main action
+// ── Main action ─────────────────────────────────────────────────────────
+
 async function main (params) {
   const logger = Core.Logger('otp', { level: params.LOG_LEVEL || 'info' })
+  let dbClient
+
   try {
     logger.info('OTP action called')
     logger.debug(stringParameters(params))
 
-    // normalize input: accept JSON object in `params` or raw body
-    let req = params
-    if (params.params && typeof params.params === 'object') {
-      req = params.params
-    } else if (params.body) {
-      try { req = (typeof params.body === 'string') ? JSON.parse(params.body) : params.body } catch (e) {}
-    } else if (params.__ow_body) {
-      try { req = (typeof params.__ow_body === 'string') ? JSON.parse(params.__ow_body) : params.__ow_body } catch (e) {}
-    }
-    // carry headers
-    req.__ow_headers = params.__ow_headers || req.__ow_headers
-    const inParams = { ...params, ...req }
+    const inParams = getRequestParams(params)
+    inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers
 
-    // initialize Adobe DB client and collection for OTPs
     const region = inParams.AIO_DB_REGION || process.env.AIO_DB_REGION || 'apac'
-
     const requestParams = getRequestParams(params)
+    const tokenResponse = await generateAccessToken(requestParams)
 
-    const tokenResponse = await generateAccessToken(requestParams);
-    const db = await libDB.init({ region, token: tokenResponse.access_token })
-    const dbClient = await db.connect()
-    const otpCollection = await dbClient.collection('otps')
-    const appConfigCollection = await dbClient.collection('app_config')
-    const appConfig = await appConfigCollection.findOne({ _id: 'app_config' })
+    const { dbClient: connectedClient, collection: otpCollection } = await getCollection(
+      { ...requestParams, AIO_DB_TOKEN: tokenResponse.access_token },
+      'otps'
+    )
+    dbClient = connectedClient
 
-    if (!(appConfig && appConfig.is_enabled)) {
+    const appConfig = await getAppConfig(dbClient)
+
+    if (!appConfig.is_enabled) {
       return errorResponse(403, 'otp module is disabled', logger)
     }
 
-    // decide mode: generate (no otpValue) vs validate (has otpValue & otpReferenceId)
     const isValidate = inParams.otpValue && inParams.otpReferenceId
 
     if (!isValidate) {
-      // generation mode: require loginType and either mobile or email
+      // ── Generate OTP ──────────────────────────────────────────────
       const requiredParams = ['loginType']
       const errorMessage = checkMissingRequestInputs(inParams, requiredParams, [])
       if (errorMessage) return errorResponse(400, errorMessage, logger)
@@ -159,14 +72,12 @@ async function main (params) {
         const missing = checkMissingRequestInputs(inParams, ['email'], [])
         if (missing) return errorResponse(400, missing, logger)
       }
-      // before creating OTP, try to obtain access token for the customer
-      const defaultPassword = 'pass@123'
+
       let emailForLogin = inParams.email
       if (inParams.loginType === 'mobile') {
         emailForLogin = `${inParams.mobile}@email.com`
       }
 
-      // try login first (use empty password to prefer generateCustomerToken if supported)
       let token = null
       try {
         token = await tryLogin(emailForLogin, '', inParams, logger)
@@ -174,21 +85,19 @@ async function main (params) {
         logger.debug && logger.debug('initial tryLogin failed: ' + e.message)
       }
 
-      const autoLogin = !!(appConfig && appConfig.auto_login)
+      const autoLogin = !!appConfig.auto_login
       const registerFlag = (typeof inParams.register === 'string')
         ? inParams.register.toLowerCase() === 'true'
         : Boolean(inParams.register)
 
       if (!token) {
-        // user not present or token not obtainable
         if (!autoLogin && !registerFlag) {
           return errorResponse(404, 'user is not registered, kindly register first', logger)
         }
 
-        // attempt to create user then login with default password (when autoLogin is enabled or register flag provided)
         try {
-          await createUser(emailForLogin, defaultPassword, inParams.mobile, inParams, logger)
-          token = await tryLogin(emailForLogin, defaultPassword, inParams, logger)
+          await createUser(emailForLogin, INTERNAL_CUSTOMER_PASSWORD, inParams.mobile, inParams, logger)
+          token = await tryLogin(emailForLogin, INTERNAL_CUSTOMER_PASSWORD, inParams, logger)
         } catch (e) {
           logger.error && logger.error('user creation/login failed: ' + e.message)
           return errorResponse(500, 'unable to create/login user', logger)
@@ -199,15 +108,15 @@ async function main (params) {
         }
       }
 
-      // token available — create OTP and store token in record
       const otpValue = generateOtpValue()
       const ref = createReferenceId()
-      const otpValidityMinutes = Number.isInteger(appConfig && appConfig.otp_expiration_validity) && appConfig.otp_expiration_validity > 0
+      const otpValidityMinutes = (Number.isInteger(appConfig.otp_expiration_validity) && appConfig.otp_expiration_validity > 0)
         ? appConfig.otp_expiration_validity
-        : DEFAULT_OTP_EXPIRATION_VALIDITY_MINUTES
-        const otpInResponse = typeof (appConfig && appConfig.otp_in_response) === 'boolean'
-          ? appConfig.otp_in_response
-          : DEFAULT_OTP_IN_RESPONSE
+        : APP_CONFIG_DEFAULTS.otp_expiration_validity
+      const otpInResponse = typeof appConfig.otp_in_response === 'boolean'
+        ? appConfig.otp_in_response
+        : APP_CONFIG_DEFAULTS.otp_in_response
+
       await otpCollection.insertOne({
         otpReferenceId: ref,
         otp: otpValue,
@@ -221,49 +130,39 @@ async function main (params) {
         tokenStoredAt: Date.now()
       })
 
-      // NOTE: in production you should send OTP via SMS/email here instead
       return {
         statusCode: 200,
         body: otpInResponse
-          ? {
-          otpReferenceId: ref,
-              otpValue
-            }
-          : {
-              otpReferenceId: ref
-        }
+          ? { otpReferenceId: ref, otpValue }
+          : { otpReferenceId: ref }
       }
     }
 
-    // validation mode
+    // ── Validate OTP ──────────────────────────────────────────────────
     const missing = checkMissingRequestInputs(inParams, ['otpReferenceId', 'otpValue', 'loginType'], [])
     if (missing) return errorResponse(400, missing, logger)
 
     const record = await otpCollection.findOne({ otpReferenceId: inParams.otpReferenceId })
     if (!record) return errorResponse(400, 'invalid otpReferenceId', logger)
+
     if (Date.now() > record.expiresAt) {
       await otpCollection.deleteOne({ otpReferenceId: inParams.otpReferenceId })
       return errorResponse(400, 'otp expired', logger)
     }
 
-    // fuzzy compare: allow distance 0 or 1
     const distance = levenshtein(String(inParams.otpValue), String(record.otp))
     if (distance > 1) return errorResponse(401, 'invalid otp', logger)
 
-    // build user email: if loginType is mobile, create <mobile>@vijaysales.com
     let emailToUse = record.email
     if (inParams.loginType === 'mobile') {
       if (!record.mobile) return errorResponse(400, 'mobile not present for this reference', logger)
       emailToUse = `${record.mobile}@email.com`
     }
 
-    const defaultPassword = 'Pass@123'
-
-    // try to generate JWT token using GraphQL login
+    // Try login
     try {
-      const token = await tryLogin(emailToUse, defaultPassword, inParams, logger)
+      const token = await tryLogin(emailToUse, INTERNAL_CUSTOMER_PASSWORD, inParams, logger)
       if (token) {
-        // store token in OTP record and return success
         await otpCollection.updateOne({ otpReferenceId: inParams.otpReferenceId }, { $set: { token, tokenStoredAt: Date.now() } })
         return { statusCode: 200, body: { success: true, token, message: 'otp matched' } }
       }
@@ -271,19 +170,19 @@ async function main (params) {
       logger.info('login attempt failed: ' + err.message)
     }
 
-    // if auto_login not enabled in DB, report user not found unless `register` flag provided
-    const autoLogin = !!(appConfig && appConfig.auto_login)
+    const autoLogin = !!appConfig.auto_login
     const registerFlag = (typeof inParams.register === 'string')
       ? inParams.register.toLowerCase() === 'true'
       : Boolean(inParams.register)
+
     if (!autoLogin && !registerFlag) {
       return errorResponse(404, 'user is not present in commerce', logger)
     }
 
-    // auto_login enabled -> create user and then try login
+    // Auto-create user and login
     try {
-      await createUser(emailToUse, defaultPassword, record.mobile, inParams, logger)
-      const tokenAfterCreate = await tryLogin(emailToUse, defaultPassword, inParams, logger)
+      await createUser(emailToUse, INTERNAL_CUSTOMER_PASSWORD, record.mobile, inParams, logger)
+      const tokenAfterCreate = await tryLogin(emailToUse, INTERNAL_CUSTOMER_PASSWORD, inParams, logger)
       if (tokenAfterCreate) {
         await otpCollection.updateOne({ otpReferenceId: inParams.otpReferenceId }, { $set: { token: tokenAfterCreate, tokenStoredAt: Date.now() } })
         return { statusCode: 200, body: { success: true, token: tokenAfterCreate, message: 'otp matched' } }
@@ -293,17 +192,12 @@ async function main (params) {
       logger.error(err)
       return errorResponse(500, 'server error during user creation/login', logger)
     }
-    } catch (error) {
-      logger.error(error)
-      return errorResponse(500, 'server error', logger)
-    } finally {
-      // ensure DB client is closed if still open
-      try {
-        if (typeof dbClient !== 'undefined' && dbClient) await dbClient.close()
-      } catch (e) {
-        logger.debug && logger.debug('error closing DB client: ' + e.message)
-      }
-    }
+  } catch (error) {
+    logger.error(error)
+    return errorResponse(500, 'server error', logger)
+  } finally {
+    await closeDb(dbClient, logger)
+  }
 }
 
 exports.main = main

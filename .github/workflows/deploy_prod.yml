@@ -37,6 +37,22 @@ jobs:
           TECHNICALACCOUNTEMAIL: ${{ secrets.TECHNICALACCEMAIL_PROD }}
           IMSORGID: ${{ secrets.IMSORGID_PROD }}
           SCOPES: ${{ secrets.SCOPES_PROD }}
+      - name: Provision Database
+        env:
+          IMS_OAUTH_S2S_CLIENT_ID: ${{ secrets.CLIENTID_PROD }}
+          IMS_OAUTH_S2S_CLIENT_SECRET: ${{ secrets.CLIENTSECRET_PROD }}
+          IMS_OAUTH_S2S_ORG_ID: ${{ secrets.IMSORGID_PROD }}
+          IMS_OAUTH_S2S_SCOPES: ${{ secrets.SCOPES_PROD }}
+          AIO_runtime_namespace: ${{ secrets.AIO_RUNTIME_NAMESPACE_PROD }}
+        run: node scripts/provision-db.js
+      - name: Setup Database
+        env:
+          IMS_OAUTH_S2S_CLIENT_ID: ${{ secrets.CLIENTID_PROD }}
+          IMS_OAUTH_S2S_CLIENT_SECRET: ${{ secrets.CLIENTSECRET_PROD }}
+          IMS_OAUTH_S2S_ORG_ID: ${{ secrets.IMSORGID_PROD }}
+          IMS_OAUTH_S2S_SCOPES: ${{ secrets.SCOPES_PROD }}
+          AIO_runtime_namespace: ${{ secrets.AIO_RUNTIME_NAMESPACE_PROD }}
+        run: node scripts/setup-db.js
       - name: Build
         env:
           AIO_RUNTIME_NAMESPACE: ${{ secrets.AIO_RUNTIME_NAMESPACE_PROD }}

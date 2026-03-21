@@ -2,6 +2,8 @@ operations:
   view:
     - type: web
       impl: index.html
+hooks:
+  post-app-deploy: npm run setup-db
 actions: actions
 web: web-src
 runtimeManifest:
@@ -9,18 +11,9 @@ runtimeManifest:
     auto-provision: true
     region: apac
   packages:
-    customerotplogin:
+    login-module:
       license: Apache-2.0
       actions:
-        generic:
-          function: actions/generic/index.js
-          web: 'yes'
-          runtime: nodejs:22
-          inputs:
-            LOG_LEVEL: debug
-          annotations:
-            require-adobe-auth: true
-            final: true
         otp:
           function: actions/otp/otp.js
           web: 'yes'
@@ -35,8 +28,8 @@ runtimeManifest:
             require-adobe-auth: true
             include-ims-credentials: true
             final: true
-        app_config:
-          function: actions/app_config/index.js
+        config:
+          function: actions/config/index.js
           web: 'yes'
           runtime: nodejs:22
           inputs:
@@ -46,8 +39,8 @@ runtimeManifest:
             require-adobe-auth: true
             include-ims-credentials: true
             final: true
-        customerAuth:
-          function: actions/customerAuth/index.js
+        customer:
+          function: actions/customer/index.js
           web: 'yes'
           runtime: nodejs:22
           inputs:

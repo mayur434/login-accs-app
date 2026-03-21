@@ -1,4 +1,4 @@
-# customerotplogin
+# login-module
 
 Welcome to my Adobe I/O Application!
 
@@ -79,7 +79,26 @@ and make sure you have the below config added
   } 
 ```
 
+## Project Structure
+
+```
+actions/
+  lib/            # Shared libraries (http, db, graphql, commerce, otp, params, customer)
+  config/         # Module configuration CRUD action
+  customer/       # Customer router action (register/login/update)
+    services/     # Service handlers (otp, login, register, update)
+  otp/            # Standalone OTP generate/verify action
+  registration/   # Extension menu registration
+  init-identity/  # DB index initialization (used by setup-db)
+web-src/          # React + Spectrum Admin UI
+scripts/          # Setup and dev scripts
+test/             # Unit tests
+e2e/              # End-to-end tests
+```
+
 ## Documents
 
-- Technical documentation: [TECHNICAL_README.md](TECHNICAL_README.md)
-- Business documentation: [BUSINESS_README.md](BUSINESS_README.md)
+- [Setup Guide](SETUP_GUIDE.md) — prerequisites, installation, configuration, and deployment
+- [Testing Guide](TESTING_GUIDE.md) — running tests, writing new tests, mocking, and CI
+- [Technical Documentation](TECHNICAL_README.md) — architecture, APIs, shared libraries, and engineering notes
+- [Business Documentation](BUSINESS_README.md) — objectives, success criteria, rollout plan, and risks

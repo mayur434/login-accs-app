@@ -1,3 +1,8 @@
 extensions:
   commerce/backend-ui/1:
     $include: ext.config.yaml
+application:
+  runtimeManifest:
+    database:
+      auto-provision: true
+      region: apac
