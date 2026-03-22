@@ -129,7 +129,7 @@ The `post-app-deploy` hook automatically runs `npm run setup-db` after each depl
 ### 2. Deploy API Mesh (Frontend Gateway)
 
 ```bash
-# 1. Fill in mesh/secrets.yaml with your deployed values
+# 1. Fill in mesh/.env.mesh with your deployed values
 #    COMMERCE_GRAPHQL_ENDPOINT, ACTION_BASE_URL
 
 # 2. Deploy the mesh
@@ -169,9 +169,8 @@ actions/
 mesh/             # API Mesh config (self-contained package)
   mesh.json       # Mesh sources (Commerce GraphQL + LoginModule REST)
   openapi.json    # OTP + Customer endpoints (single spec)
-  secrets.yaml    # Secrets — COMMERCE_GRAPHQL_ENDPOINT, ACTION_BASE_URL (git-ignored)
-  deploy.js       # Deploy script (reads secrets, patches spec, runs aio)
-  package.json    # Mesh-specific npm scripts (create, update, get, describe)
+  .env.mesh     # Environment variables — COMMERCE_GRAPHQL_ENDPOINT, ACTION_BASE_URL (git-ignored)
+  package.json  # Mesh-specific npm scripts (dev, create, update, get, describe)
 web-src/          # React + Spectrum Admin UI (Commerce Admin extension)
 scripts/          # Setup and dev scripts
 test/             # Unit tests

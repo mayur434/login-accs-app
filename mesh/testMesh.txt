@@ -1,0 +1,317 @@
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+Mesh build failed e [YError]: Cannot find module 'graphql-import-node/register'
+Require stack:
+- internal/preload
+    at /Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/yargs/build/index.cjs:1:32067
+    at j (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/yargs/build/index.cjs:1:4977)
+    at /Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/yargs/build/index.cjs:1:31882
+    at /Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/yargs/build/index.cjs:1:4722
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+Mesh build failed e [YError]: Cannot find module 'graphql-import-node/register'
+Require stack:
+- internal/preload
+    at /Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/yargs/build/index.cjs:1:32067
+    at j (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/yargs/build/index.cjs:1:4977)
+    at /Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/yargs/build/index.cjs:1:31882
+    at /Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/yargs/build/index.cjs:1:4722
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mConfiguration file is not valid![0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mThis is just a warning! It doesn't have any effects on runtime.[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mError: must NOT have additional properties[0m
+💥 [1m🕸️  Mesh[0m [31mError: 
+      Unable to find any GraphQL type definitions for the following pointers:
+        
+          - ./schema.graphql
+          
+    at prepareResult (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:93:15)
+    at loadTypedefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:43:20)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveAdditionalTypeDefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/utils.js:59:25)
+    at async Promise.all (index 3)
+    at async processConfig (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/process.js:88:114)
+    at async Object.handler (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/cli/cjs/index.js:297:32)[0m
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mConfiguration file is not valid![0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mThis is just a warning! It doesn't have any effects on runtime.[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mError: must NOT have additional properties[0m
+💥 [1m🕸️  Mesh[0m [31mError: 
+      Unable to find any GraphQL type definitions for the following pointers:
+        
+          - schema.graphql
+          
+    at prepareResult (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:93:15)
+    at loadTypedefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:43:20)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveAdditionalTypeDefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/utils.js:59:25)
+    at async Promise.all (index 3)
+    at async processConfig (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/process.js:88:114)
+    at async Object.handler (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/cli/cjs/index.js:297:32)[0m
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mConfiguration file is not valid![0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mThis is just a warning! It doesn't have any effects on runtime.[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mError: must NOT have additional properties[0m
+💥 [1m🕸️  Mesh[0m [31mError: 
+      Unable to find any GraphQL type definitions for the following pointers:
+        
+          - ./schema.graphql
+          
+    at prepareResult (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:93:15)
+    at loadTypedefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:43:20)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveAdditionalTypeDefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/utils.js:59:25)
+    at async Promise.all (index 3)
+    at async processConfig (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/process.js:88:114)
+    at async Object.handler (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/cli/cjs/index.js:297:32)[0m
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💥 [1m🕸️  Mesh[0m [31mError: 
+      Unable to find any GraphQL type definitions for the following pointers:
+        
+          - ./schema.graphql
+          
+    at prepareResult (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:93:15)
+    at loadTypedefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:43:20)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveAdditionalTypeDefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/utils.js:59:25)
+    at async Promise.all (index 3)
+    at async processConfig (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/process.js:88:114)
+    at async Object.handler (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/cli/cjs/index.js:297:32)[0m
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💥 [1m🕸️  Mesh[0m [31mError: 
+      Unable to find any GraphQL type definitions for the following pointers:
+        
+          - ./schema.graphql
+          
+    at prepareResult (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:93:15)
+    at loadTypedefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:43:20)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveAdditionalTypeDefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/utils.js:59:25)
+    at async Promise.all (index 3)
+    at async processConfig (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/process.js:88:114)
+    at async Object.handler (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/cli/cjs/index.js:297:32)[0m
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💥 [1m🕸️  Mesh[0m [31mError: 
+      Unable to find any GraphQL type definitions for the following pointers:
+        
+          - ./schema.graphql
+          
+    at prepareResult (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:93:15)
+    at loadTypedefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:43:20)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveAdditionalTypeDefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/utils.js:59:25)
+    at async Promise.all (index 3)
+    at async processConfig (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/process.js:88:114)
+    at async Object.handler (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/cli/cjs/index.js:297:32)[0m
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💥 [1m🕸️  Mesh[0m [31mError: 
+      Unable to find any GraphQL type definitions for the following pointers:
+        
+          - ./schema.graphql
+          
+    at prepareResult (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:93:15)
+    at loadTypedefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:43:20)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveAdditionalTypeDefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/utils.js:59:25)
+    at async Promise.all (index 3)
+    at async processConfig (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/process.js:88:114)
+    at async Object.handler (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/cli/cjs/index.js:297:32)[0m
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💥 [1m🕸️  Mesh[0m [31mError: 
+      Unable to find any GraphQL type definitions for the following pointers:
+        
+          - schema.graphql
+          
+    at prepareResult (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:93:15)
+    at loadTypedefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-tools/load/cjs/load-typedefs.js:43:20)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async resolveAdditionalTypeDefs (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/utils.js:59:25)
+    at async Promise.all (index 3)
+    at async processConfig (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/config/cjs/process.js:88:114)
+    at async Object.handler (/Users/mayur.parmar/.local/share/@adobe/aio-cli/node_modules/@graphql-mesh/cli/cjs/index.js:297:32)[0m
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully

@@ -4,9 +4,16 @@
   "private": true,
   "description": "API Mesh configuration and deployment for the Login Module",
   "scripts": {
-    "create": "node deploy.js create",
-    "update": "node deploy.js update",
+    "dev": "aio api-mesh:run mesh.json --env .env.mesh",
+    "create": "aio api-mesh:create mesh.json --env .env.mesh",
+    "update": "aio api-mesh:update mesh.json --env .env.mesh",
     "get": "aio api-mesh:get",
     "describe": "aio api-mesh:describe"
+  },
+  "dependencies": {
+    "graphql-import-node": "^0.0.5"
+  },
+  "devDependencies": {
+    "eslint-plugin-node": "^11.1.0"
   }
 }

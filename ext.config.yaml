@@ -2,13 +2,11 @@ operations:
   view:
     - type: web
       impl: index.html
-hooks:
-  post-app-deploy: npm run setup-db
 actions: actions
 web: web-src
 runtimeManifest:
   database:
-    auto-provision: true
+    auto-provision: false
     region: apac
   packages:
     login-module:
@@ -20,13 +18,9 @@ runtimeManifest:
           runtime: nodejs:22
           inputs:
             LOG_LEVEL: debug
-            apikey: $SERVICE_API_KEY
-            GRAPHQL_ENDPOINT: $GRAPHQL_ENDPOINT
-            GRAPHQL_API_KEY: $GRAPHQL_API_KEY
-            AIO_DB_REGION: apac
           annotations:
             require-adobe-auth: false
-            final: true
+            final: false
         config:
           function: actions/config/index.js
           web: 'yes'

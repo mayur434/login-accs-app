@@ -2,27 +2,17 @@
   "meshConfig": {
     "sources": [
       {
-        "name": "Commerce",
+        "name": "CommerceGraphQL",
         "handler": {
           "graphql": {
-            "endpoint": "{env.COMMERCE_GRAPHQL_ENDPOINT}",
-            "operationHeaders": {
-              "Authorization": "{context.headers.authorization}"
-            }
-          }
-        }
-      },
-      {
-        "name": "LoginModule",
-        "handler": {
-          "openapi": {
-            "source": "./mesh/openapi.json",
-            "operationHeaders": {
-              "Content-Type": "application/json"
-            }
+            "endpoint": "{env.COMMERCE_GRAPHQL_ENDPOINT}"
           }
         }
       }
+    ],
+    "additionalTypeDefs": "schema { query: Query mutation: Mutation } type Query { getConfig: ConfigPayload! } type Mutation { updateConfig(input: UpdateConfigInput!): ConfigPayload! deleteConfig: DeleteConfigPayload! generateOtp(input: GenerateOtpInput!): GenerateOtpPayload! validateOtp(input: ValidateOtpInput!): ValidateOtpPayload! registerCustomer(input: RegisterCustomerInput!): RegisterCustomerPayload! updateCustomerDetails(input: UpdateCustomerDetailsInput!): UpdateCustomerPayload! } enum LoginType { email mobile } type ConfigPayload { success: Boolean! message: String config: Config } type DeleteConfigPayload { success: Boolean! message: String! } type Config { is_enabled: Boolean otp_expiration_validity: Int otp_in_response: Boolean auto_login: Boolean allow_key_info_update: Boolean } input UpdateConfigInput { is_enabled: Boolean otp_expiration_validity: Int otp_in_response: Boolean auto_login: Boolean allow_key_info_update: Boolean } input GenerateOtpInput { loginType: LoginType! email: String mobile: String register: Boolean } type GenerateOtpPayload { success: Boolean! message: String! otpReferenceId: String otpValue: String } input ValidateOtpInput { loginType: LoginType! email: String mobile: String otpReferenceId: String! otpValue: String! register: Boolean } type ValidateOtpPayload { success: Boolean! message: String! customer_token: String customer_id: String } input RegisterCustomerInput { loginType: LoginType! email: String mobile: String firstname: String lastname: String otpReferenceId: String! otpValue: String! } type Customer { id: String firstname: String lastname: String email: String mobile: String } type RegisterCustomerPayload { success: Boolean! message: String! customer_id: String customer_token: String customer: Customer } input UpdateCustomerDetailsInput { customer_token: String! new_email: String new_mobile: String new_firstname: String new_lastname: String } type UpdateCustomerPayload { success: Boolean! message: String! customer_id: String customer: Customer }",
+    "additionalResolvers": [
+      "./resolvers/index.js"
     ]
   }
 }

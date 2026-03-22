@@ -80,7 +80,7 @@ Provide two distinct service layers:
 ## Risks and Mitigations
 
 - **Risk:** Mesh configuration mismatch causes frontend API failures.
-  - **Mitigation:** Ensure `ACTION_BASE_URL` in `mesh/secrets.yaml` matches the deployed action URL. Use `cd mesh && npm run update` after redeployment.
+  - **Mitigation:** Ensure `ACTION_BASE_URL` in `mesh/.env.mesh` matches the deployed action URL. Use `cd mesh && npm run update` after redeployment.
 
 - **Risk:** Host auth context unavailable leads to blocked Admin UI config actions.
   - **Mitigation:** Ensure launch from Commerce Admin shell and verify IMS context handshake.

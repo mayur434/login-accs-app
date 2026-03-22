@@ -36,20 +36,53 @@ async function main (params) {
 
   try {
     logger.info('OTP action called')
-    logger.debug(stringParameters(params))
+    const imsCredentials = {
+      clientId: process.env.IMS_OAUTH_S2S_CLIENT_ID,
+      clientSecret: process.env.IMS_OAUTH_S2S_CLIENT_SECRET,
+      orgId: process.env.IMS_OAUTH_S2S_ORG_ID,
+      scopes: process.env.IMS_OAUTH_S2S_SCOPES
+    }
+
+    let rawScopes = process.env.IMS_OAUTH_S2S_SCOPES
+
+    if (Array.isArray(rawScopes)) {
+      imsCredentials.scopes = rawScopes
+    } else if (typeof rawScopes === 'string') {
+      const trimmed = rawScopes.trim()
+      try {
+        const parsed = JSON.parse(trimmed)
+        imsCredentials.scopes = Array.isArray(parsed)
+          ? parsed.map(s => String(s).trim()).filter(Boolean)
+          : []
+      } catch (e) {
+        imsCredentials.scopes = trimmed
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+      }
+    } else {
+      imsCredentials.scopes = []
+    }
+
+    const tokenResponse = await generateAccessToken(imsCredentials)
+
+    logger.debug('Access token obtained successfully')
+    logger.debug(`Token response: ${JSON.stringify({
+      accessTokenPresent: !!tokenResponse.access_token,
+      tokenType: tokenResponse.token_type,
+      expiresIn: tokenResponse.expires_in
+    })}`);
+
 
     const inParams = getRequestParams(params)
-    inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers
+    inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers || {}
 
-    const region = inParams.AIO_DB_REGION || process.env.AIO_DB_REGION || 'apac'
-    const requestParams = getRequestParams(params)
-    const tokenResponse = await generateAccessToken(requestParams)
-
-    const { dbClient: connectedClient, collection: otpCollection } = await getCollection(
-      { ...requestParams, AIO_DB_TOKEN: tokenResponse.access_token },
+    const dbResult = await getCollection(
+      { ...inParams, AIO_DB_TOKEN: tokenResponse.access_token },
       'otps'
     )
-    dbClient = connectedClient
+    dbClient = dbResult.dbClient
+    const otpCollection = dbResult.collection
 
     const appConfig = await getAppConfig(dbClient)
 
@@ -68,9 +101,11 @@ async function main (params) {
       if (inParams.loginType === 'mobile') {
         const missing = checkMissingRequestInputs(inParams, ['mobile'], [])
         if (missing) return errorResponse(400, missing, logger)
-      } else {
+      } else if (inParams.loginType === 'email') {
         const missing = checkMissingRequestInputs(inParams, ['email'], [])
         if (missing) return errorResponse(400, missing, logger)
+      } else {
+        return errorResponse(400, 'invalid loginType', logger)
       }
 
       let emailForLogin = inParams.email
@@ -194,7 +229,7 @@ async function main (params) {
     }
   } catch (error) {
     logger.error(error)
-    return errorResponse(500, 'server error', logger)
+    return errorResponse(500, error.message || 'server error', logger)
   } finally {
     await closeDb(dbClient, logger)
   }

@@ -137,7 +137,7 @@ The `mesh/` folder is a self-contained package with its own `package.json`:
 # 1. Deploy actions first
 aio app deploy -e commerce/backend-ui/1
 
-# 2. Fill in mesh/secrets.yaml with deployed values
+# 2. Fill in mesh/.env.mesh with deployed values
 #    COMMERCE_GRAPHQL_ENDPOINT, ACTION_BASE_URL
 
 # 3. Deploy the mesh
@@ -147,7 +147,7 @@ npm run update        # update existing
 npm run get           # get your mesh URL
 ```
 
-The deploy script (`mesh/deploy.js`) reads `secrets.yaml`, patches the `openapi.json` server URL with `ACTION_BASE_URL`, and passes all secrets as `--env` flags to `aio api-mesh:create/update`.
+All mesh secrets are stored in `mesh/.env.mesh` (git-ignored) and passed to `aio api-mesh` via `--env` flag.
 
 ## Authentication and Authorization
 
@@ -210,7 +210,7 @@ After deployment, `npm run setup-db` runs automatically to initialize DB indexes
 - **Error:** 401/403 on mesh calls
   - Context: Action rejecting requests.
   - Cause: Calling action directly instead of through mesh, or mesh URL misconfigured.
-  - Fix: Use the mesh URL (get via `cd mesh && npm run get`). Ensure `ACTION_BASE_URL` in `secrets.yaml` is correct.
+  - Fix: Use the mesh URL (get via `cd mesh && npm run get`). Ensure `ACTION_BASE_URL` in `.env.mesh` is correct.
 
 ## Engineering Notes
 
