@@ -1,6 +1,8 @@
 const { Core } = require('@adobe/aio-sdk')
+const { getRequestParams } = require('../lib/params')
 const { stringParameters } = require('../utils')
 const { success, badRequest, methodNotAllowed, serverError } = require('../lib/http')
+const { getAioDbToken } = require('../lib/imsHelper')
 const {
   getCollection, closeDb, normalizeAppConfig,
   APP_CONFIG_ID, APP_CONFIG_COLLECTION, APP_CONFIG_DEFAULTS
@@ -86,8 +88,17 @@ async function main (params) {
     logger.info('app_config action called')
     logger.debug(stringParameters(params))
 
-    const method = ((params.__ow_method || params.__ow_headers?.['x-http-method-override'] || 'GET') + '').toUpperCase()
-    const { dbClient: connectedClient, collection } = await getCollection(params, APP_CONFIG_COLLECTION)
+    logger.info('OTP action called')
+    const inParams = getRequestParams(params)
+    inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers || {}
+    const headers = inParams.__ow_headers || {}
+    const aioDbToken = await getAioDbToken(headers)
+
+    const method = ((params.__ow_method || headers['x-http-method-override'] || 'GET') + '').toUpperCase()
+    const { dbClient: connectedClient, collection } = await getCollection(
+      { ...inParams, AIO_DB_TOKEN: aioDbToken },
+      APP_CONFIG_COLLECTION
+    )
     dbClient = connectedClient
 
     if (method === 'GET') {
@@ -95,7 +106,7 @@ async function main (params) {
     }
 
     if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
-      const { error, updateFields } = validateUpdatePayload(params)
+      const { error, updateFields } = validateUpdatePayload(inParams)
       if (error) return error
 
       await collection.updateOne(

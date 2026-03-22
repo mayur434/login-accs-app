@@ -28,21 +28,26 @@ async function findIdentityByMobile (collection, rawMobile, filter = {}) {
   return null
 }
 
-async function checkRegistrationConflict (dbClient, params) {
+async function checkRegistrationConflict (dbClient, params,logger) {
   const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
   const email = hasValue(params.email) ? String(params.email).trim().toLowerCase() : null
+  logger.info(`Checking registration conflicts for email: ${email}, mobile: ${params.mobile || params.mobile_number}`)
   const mobile = hasValue(params.mobile) ? String(params.mobile).trim()
     : (hasValue(params.mobile_number) ? String(params.mobile_number).trim() : null)
 
   const emailExists = email ? !!(await findIdentityByEmail(collection, email)) : false
+  logger.info(`Email conflict check result: ${emailExists ? 'exists' : 'not found'}`)
   const mobileExists = mobile ? !!(await findIdentityByMobile(collection, mobile)) : false
+  logger.info(`Mobile conflict check result: ${mobileExists ? 'exists' : 'not found'}`)
 
-  if (!emailExists && !mobileExists) return null
+  logger.info(`Registration conflict check: emailExists=${emailExists}, mobileExists=${mobileExists}`)
 
-  const reason = emailExists && mobileExists
-    ? 'email/mobile already exists'
-    : (emailExists ? 'email already exists' : 'mobile already exists')
-  return conflict(reason)
+  if(emailExists) {
+    return conflict('email already exists')
+  } else if(mobileExists) {
+    return conflict('mobile already exists')
+  }
+  return null
 }
 
 async function checkLoginExists (dbClient, params) {
@@ -90,7 +95,8 @@ async function handleOtp (dbClient, params, operation, logger) {
 
       // ── Identity existence check ──────────────────────────────────
       if (operation === 'register') {
-        const conflictResponse = await checkRegistrationConflict(dbClient, params)
+        logger.info('Checking for registration conflicts (email/mobile) before generating OTP')
+        const conflictResponse = await checkRegistrationConflict(dbClient, params, logger)
         if (conflictResponse) return { response: conflictResponse }
       }
       if (operation === 'login') {

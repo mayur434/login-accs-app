@@ -39,11 +39,9 @@ runtimeManifest:
           inputs:
             LOG_LEVEL: debug
             apikey: $SERVICE_API_KEY
-            GRAPHQL_ENDPOINT: $GRAPHQL_ENDPOINT
-            GRAPHQL_API_KEY: $GRAPHQL_API_KEY
-            AIO_DB_REGION: apac
           annotations:
             require-adobe-auth: false
+            include-ims-credentials: false
             final: true
         registration:
           function: actions/registration/index.js

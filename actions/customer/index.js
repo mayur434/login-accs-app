@@ -1,10 +1,10 @@
 const { Core } = require('@adobe/aio-sdk')
-const { generateAccessToken } = Core.AuthClient
 const { stringParameters } = require('../utils')
 const { badRequest, serverError } = require('../lib/http')
-const { connectDb, closeDb } = require('../lib/db')
-const { getRequestParams, normalizeRequestParams } = require('../lib/params')
-const { extractBearerToken, INTERNAL_CUSTOMER_PASSWORD } = require('../lib/customer')
+const { getCollection, closeDb,APP_CONFIG_COLLECTION } = require('../lib/db')
+const { getRequestParams } = require('../lib/params')
+const { INTERNAL_CUSTOMER_PASSWORD } = require('../lib/customer')
+const { getAioDbToken } = require('../lib/imsHelper')
 const register = require('./services/register')
 const login = require('./services/login')
 const update = require('./services/update')
@@ -12,28 +12,23 @@ const { handleOtp } = require('./services/otp')
 
 exports.main = async (params) => {
   const logger = Core.Logger('customer', { level: params.LOG_LEVEL || 'info' })
-  let dbClient
+  let dbClient, aioDbToken
 
   try {
     logger.info('customer action called')
     logger.debug(stringParameters(params))
-
-    let requestParams = normalizeRequestParams(getRequestParams(params))
+    const requestParams = getRequestParams(params);
 
     // Generate IMS token for DB
     try {
-      const tokenResponse = await generateAccessToken(requestParams)
-      if (tokenResponse?.access_token) {
-        requestParams.AIO_DB_TOKEN = tokenResponse.access_token
+    requestParams.__ow_headers = params.__ow_headers || requestParams.__ow_headers || {}
+    const headers = requestParams.__ow_headers || {}
+    aioDbToken = await getAioDbToken(headers)
+      if (aioDbToken?.access_token) {
+        requestParams.AIO_DB_TOKEN = aioDbToken.access_token
       }
     } catch (e) {
       logger.warn(`Unable to generate IMS token for DB: ${e.message}`)
-      const bearerToken = extractBearerToken(requestParams)
-      if (bearerToken) {
-        requestParams.AIO_DB_TOKEN = bearerToken
-      } else {
-        logger.warn('No bearer token found in headers either')
-      }
     }
 
     const operation = String(requestParams.operation || '').trim()
@@ -55,13 +50,20 @@ exports.main = async (params) => {
       }
     }
 
+    logger.debug(`access_token: ${aioDbToken }`)
+
     // Single DB connection for the entire request lifecycle
-    const db = await connectDb(requestParams)
-    dbClient = db.dbClient
+    const { dbClient: connectedClient } = await getCollection(
+      { ...requestParams, AIO_DB_TOKEN: aioDbToken },
+      APP_CONFIG_COLLECTION
+    )
+    dbClient = connectedClient
 
     // OTP gate for register/login
     if (['register', 'login'].includes(operation)) {
+      logger.info('Before handleOtp: about to check OTP and uniqueness for register/login')
       const otp = await handleOtp(dbClient, requestParams, operation, logger)
+      logger.info('After handleOtp: OTP handler returned', otp)
       if (otp.response) return otp.response
 
       // Hydrate missing identity from OTP record

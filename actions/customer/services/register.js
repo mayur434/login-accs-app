@@ -103,6 +103,14 @@ module.exports = async function register (dbClient, params, logger) {
     const byEmail = await findOneOrNull(collection, { email: prepared.resolvedEmail, status: 'active' })
     if (byEmail) return conflict('email already exists')
 
+    // log request email, and db email
+    logger.debug('Registering customer with email:', {
+      requestEmail: params.email,
+      resolvedEmail: prepared.resolvedEmail,
+      mobile: prepared.normalizedMobile
+    });
+    
+
     // Create Commerce customer + token
     const response = await createCommerceCustomerAndToken(params, prepared, logger)
     const customerData = response?.data?.createCustomerWrapper?.customer
