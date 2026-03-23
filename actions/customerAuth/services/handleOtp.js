@@ -4,23 +4,23 @@ const { normalizeMobile } = require('../../utils')
 const DEFAULT_OTP_EXPIRATION_VALIDITY_MINUTES = 5
 const DEFAULT_OTP_IN_RESPONSE = false
 
-function hasValue (v) {
+function hasValue(v) {
   return v !== undefined && v !== null && String(v).trim() !== ''
 }
 
-function response (statusCode, error) {
+function response(statusCode, error) {
   return { statusCode, body: { error } }
 }
 
-function generateOtpValue () {
+function generateOtpValue() {
   return (Math.floor(1000 + Math.random() * 9000)).toString()
 }
 
-function createReferenceId () {
+function createReferenceId() {
   return `otp_${Date.now()}_${Math.floor(Math.random() * 100000)}`
 }
 
-function levenshtein (a, b) {
+function levenshtein(a, b) {
   if (!a) return b ? b.length : 0
   if (!b) return a.length
   const m = a.length
@@ -37,7 +37,7 @@ function levenshtein (a, b) {
   return dp[m][n]
 }
 
-async function connectDb (params) {
+async function connectDb(params) {
   const region = params.AIO_DB_REGION || process.env.AIO_DB_REGION || 'apac'
   const token = params.AIO_DB_TOKEN
   if (!token) throw new Error('AIO_DB_TOKEN missing')
@@ -47,12 +47,39 @@ async function connectDb (params) {
   return dbClient
 }
 
-async function getAppConfig (dbClient) {
+async function getAppConfig(dbClient, logger) {
   const appConfigCollection = await dbClient.collection('app_config')
-  const appConfig = await appConfigCollection.findOne({ _id: 'app_config' })
-  return appConfig || {}
-}
 
+  const defaults = {
+    _id: 'app_config',
+    is_enabled: true,
+    otp_expiration_validity: DEFAULT_OTP_EXPIRATION_VALIDITY_MINUTES,
+    otp_expiration_validity_minutes: DEFAULT_OTP_EXPIRATION_VALIDITY_MINUTES,
+    otp_in_response: DEFAULT_OTP_IN_RESPONSE,
+    allow_key_info_update: true
+  }
+
+  let doc = await findOneOrNull(appConfigCollection, {})
+
+  if (!doc) {
+    await appConfigCollection.insertOne(defaults)
+    doc = defaults
+  } else {
+    const missing = {}
+    if (typeof doc.is_enabled !== 'boolean') missing.is_enabled = false
+    if (typeof doc.otp_expiration_validity === 'undefined') missing.otp_expiration_validity = false
+
+    if (Object.keys(missing).length) {
+      await appConfigCollection.updateOne(
+        { _id: doc._id || 'default' },
+        { $set: missing }
+      )
+      doc = { ...doc, ...missing }
+    }
+  }
+
+  return doc
+}
 function isDocumentNotFoundError(error) {
   const message = String(error && error.message ? error.message : '').toLowerCase()
   return message.includes('document not found')
@@ -131,7 +158,7 @@ async function loginUserExists(dbClient, params) {
     let normalizedMobile = rawMobileInput
     try {
       normalizedMobile = normalizeMobile(rawMobileInput)
-    } catch (_) {}
+    } catch (_) { }
 
     const candidates = Array.from(new Set([rawMobileInput, normalizedMobile].filter(Boolean)))
     for (const m of candidates) {
@@ -150,7 +177,7 @@ async function loginUserExists(dbClient, params) {
   return !!byEmail
 }
 
-async function handleOtp (params, operation, logger) {
+async function handleOtp(params, operation, logger) {
   let dbClient
   try {
     dbClient = await connectDb(params)

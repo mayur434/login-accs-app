@@ -53,6 +53,16 @@ function hasValue(value) {
   return value !== undefined && value !== null && String(value).trim() !== ''
 }
 
+function isDocumentNotFoundError(error) {
+  const message = String(error?.message || '').toLowerCase()
+  return (
+    error?.code === 404 ||
+    message.includes('document not found') ||
+    message.includes('not found') ||
+    message.includes('does not exist')
+  )
+}
+
 function normalizeEmailInput(email) {
   const normalizedEmail = String(email || '').trim().toLowerCase()
   if (!normalizedEmail) {
@@ -61,23 +71,32 @@ function normalizeEmailInput(email) {
   return normalizedEmail
 }
 
-function extractCustomerId(params) {
-  const candidates = [
-    params.context?.customer_id ??
-    params.context?.customerId ??
-    params.customer_id ??
-    params.customerId ??
-    params.id ??
-    params.__ow_headers?.['x-customer-id'] ??
-    params.__ow_headers?.['x-customerid']
-  ]
+function parseCustomerIdValue(value) {
+  if (value === undefined || value === null || value === '') return null
+  if (typeof value === 'number') return Number.isInteger(value) && value > 0 ? value : null
 
-  for (const candidate of candidates) {
-    const parsed = parseCustomerIdValue(candidate)
-    if (parsed) return parsed
-  }
+  const s = String(value).trim()
+  if (!s) return null
+  if (/^\d+$/.test(s)) return Number(s)
+
+  try {
+    const decoded = Buffer.from(s, 'base64').toString('utf8').trim()
+    if (/^\d+$/.test(decoded)) return Number(decoded)
+    const trailing = decoded.match(/(\d+)$/)
+    if (trailing) return Number(trailing[1])
+  } catch (_) {}
 
   return null
+}
+
+function extractCustomerId(params) {
+  const raw =
+    params.customer_id ??
+    params.customerId ??
+    params.__ow_headers?.['x-customer-id'] ??
+    params.__ow_headers?.['X-Customer-Id']
+
+  return parseCustomerIdValue(raw)
 }
 
 function extractCustomerToken(params) {
@@ -92,49 +111,6 @@ function extractCustomerToken(params) {
   }
 
   return null
-}
-
-function parseCustomerIdValue(value) {
-  if (value === undefined || value === null || value === '') {
-    return null
-  }
-
-  if (typeof value === 'number') {
-    return Number.isInteger(value) && value > 0 ? value : null
-  }
-
-  const textValue = String(value).trim()
-  if (!textValue) return null
-
-  const directNumber = Number(textValue)
-  if (!Number.isNaN(directNumber) && directNumber > 0) {
-    return directNumber
-  }
-
-  const trailingDigits = textValue.match(/(\d+)$/)
-  if (trailingDigits) {
-    const trailingNumber = Number(trailingDigits[1])
-    if (!Number.isNaN(trailingNumber) && trailingNumber > 0) {
-      return trailingNumber
-    }
-  }
-
-  try {
-    const decoded = Buffer.from(textValue, 'base64').toString('utf8').trim()
-    const decodedNumber = Number(decoded)
-    if (!Number.isNaN(decodedNumber) && decodedNumber > 0) {
-      return decodedNumber
-    }
-  } catch {
-    return null
-  }
-
-  return null
-}
-
-function isDocumentNotFoundError(error) {
-  const message = String(error && error.message ? error.message : '').toLowerCase()
-  return message.includes('document not found')
 }
 
 async function findOneOrNull(collection, query) {
@@ -216,6 +192,11 @@ function getCommerceMobileValue(mobileNumber) {
     : digitsOnly
 }
 
+function encodeCustomerId(customerId) {
+  if (!Number.isInteger(customerId) || customerId <= 0) return null
+  return Buffer.from(String(customerId), 'utf8').toString('base64')
+}
+
 async function connectDb(params) {
   const region = params.AIO_DB_REGION || process.env.AIO_DB_REGION || 'apac'
   const token = params.AIO_DB_TOKEN || process.env.AIO_DB_TOKEN
@@ -231,11 +212,32 @@ async function connectDb(params) {
 
 async function isKeyInfoUpdateAllowed(dbClient) {
   const appConfigCollection = await dbClient.collection('app_config')
-  const config = await appConfigCollection.findOne({ _id: 'app_config' })
+  const config =
+    await findOneOrNull(appConfigCollection, { _id: 'app_config' }) ||
+    await findOneOrNull(appConfigCollection, {})
   return !!(config && config.allow_key_info_update)
 }
 
 async function validateAndLoadCustomerRecord(collection, customerId, prepared) {
+  const encodedId = Buffer.from(String(customerId), 'utf8').toString('base64')
+
+  const customerRecord = await findOneOrNull(collection, {
+    $and: [
+      { status: 'active' },
+      {
+        $or: [
+          { customer_id: customerId },          // number
+          { customer_id: String(customerId) },  // numeric string
+          { customer_id: encodedId }            // base64 id
+        ]
+      }
+    ]
+  })
+
+  if (!customerRecord) {
+    return { error: notFound('customer record not found') }
+  }
+
   if (prepared.hasMobile) {
     const existingByMobile = await findOneOrNull(collection, { mobile_number: prepared.normalizedMobile })
     if (existingByMobile && Number(existingByMobile.customer_id) !== customerId) {
@@ -248,11 +250,6 @@ async function validateAndLoadCustomerRecord(collection, customerId, prepared) {
     if (existingByEmail && Number(existingByEmail.customer_id) !== customerId) {
       return { error: conflict('email already exists') }
     }
-  }
-
-  const customerRecord = await findOneOrNull(collection, { customer_id: customerId })
-  if (!customerRecord) {
-    return { error: notFound('customer record not found') }
   }
 
   return { customerRecord }
@@ -397,37 +394,29 @@ module.exports = async function updateCustomerDetails(params, logger) {
   let dbClient
   try {
     const customerId = extractCustomerId(params)
-    if (!customerId) {
-      return badRequest('authenticated customer_id not found in request context')
-    }
+    if (!customerId) return badRequest("missing/invalid parameter 'customer_id'")
 
-    const { error: inputError, prepared } = getPreparedUpdateInput(params)
-    if (inputError) return inputError
+    const customerToken = extractCustomerToken(params)
+    if (!customerToken) return unauthorized('missing customer token')
 
-    const dbConnection = await connectDb(params)
-    dbClient = dbConnection.dbClient
-    const collection = dbConnection.collection
+    const dbConn = await connectDb(params)
+    dbClient = dbConn.dbClient
+    const collection = dbConn.collection
 
-    const allowKeyInfoUpdate = await isKeyInfoUpdateAllowed(dbClient)
-    if (!allowKeyInfoUpdate) {
-      return {
-        statusCode: 403,
-        body: {
-          error: 'key info updates are disabled'
-        }
-      }
-    }
+    const allowed = await isKeyInfoUpdateAllowed(dbClient)
+    if (!allowed) return conflict('key info update is disabled')
 
-    const loaded = await validateAndLoadCustomerRecord(collection, customerId, prepared)
-    if (loaded.error) return loaded.error
+    const { error: prepError, prepared } = getPreparedUpdateInput(params)
+    if (prepError) return prepError
 
-    const customerRecord = loaded.customerRecord
+    const { error: loadError, customerRecord } = await validateAndLoadCustomerRecord(collection, customerId, prepared)
+    if (loadError) return loadError
 
     const previousState = {
       email: customerRecord.email || null,
       mobile_number: customerRecord.mobile_number || null,
-      first_name: customerRecord.first_name || null, // added
-      last_name: customerRecord.last_name || null,   // added
+      first_name: customerRecord.first_name || null,
+      last_name: customerRecord.last_name || null,
       login_type: customerRecord.login_type || null
     }
 
@@ -442,21 +431,9 @@ module.exports = async function updateCustomerDetails(params, logger) {
 
     try {
       const commerceResponse = await updateCommerceKeyInfo(params, customerId, prepared, logger)
-
-      const updatedMobile = prepared.hasMobile ? prepared.normalizedMobile : (customerRecord.mobile_number || null)
-      const updatedEmail = prepared.hasEmail ? prepared.resolvedEmail : (customerRecord.email || null)
-
       return {
         statusCode: 200,
-        body: {
-          success: true,
-          customer_id: customerId,
-          mobile_number: updatedMobile,
-          email: updatedEmail,
-          firstName: commerceResponse.data.updateCustomerV2?.customer?.firstname || prepared.firstName || customerRecord.first_name || null,
-          lastName: commerceResponse.data.updateCustomerV2?.customer?.lastname || prepared.lastName || customerRecord.last_name || null,
-          commerce: commerceResponse.data.updateCustomerV2 || commerceResponse.data.updateCustomerEmail
-        }
+        body: commerceResponse?.data || {}
       }
     } catch (commerceError) {
       await rollbackDocDbKeyInfo(collection, customerId, previousState)
@@ -475,7 +452,7 @@ module.exports = async function updateCustomerDetails(params, logger) {
     try {
       if (dbClient) await dbClient.close()
     } catch (closeError) {
-      logger.debug && logger.debug('error closing DB client: ' + closeError.message)
+      if (logger.debug) logger.debug('error closing DB client: ' + closeError.message)
     }
   }
 }

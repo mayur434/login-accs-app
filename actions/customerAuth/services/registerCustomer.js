@@ -437,6 +437,8 @@ async function createCommerceAndSyncIdentity(params, logger, collection, prepare
     mobile_number: prepared.normalizedMobile,
     login_type: prepared.loginType,
     customer_id: customerId,
+    first_name: customerData?.firstname || params.firstName || params.firstname || null,
+    last_name: customerData?.lastname || params.lastName || params.lastname || null,
     status: 'active',
     created_at: now,
     updated_at: now
@@ -462,15 +464,13 @@ async function createCommerceAndSyncIdentity(params, logger, collection, prepare
   return {
     statusCode: 200,
     body: {
-      customer_id: customerId,
-      customer_token: customerToken,
+      id: customerData?.id || customerId,                 // Commerce id if present, else resolved numeric id
+      firstname: customerData?.firstname || null,
+      lastname: customerData?.lastname || null,
+      email: customerData?.email || prepared.resolvedEmail,
+      mobile: prepared.normalizedMobile || null,
       login_type: prepared.loginType,
-      customer: {
-        firstname: customerData.firstname,
-        lastname: customerData.lastname,
-        email: customerData.email,
-        mobile_number: prepared.normalizedMobile || null // added
-      }
+      customer_token: customerToken
     }
   }
 }
