@@ -9,7 +9,7 @@ application:
         license: Apache-2.0
         actions:
           otp:
-            function: actions/otp/index.js
+            function: actions/otp/otp.js
             web: 'yes'
             runtime: nodejs:20
             inputs:

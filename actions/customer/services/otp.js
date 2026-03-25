@@ -94,7 +94,7 @@ async function handleOtp (dbClient, params, operation, logger) {
       }
 
       // ── Identity existence check ──────────────────────────────────
-      if (operation === 'register') {
+      if (operation === 'register') { 
         logger.info('Checking for registration conflicts (email/mobile) before generating OTP')
         const conflictResponse = await checkRegistrationConflict(dbClient, params, logger)
         if (conflictResponse) return { response: conflictResponse }

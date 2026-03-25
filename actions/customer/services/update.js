@@ -9,12 +9,13 @@ const {
   extractCustomerToken,
   getCommerceMobileValue,
   buildLoginType,
-  CUSTOMER_IDENTITY_COLLECTION
+  CUSTOMER_IDENTITY_COLLECTION,
+  INTERNAL_CUSTOMER_PASSWORD
 } = require('../../lib/customer')
 
 // ── Input preparation ───────────────────────────────────────────────────
 
-function getPreparedInput (params) {
+function getPreparedInput(params) {
   try {
     const mobileInput = hasValue(params.mobile_number) ? String(params.mobile_number).trim() : null
     const hasMobile = !!mobileInput
@@ -22,7 +23,7 @@ function getPreparedInput (params) {
 
     const hasEmail = hasValue(params.new_email)
     const resolvedEmail = hasEmail ? normalizeEmailInput(params.new_email) : null
-    const password = hasEmail ? String(params.password || '').trim() : null
+    const password = hasEmail ? INTERNAL_CUSTOMER_PASSWORD : null
 
     const firstName = hasValue(params.firstName) ? String(params.firstName).trim()
       : (hasValue(params.firstname) ? String(params.firstname).trim() : null)
@@ -45,7 +46,7 @@ function getPreparedInput (params) {
 
 // ── Conflict checks ────────────────────────────────────────────────────
 
-async function checkConflicts (collection, customerId, prepared) {
+async function checkConflicts(collection, customerId, prepared) {
   if (prepared.hasMobile) {
     const existing = await findOneOrNull(collection, { mobile_number: prepared.normalizedMobile })
     if (existing && Number(existing.customer_id) !== customerId) {
@@ -63,13 +64,18 @@ async function checkConflicts (collection, customerId, prepared) {
 
 // ── Commerce update ─────────────────────────────────────────────────────
 
-function isUnauthorizedCommerceError (error) {
+function isUnauthorizedCommerceError(error) {
   const msg = String(error?.message || '').toLowerCase()
   return msg.includes("current customer isn't authorized") || msg.includes('not authorized')
 }
 
-async function updateCommerceProfile (params, prepared, logger) {
+async function updateCommerceProfile(params, prepared, logger) {
   const customerToken = extractCustomerToken(params)
+  logger.info('customerToken resolved:', customerToken ? `${customerToken.substring(0, 10)}...` : 'NULL/UNDEFINED')
+  if (!customerToken) {
+    throw new Error('customer token is required for Commerce profile update')
+  }
+
   let emailResult = null
   let profileResult = null
 
@@ -114,7 +120,7 @@ async function updateCommerceProfile (params, prepared, logger) {
 
 // ── Exported handler ────────────────────────────────────────────────────
 
-module.exports = async function update (dbClient, params, logger) {
+module.exports = async function update(dbClient, params, logger) {
   try {
     const customerId = extractCustomerId(params)
     if (!customerId) return badRequest('authenticated customer_id not found in request context')
@@ -136,8 +142,8 @@ module.exports = async function update (dbClient, params, logger) {
     const previousState = {
       email: customerRecord.email || null,
       mobile_number: customerRecord.mobile_number || null,
-      first_name: customerRecord.first_name || null,
-      last_name: customerRecord.last_name || null,
+      firstname: customerRecord.firstname || null,
+      lastname: customerRecord.lastname || null,
       login_type: customerRecord.login_type || null
     }
 
@@ -152,8 +158,8 @@ module.exports = async function update (dbClient, params, logger) {
           $set: {
             ...(prepared.hasEmail ? { email: prepared.resolvedEmail } : {}),
             ...(prepared.hasMobile ? { mobile_number: prepared.normalizedMobile } : {}),
-            ...(prepared.firstName ? { first_name: prepared.firstName } : {}),
-            ...(prepared.lastName ? { last_name: prepared.lastName } : {}),
+            ...(prepared.firstName ? { firstname: prepared.firstName } : {}),
+            ...(prepared.lastName ? { lastname: prepared.lastName } : {}),
             login_type: buildLoginType(nextEmail, nextMobile),
             updated_at: new Date()
           }
@@ -167,17 +173,20 @@ module.exports = async function update (dbClient, params, logger) {
     // Sync to Commerce — rollback DB on failure
     try {
       const commerce = await updateCommerceProfile(params, prepared, logger)
+      const updatedFirstname = commerce.updateCustomerV2?.customer?.firstname || prepared.firstName || customerRecord.firstname || null
+      const updatedLastname = commerce.updateCustomerV2?.customer?.lastname || prepared.lastName || customerRecord.lastname || null
 
       return {
         statusCode: 200,
         body: {
           success: true,
-          customer_id: customerId,
-          mobile_number: nextMobile,
-          email: nextEmail,
-          firstName: commerce.updateCustomerV2?.customer?.firstname || prepared.firstName || customerRecord.first_name || null,
-          lastName: commerce.updateCustomerV2?.customer?.lastname || prepared.lastName || customerRecord.last_name || null,
-          commerce: commerce.updateCustomerV2 || commerce.updateCustomerEmail
+          customer: {
+            customer_id: customerId,
+            mobile_number: nextMobile,
+            email: nextEmail,
+            firstname: updatedFirstname,
+            lastname: updatedLastname
+          }
         }
       }
     } catch (commerceError) {
@@ -187,8 +196,8 @@ module.exports = async function update (dbClient, params, logger) {
           $set: {
             email: previousState.email,
             mobile_number: previousState.mobile_number,
-            first_name: previousState.first_name,
-            last_name: previousState.last_name,
+            firstname: previousState.firstname,
+            lastname: previousState.lastname,
             login_type: previousState.login_type,
             updated_at: new Date()
           }

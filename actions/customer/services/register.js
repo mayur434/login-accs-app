@@ -131,6 +131,8 @@ module.exports = async function register (dbClient, params, logger) {
       mobile_number: prepared.normalizedMobile,
       login_type: prepared.loginType,
       customer_id: customerId,
+      firstname: customerData?.firstname,
+      lastname: customerData?.lastname,
       status: 'active',
       updated_at: now
     }
