@@ -642,8 +642,8 @@ Customer identity mapping between Commerce and the module. Written by API Mesh (
 | `customer_id` | number | unique | Commerce customer ID |
 | `login_type` | string | — | `email` / `mobile` / `both` |
 | `status` | string | — | `active` / `inactive` |
-| `first_name` | string? | — | First name |
-| `last_name` | string? | — | Last name |
+| `firstname` | string? | — | First name |
+| `lastname` | string? | — | Last name |
 | `created_at` | Date | — | Creation time |
 | `updated_at` | Date | — | Last modification time |
 

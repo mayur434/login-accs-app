@@ -1,6 +1,6 @@
-const { badRequest, conflict, serverError } = require('../../lib/http')
+const { badRequest, conflict, serverError, success } = require('../../lib/http')
 const { findOneOrNull, isUniqueConstraintError } = require('../../lib/db')
-const { graphQLRequest } = require('../../lib/graphql')
+const { commerceGraphQLRequest } = require('../../lib/graphql')
 const { hasValue } = require('../../lib/params')
 const {
   normalizeMobile,
@@ -15,7 +15,7 @@ const { generateCustomerToken } = require('../../lib/commerce')
 
 // ── Input validation ────────────────────────────────────────────────────
 
-function validateAndPrepare (params) {
+function validateAndPrepare(params) {
   const hasEmail = hasValue(params.email)
   const hasMobile = hasValue(params.mobile_number)
   const hasPassword = hasValue(params.password)
@@ -44,9 +44,16 @@ function validateAndPrepare (params) {
 
 // ── Commerce: create customer + generate token in single mutation ────────
 
-async function createCommerceCustomerAndToken (params, prepared, logger) {
-  const firstname = params.firstname || params.firstName || prepared.resolvedEmail.split('@')[0] || 'Customer'
-  const lastname = params.lastname || params.lastName || 'User'
+async function createCommerceCustomerAndToken(params, prepared, logger) {
+  const firstname =
+  params.firstname?.trim() ||
+  params.firstName?.trim() ||
+  ''
+
+const lastname =
+  params.lastname?.trim() ||
+  params.lastName?.trim() ||
+  ''
   const commerceMobile = getCommerceMobileValue(prepared.normalizedMobile)
 
   const mutation = commerceMobile
@@ -72,12 +79,12 @@ async function createCommerceCustomerAndToken (params, prepared, logger) {
     ? { firstname, lastname, email: prepared.resolvedEmail, password: prepared.password, mobile: commerceMobile }
     : { firstname, lastname, email: prepared.resolvedEmail, password: prepared.password }
 
-  return graphQLRequest(params, mutation, variables, logger)
+  return commerceGraphQLRequest(params, mutation, variables, logger)
 }
 
 // ── Customer ID resolution ──────────────────────────────────────────────
 
-async function resolveCustomerId (params, createResponse, prepared, logger) {
+async function resolveCustomerId(params, createResponse, prepared, logger) {
   const idFromCreate = getCustomerId(createResponse)
   if (idFromCreate) return idFromCreate
 
@@ -87,7 +94,7 @@ async function resolveCustomerId (params, createResponse, prepared, logger) {
 
 // ── Exported handler ────────────────────────────────────────────────────
 
-module.exports = async function register (dbClient, params, logger) {
+module.exports = async function register(dbClient, params, logger) {
   try {
     const { error, prepared } = validateAndPrepare(params)
     if (error) return error
@@ -109,7 +116,7 @@ module.exports = async function register (dbClient, params, logger) {
       resolvedEmail: prepared.resolvedEmail,
       mobile: prepared.normalizedMobile
     });
-    
+
 
     // Create Commerce customer + token
     const response = await createCommerceCustomerAndToken(params, prepared, logger)
@@ -153,14 +160,15 @@ module.exports = async function register (dbClient, params, logger) {
     return {
       statusCode: 200,
       body: {
-        customer_id: customerId,
+        success: true,
         customer_token: customerToken,
-        login_type: prepared.loginType,
         customer: {
+          customer_id: customerId,
           firstname: customerData?.firstname,
           lastname: customerData?.lastname,
           email: customerData?.email,
-          mobile_number: prepared.normalizedMobile || null
+          mobile_number: prepared.normalizedMobile || null,
+          login_type: prepared.loginType,
         }
       }
     }

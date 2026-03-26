@@ -23,7 +23,7 @@ async function tryLogin (email, password, params, logger) {
 
 async function createUser (email, password, mobile, params, logger) {
   const firstname = params.firstname || params.firstName || (typeof email === 'string' ? email.split('@')[0] : 'Customer')
-  const lastname = params.lastname || params.lastName || (mobile ? String(mobile) : 'User')
+  const lastname = params.lastname || params.lastName || 'User'
   const mutation = `mutation createCustomerV2($email: String!, $firstname: String!, $lastname: String!){ createCustomerV2(input:{ firstname: $firstname, lastname: $lastname, email: $email, password: "${INTERNAL_CUSTOMER_PASSWORD}" }){ customer{ firstname lastname email } } }`
   return graphQLRequest(params, mutation, { email, firstname, lastname }, logger)
 }
@@ -120,14 +120,11 @@ async function main (params) {
         logger.debug && logger.debug('initial tryLogin failed: ' + e.message)
       }
 
-      const autoLogin = !!appConfig.auto_login
-      const registerFlag = (typeof inParams.register === 'string')
-        ? inParams.register.toLowerCase() === 'true'
-        : Boolean(inParams.register)
+      const autoRegister = !!appConfig.auto_register
 
       if (!token) {
-        if (!autoLogin && !registerFlag) {
-          return errorResponse(404, 'user is not registered, kindly register first', logger)
+        if (!autoRegister) {
+          return errorResponse(404, 'user not exist', logger)
         }
 
         try {
@@ -199,19 +196,16 @@ async function main (params) {
       const token = await tryLogin(emailToUse, INTERNAL_CUSTOMER_PASSWORD, inParams, logger)
       if (token) {
         await otpCollection.updateOne({ otpReferenceId: inParams.otpReferenceId }, { $set: { token, tokenStoredAt: Date.now() } })
-        return { statusCode: 200, body: { success: true, token, message: 'otp matched' } }
+        return { statusCode: 200, body: { success: true, customer_token: token, message: 'otp matched' } }
       }
     } catch (err) {
       logger.info('login attempt failed: ' + err.message)
     }
 
-    const autoLogin = !!appConfig.auto_login
-    const registerFlag = (typeof inParams.register === 'string')
-      ? inParams.register.toLowerCase() === 'true'
-      : Boolean(inParams.register)
+    const autoRegister = !!appConfig.auto_register
 
-    if (!autoLogin && !registerFlag) {
-      return errorResponse(404, 'user is not present in commerce', logger)
+    if (!autoRegister) {
+      return errorResponse(404, 'user not exist', logger)
     }
 
     // Auto-create user and login
@@ -220,7 +214,7 @@ async function main (params) {
       const tokenAfterCreate = await tryLogin(emailToUse, INTERNAL_CUSTOMER_PASSWORD, inParams, logger)
       if (tokenAfterCreate) {
         await otpCollection.updateOne({ otpReferenceId: inParams.otpReferenceId }, { $set: { token: tokenAfterCreate, tokenStoredAt: Date.now() } })
-        return { statusCode: 200, body: { success: true, token: tokenAfterCreate, message: 'otp matched' } }
+        return { statusCode: 200, body: { success: true, customer_token: tokenAfterCreate, message: 'otp matched' } }
       }
       return errorResponse(500, 'unable to obtain token after user creation', logger)
     } catch (err) {

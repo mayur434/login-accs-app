@@ -1,14 +1,38 @@
 const { Core } = require('@adobe/aio-sdk')
 const { stringParameters } = require('../utils')
 const { badRequest, serverError } = require('../lib/http')
-const { getCollection, closeDb,APP_CONFIG_COLLECTION } = require('../lib/db')
+const { getCollection, closeDb, APP_CONFIG_COLLECTION } = require('../lib/db')
 const { getRequestParams } = require('../lib/params')
-const { INTERNAL_CUSTOMER_PASSWORD } = require('../lib/customer')
+const { INTERNAL_CUSTOMER_PASSWORD, CUSTOMER_IDENTITY_COLLECTION } = require('../lib/customer')
 const { getAioDbToken } = require('../lib/imsHelper')
+const { findOneOrNull } = require('../lib/db')
 const register = require('./services/register')
 const login = require('./services/login')
 const update = require('./services/update')
 const { handleOtp } = require('./services/otp')
+
+// Helper to check if user exists for login
+async function userExistsForLogin(dbClient, params) {
+  const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
+  const loginType = String(params.loginType || '').toLowerCase()
+  const activeFilter = { status: 'active' }
+
+  if (loginType === 'mobile') {
+    const mobile = params.mobile || params.mobile_number
+    if (!mobile) return false
+    try {
+      const { normalizeMobile } = require('../utils')
+      const normalizedMobile = normalizeMobile(mobile)
+      return !!(await findOneOrNull(collection, { mobile_number: normalizedMobile, ...activeFilter }))
+    } catch { 
+      return false 
+    }
+  }
+
+  const email = params.email
+  if (!email) return false
+  return !!(await findOneOrNull(collection, { email: String(email).toLowerCase(), ...activeFilter }))
+}
 
 exports.main = async (params) => {
   const logger = Core.Logger('customer', { level: params.LOG_LEVEL || 'info' })
@@ -31,7 +55,7 @@ exports.main = async (params) => {
       logger.warn(`Unable to generate IMS token for DB: ${e.message}`)
     }
 
-    const operation = String(requestParams.operation || '').trim()
+    let operation = String(requestParams.operation || '').trim()
     if (!operation) {
       return badRequest("missing parameter(s) 'operation'")
     }
@@ -74,6 +98,16 @@ exports.main = async (params) => {
       if (!requestParams.mobile_number && rec.mobile) requestParams.mobile_number = rec.mobile
 
       requestParams.password = INTERNAL_CUSTOMER_PASSWORD
+
+      // Auto-register logic: if OTP verified for login but user doesn't exist,
+      // switch to register flow. (auto_register was already checked during OTP generation)
+      if (operation === 'login' && otp.verified) {
+        const userExists = await userExistsForLogin(dbClient, requestParams)
+        if (!userExists) {
+          logger.info('Login: user does not exist after OTP verification, switching to register flow')
+          operation = 'register'
+        }
+      }
     }
 
     switch (operation) {

@@ -61,6 +61,11 @@ function isDocumentNotFoundError (error) {
   return message.includes('document not found') || message.includes('not found')
 }
 
+function isCollectionNotFoundError (error) {
+  const message = String(error?.message ?? '').toLowerCase()
+  return message.includes('collection not found') || message.includes('does not exist')
+}
+
 function isUniqueConstraintError (error) {
   const message = String(error?.message ?? '').toLowerCase()
   return (
@@ -104,9 +109,9 @@ async function findOneOrNull (collection, query, logger) {
 
 const APP_CONFIG_DEFAULTS = {
   is_enabled: false,
-  otp_expiration_validity: 5,
+  otp_expiration_validity: 10,
   otp_in_response: false,
-  auto_login: false,
+  auto_register: false,
   allow_key_info_update: false
 }
 
@@ -119,9 +124,9 @@ function normalizeAppConfig (config) {
     otp_in_response: typeof config?.otp_in_response === 'boolean'
       ? config.otp_in_response
       : APP_CONFIG_DEFAULTS.otp_in_response,
-    auto_login: typeof config?.auto_login === 'boolean'
-      ? config.auto_login
-      : APP_CONFIG_DEFAULTS.auto_login,
+    auto_register: typeof config?.auto_register === 'boolean'
+      ? config.auto_register
+      : APP_CONFIG_DEFAULTS.auto_register,
     allow_key_info_update: typeof config?.allow_key_info_update === 'boolean'
       ? config.allow_key_info_update
       : APP_CONFIG_DEFAULTS.allow_key_info_update
@@ -132,8 +137,38 @@ function normalizeAppConfig (config) {
  * Read app_config from a connected dbClient (creates collection handle internally).
  */
 async function getAppConfig (dbClient) {
-  const collection = await dbClient.collection(APP_CONFIG_COLLECTION)
-  const config = await collection.findOne({ _id: APP_CONFIG_ID })
+  let collection
+  try {
+    collection = await dbClient.collection(APP_CONFIG_COLLECTION)
+  } catch (error) {
+    if (!isCollectionNotFoundError(error)) throw error
+    await dbClient.createCollection(APP_CONFIG_COLLECTION)
+    collection = await dbClient.collection(APP_CONFIG_COLLECTION)
+  }
+
+  let config = null
+  try {
+    config = await collection.findOne({ _id: APP_CONFIG_ID })
+  } catch (error) {
+    if (!isDocumentNotFoundError(error)) throw error
+  }
+
+  if (!config) {
+    const defaultConfig = {
+      _id: APP_CONFIG_ID,
+      ...APP_CONFIG_DEFAULTS,
+      updatedAt: Date.now()
+    }
+
+    try {
+      await collection.insertOne(defaultConfig)
+      config = defaultConfig
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error
+      config = await collection.findOne({ _id: APP_CONFIG_ID })
+    }
+  }
+
   return normalizeAppConfig(config)
 }
 
@@ -142,6 +177,7 @@ module.exports = {
   getCollection,
   closeDb,
   isDocumentNotFoundError,
+  isCollectionNotFoundError,
   isUniqueConstraintError,
   isUnauthorizedDbError,
   findOneOrNull,

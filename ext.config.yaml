@@ -40,7 +40,7 @@ runtimeManifest:
             LOG_LEVEL: debug
             apikey: $SERVICE_API_KEY
             GRAPHQL_ENDPOINT: $GRAPHQL_ENDPOINT
-            GRAPHQL_API_KEY: $GRAPHQL_API_KEY
+            COMMERCE_GRAPHQL_ENDPOINT: $COMMERCE_GRAPHQL_ENDPOINT
           annotations:
             require-adobe-auth: false
             include-ims-credentials: false

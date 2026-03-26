@@ -100,8 +100,18 @@ async function handleOtp (dbClient, params, operation, logger) {
         if (conflictResponse) return { response: conflictResponse }
       }
       if (operation === 'login') {
-        if (!(await checkLoginExists(dbClient, params))) {
-          return { response: notFound('user not found') }
+        const loginExists = await checkLoginExists(dbClient, params)
+        if (!loginExists) {
+          // User not found: check if auto_register is enabled
+          if (!appConfig.auto_register) {
+            logger.info('Login: user not found and auto_register is disabled')
+            return { response: notFound('user not found') }
+          }
+          // Auto-register enabled: switch to register flow
+          logger.info('Login: user not found but auto_register is enabled, switching to register flow')
+          // Check for registration conflicts before auto-registering
+          const conflictResponse = await checkRegistrationConflict(dbClient, params, logger)
+          if (conflictResponse) return { response: conflictResponse }
         }
       }
 

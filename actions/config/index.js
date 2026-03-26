@@ -11,11 +11,14 @@ const {
 // ── Validation ──────────────────────────────────────────────────────────
 
 function validateUpdatePayload (params) {
+  // Backward compatibility: accept auto_login and map to auto_register
+  const autoRegisterValue = params.auto_register !== undefined ? params.auto_register : params.auto_login
+
   const fields = {
     is_enabled: { value: params.is_enabled, type: 'boolean' },
     otp_expiration_validity: { value: params.otp_expiration_validity, type: 'integer' },
     otp_in_response: { value: params.otp_in_response, type: 'boolean' },
-    auto_login: { value: params.auto_login, type: 'boolean' },
+    auto_register: { value: autoRegisterValue, type: 'boolean' },
     allow_key_info_update: { value: params.allow_key_info_update, type: 'boolean' }
   }
 
@@ -40,7 +43,7 @@ function validateUpdatePayload (params) {
     return {
       error: badRequest(
         'Provide is_enabled (boolean) and/or otp_expiration_validity (integer minutes) ' +
-        'and/or otp_in_response (boolean) and/or auto_login (boolean) and/or allow_key_info_update (boolean)'
+        'and/or otp_in_response (boolean) and/or auto_register (boolean) and/or allow_key_info_update (boolean)'
       )
     }
   }
@@ -60,7 +63,13 @@ async function getDocDbConfig (collection) {
   let config = await collection.findOne({ _id: APP_CONFIG_ID })
 
   const patchFields = {}
-  for (const key of ['otp_in_response', 'auto_login', 'allow_key_info_update']) {
+  // Normalize: migrate legacy auto_login field to auto_register
+  if (config && config.auto_login !== undefined && config.auto_register === undefined) {
+    patchFields.auto_register = config.auto_login
+    patchFields.auto_login = null // Mark for deletion
+  }
+
+  for (const key of ['otp_in_response', 'auto_register', 'allow_key_info_update']) {
     if (config && typeof config[key] !== 'boolean') {
       patchFields[key] = APP_CONFIG_DEFAULTS[key]
     }

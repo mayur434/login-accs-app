@@ -90,8 +90,8 @@ const OTP_COLLECTION = 'otps'
  *   customer_id    number    commerce customer id (unique index)
  *   login_type     string    'email' | 'mobile' | 'both'
  *   status         string    'active' | 'inactive'
- *   first_name     string?   customer first name
- *   last_name      string?   customer last name
+ *   firstname     string?   customer first name
+ *   lastname      string?   customer last name
  *   created_at     Date      document creation time
  *   updated_at     Date      last modification time
  *
