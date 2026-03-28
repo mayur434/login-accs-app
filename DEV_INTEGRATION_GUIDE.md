@@ -77,9 +77,9 @@ curl -X GET "{{ADMIN_BASE_URL}}/config" \
 ```json
 {
   "is_enabled": true,
-  "otp_expiration_validity": 5,
+  "otp_expiration_validity": 10,
   "otp_in_response": false,
-  "auto_login": false,
+  "auto_register": false,
   "allow_key_info_update": false
 }
 ```
@@ -95,7 +95,7 @@ curl -X POST "{{ADMIN_BASE_URL}}/config" \
     "is_enabled": true,
     "otp_expiration_validity": 10,
     "otp_in_response": true,
-    "auto_login": true,
+    "auto_register": true,
     "allow_key_info_update": true
   }'
 ```
@@ -107,7 +107,7 @@ curl -X POST "{{ADMIN_BASE_URL}}/config" \
   "is_enabled": true,
   "otp_expiration_validity": 10,
   "otp_in_response": true,
-  "auto_login": true,
+  "auto_register": true,
   "allow_key_info_update": true,
   "updatedAt": 1711017600000
 }
@@ -143,9 +143,9 @@ curl -X DELETE "{{ADMIN_BASE_URL}}/config" \
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `is_enabled` | boolean | `false` | Master switch for OTP module |
-| `otp_expiration_validity` | integer | `5` | OTP validity in minutes |
+| `otp_expiration_validity` | integer | `10` | OTP validity in minutes |
 | `otp_in_response` | boolean | `false` | Include OTP value in response (for testing) |
-| `auto_login` | boolean | `false` | Auto-create Commerce customer on OTP verify |
+| `auto_register` | boolean | `false` | Auto-register Commerce customer on login if user not found |
 | `allow_key_info_update` | boolean | `false` | Allow customer profile updates (mobile/email/name) |
 
 ---
@@ -216,7 +216,7 @@ curl -X POST "{{MESH_URL}}/otp" \
 ```json
 {
   "success": true,
-  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "customer_token": "eyJhbGciOiJIUzI1NiIs...",
   "message": "otp matched"
 }
 ```
@@ -234,7 +234,7 @@ curl -X POST "{{MESH_URL}}/otp" \
   }'
 ```
 
-> **Note:** Auto-register also triggers if `auto_login: true` in app config.
+> **Note:** Auto-register also triggers if `auto_register: true` in app config.
 
 #### Standalone OTP Error Responses
 
@@ -247,7 +247,7 @@ curl -X POST "{{MESH_URL}}/otp" \
 | 400 | `otp expired` | OTP past expiration time |
 | 401 | `invalid otp` | OTP value doesn't match (Levenshtein distance > 1) |
 | 403 | `otp module is disabled` | `is_enabled: false` in config |
-| 404 | `user is not registered, kindly register first` | User not in Commerce and auto-register off |
+| 404 | `user not exist` | User not in Commerce and auto-register off |
 | 500 | `unable to create/login user` | Commerce create/login failed |
 
 ---
@@ -300,14 +300,15 @@ curl -X POST "{{MESH_URL}}/customer" \
 
 ```json
 {
-  "customer_id": 42,
+  "success": true,
   "customer_token": "eyJhbGciOiJIUzI1NiIs...",
-  "login_type": "both",
   "customer": {
+    "customer_id": 42,
     "firstname": "John",
     "lastname": "Doe",
     "email": "customer@example.com",
-    "mobile_number": "+919876543210"
+    "mobile_number": "+919876543210",
+    "login_type": "both"
   }
 }
 ```
@@ -340,7 +341,8 @@ curl -X POST "{{MESH_URL}}/customer" \
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "success": true,
+  "customerToken": "eyJhbGciOiJIUzI1NiIs...",
   "customer": {
     "id": 42,
     "firstname": "John",
@@ -371,10 +373,10 @@ curl -X POST "{{MESH_URL}}/customer" \
   -H "Content-Type: application/json" \
   -d '{
     "operation": "updateCustomerDetails",
+    "customer_id": 42,
     "customer_token": "eyJhbGciOiJIUzI1NiIs...",
     "mobile_number": "8765432109",
     "new_email": "newemail@example.com",
-    "password": "currentPassword123",
     "firstName": "Jane",
     "lastName": "Smith"
   }'
@@ -385,18 +387,12 @@ curl -X POST "{{MESH_URL}}/customer" \
 ```json
 {
   "success": true,
-  "customer_id": 42,
-  "mobile_number": "+918765432109",
-  "email": "newemail@example.com",
-  "firstName": "Jane",
-  "lastName": "Smith",
-  "commerce": {
-    "customer": {
-      "id": "42",
-      "firstname": "Jane",
-      "lastname": "Smith",
-      "email": "newemail@example.com"
-    }
+  "customer": {
+    "customer_id": 42,
+    "mobile_number": "+918765432109",
+    "email": "newemail@example.com",
+    "firstname": "Jane",
+    "lastname": "Smith"
   }
 }
 ```
@@ -608,7 +604,7 @@ Singleton document (`_id: 'app_config'`) holding module settings. Managed via Ad
 | `is_enabled` | boolean | Master enable/disable |
 | `otp_expiration_validity` | integer | OTP validity (minutes) |
 | `otp_in_response` | boolean | Show OTP in API response |
-| `auto_login` | boolean | Auto-create customer on OTP verify |
+| `auto_register` | boolean | Auto-register customer on login if user not found |
 | `allow_key_info_update` | boolean | Allow profile updates |
 | `updatedAt` | number | Last update timestamp |
 
@@ -670,7 +666,7 @@ Validation rule: after stripping non-digits and optional `91` prefix, the remain
 - **OTP length:** 4 digits (1000–9999), generated with `crypto.randomInt` (cryptographically secure)
 - **Fuzzy matching:** Levenshtein distance ≤ 1 from stored OTP is accepted
 - **Single use:** OTP is marked `consumed: true` after successful verification
-- **Expiry:** Controlled by `otp_expiration_validity` config (default: 5 minutes)
+- **Expiry:** Controlled by `otp_expiration_validity` config (default: 10 minutes)
 - **Auto-cleanup:** Expired OTPs are deleted on verification attempt
 - **Reference ID format:** `otp_{timestamp}_{random5digits}`
 

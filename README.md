@@ -17,7 +17,7 @@ All frontend-facing APIs are consumed exclusively through **Adobe API Mesh**. Th
 
 ### For Commerce Admin (via Admin UI SDK)
 
-- **Admin Configuration** — Self-service UI in Commerce Admin to control OTP validity, auto-login, module enable/disable, and more
+- **Admin Configuration** — Self-service UI in Commerce Admin to control OTP validity, auto-register, module enable/disable, and more
 
 The Admin UI runs as an App Builder extension within Adobe Commerce Admin. It calls the `config` action directly using the IMS token provided by the host context.
 
@@ -95,7 +95,8 @@ No auth headers required — the mesh acts as the security gateway.
 | `IMS_OAUTH_S2S_CLIENT_ID` | Yes | OAuth S2S client ID |
 | `IMS_OAUTH_S2S_CLIENT_SECRET` | Yes | OAuth S2S client secret |
 | `IMS_OAUTH_S2S_ORG_ID` | Yes | IMS organization ID |
-| `GRAPHQL_ENDPOINT` | Yes | Commerce GraphQL URL |
+| `GRAPHQL_ENDPOINT` | Yes | GraphQL endpoint URL (used by OTP and update actions) |
+| `COMMERCE_GRAPHQL_ENDPOINT` | Yes | Commerce storefront GraphQL URL (used by register and login actions) |
 | `GRAPHQL_API_KEY` | Yes | Commerce API key |
 | `SERVICE_API_KEY` | Yes | Service API key |
 

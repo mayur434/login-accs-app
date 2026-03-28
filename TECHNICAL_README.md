@@ -34,6 +34,7 @@ This project is an Adobe App Builder extension with two distinct access layers:
 - `otp.js` — OTP generation and validation helpers
 - `params.js` — request parameter parsing and normalization
 - `customer.js` — customer identity helpers (ID parsing, token extraction, mobile/email utils)
+- `imsHelper.js` — IMS token resolution for DB access (localhost vs production)
 
 ## Solution Architecture
 

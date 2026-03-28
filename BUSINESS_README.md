@@ -12,7 +12,7 @@ Provide two distinct service layers:
 
 - Enable/disable OTP module
 - Configure OTP validity and response behavior
-- Control auto-login behavior
+- Control auto-register behavior
 - Toggle key info updates (mobile, email, name) for customers
 
 ### For Storefronts & Mobile Apps (API Mesh)

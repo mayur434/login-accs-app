@@ -41,7 +41,8 @@ Additionally, set the following in your `.env` or as action inputs in `ext.confi
 
 | Variable | Description | Example |
 |---|---|---|
-| `GRAPHQL_ENDPOINT` | Commerce GraphQL URL | `https://your-store.com/graphql` |
+| `GRAPHQL_ENDPOINT` | GraphQL endpoint URL (used by OTP and update actions) | `https://your-store.com/graphql` |
+| `COMMERCE_GRAPHQL_ENDPOINT` | Commerce storefront GraphQL URL (used by register and login actions) | `https://na1-sandbox.api.commerce.adobe.com/<tenant>/graphql` |
 | `GRAPHQL_API_KEY` | Commerce API key | `abc123` |
 | `SERVICE_API_KEY` | Service API key for auth | `xyz789` |
 
@@ -49,7 +50,7 @@ Additionally, set the following in your `.env` or as action inputs in `ext.confi
 
 ## 3. Database Setup
 
-The database auto-provisions on deploy (`auto-provision: true` in `app.config.yaml`). For local development, run the setup script manually:
+Database auto-provisioning is disabled (`auto-provision: false` in config). Run the setup script to initialize collections and indexes:
 
 ```bash
 npm run setup-db
