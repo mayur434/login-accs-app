@@ -115,6 +115,10 @@ const APP_CONFIG_DEFAULTS = {
 }
 
 function normalizeAppConfig (config) {
+  const autoRegister = typeof config?.auto_register === 'boolean'
+    ? config.auto_register
+    : APP_CONFIG_DEFAULTS.auto_register
+
   return {
     is_enabled: Boolean(config?.is_enabled),
     otp_expiration_validity: Number.isInteger(config?.otp_expiration_validity)
@@ -123,9 +127,8 @@ function normalizeAppConfig (config) {
     otp_in_response: typeof config?.otp_in_response === 'boolean'
       ? config.otp_in_response
       : APP_CONFIG_DEFAULTS.otp_in_response,
-    auto_register: typeof config?.auto_register === 'boolean'
-      ? config.auto_register
-      : APP_CONFIG_DEFAULTS.auto_register,
+    auto_register: autoRegister,
+    auto_login: autoRegister, // backward compat alias for Admin UI
     allow_key_info_update: typeof config?.allow_key_info_update === 'boolean'
       ? config.allow_key_info_update
       : APP_CONFIG_DEFAULTS.allow_key_info_update
