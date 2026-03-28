@@ -4,7 +4,7 @@ const { stringParameters } = require('../utils')
 const { success, badRequest, methodNotAllowed, serverError } = require('../lib/http')
 const { getAioDbToken } = require('../lib/imsHelper')
 const {
-  getCollection, closeDb, normalizeAppConfig,
+  getCollection, closeDb, normalizeAppConfig, findOneOrNull,
   APP_CONFIG_ID, APP_CONFIG_COLLECTION, APP_CONFIG_DEFAULTS
 } = require('../lib/db')
 
@@ -60,17 +60,18 @@ function validateUpdatePayload (params) {
 // ── Migrate legacy docs that may be missing newer boolean fields ────────
 
 async function getDocDbConfig (collection) {
-  let config = await collection.findOne({ _id: APP_CONFIG_ID })
+  let config = await findOneOrNull(collection, { _id: APP_CONFIG_ID })
+
+  if (!config) return normalizeAppConfig(null)
 
   const patchFields = {}
   // Normalize: migrate legacy auto_login field to auto_register
-  if (config && config.auto_login !== undefined && config.auto_register === undefined) {
+  if (config.auto_login !== undefined && config.auto_register === undefined) {
     patchFields.auto_register = config.auto_login
-    patchFields.auto_login = null // Mark for deletion
   }
 
   for (const key of ['otp_in_response', 'auto_register', 'allow_key_info_update']) {
-    if (config && typeof config[key] !== 'boolean') {
+    if (typeof config[key] !== 'boolean') {
       patchFields[key] = APP_CONFIG_DEFAULTS[key]
     }
   }
@@ -81,7 +82,7 @@ async function getDocDbConfig (collection) {
       { $set: { ...patchFields, updatedAt: Date.now() } },
       { upsert: true }
     )
-    config = await collection.findOne({ _id: APP_CONFIG_ID })
+    config = await findOneOrNull(collection, { _id: APP_CONFIG_ID })
   }
 
   return normalizeAppConfig(config)
@@ -124,7 +125,7 @@ async function main (params) {
         { upsert: true }
       )
 
-      const updatedConfig = await collection.findOne({ _id: APP_CONFIG_ID })
+      const updatedConfig = await findOneOrNull(collection, { _id: APP_CONFIG_ID })
       return success(normalizeAppConfig(updatedConfig))
     }
 

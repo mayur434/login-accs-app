@@ -34,7 +34,13 @@ This project is an Adobe App Builder extension with two distinct access layers:
 - `otp.js` — OTP generation and validation helpers
 - `params.js` — request parameter parsing and normalization
 - `customer.js` — customer identity helpers (ID parsing, token extraction, mobile/email utils)
-- `imsHelper.js` — IMS token resolution for DB access (localhost vs production)
+- `imsHelper.js` — IMS token resolution for DB access (returns `null` when `DB_TYPE=mysql`)
+
+**Database adapters** (`actions/lib/db-adapters/`):
+
+- `index.js` — adapter factory: reads `DB_TYPE` from params, returns the appropriate adapter (`docdb` or `mysql`)
+- `docdb-adapter.js` — wraps `@adobe/aio-lib-db` with IMS authentication and namespace scoping
+- `mysql-adapter.js` — translates MongoDB-style operations to SQL via `mysql2/promise`, with column introspection, boolean hydration, and `filterValidColumns` safety
 
 ## Solution Architecture
 
@@ -57,7 +63,7 @@ This project is an Adobe App Builder extension with two distinct access layers:
    ▼          ▼
 ┌─────────────────┐
 │   Commerce      │ ← GraphQL backend
-│   + Doc DB      │
+│ DocDB / MySQL   │ ← switchable via DB_TYPE
 └─────────────────┘
 ```
 
@@ -166,9 +172,30 @@ All mesh secrets are stored in `mesh/.env.mesh` (git-ignored) and passed to `aio
 
 ## Data Backend
 
-The solution uses Adobe Doc DB (`@adobe/aio-lib-db`) with `auto-provision: true` and region `apac`.
+The solution supports two interchangeable database backends, selected by the `DB_TYPE` environment variable (default: `docdb`):
 
-Collections:
+| Backend | Package | Auth | Set via |
+|---|---|---|---|
+| **Adobe Doc DB** (default) | `@adobe/aio-lib-db` | IMS S2S token | `DB_TYPE=docdb` or unset |
+| **MySQL** | `mysql2/promise` | Direct credentials | `DB_TYPE=mysql` |
+
+Both backends expose the same interface through the adapter pattern (`actions/lib/db-adapters/`). Application code (actions, services, `db.js`) is backend-agnostic.
+
+### Adapter Pattern
+
+```
+db.js (facade) → getAdapter(params) → docdb-adapter.js  OR  mysql-adapter.js
+                                         │                        │
+                                    @adobe/aio-lib-db        mysql2/promise
+```
+
+- **Factory** (`db-adapters/index.js`): reads `params.DB_TYPE`, returns the matching adapter
+- **DocDB adapter**: generates IMS token → calls `libDB.init({ region, token, namespace })` → MongoDB-like API
+- **MySQL adapter**: creates connection pool → translates MongoDB-style calls (findOne, insertOne, updateOne, deleteOne) to parameterized SQL
+
+See [DocDB Guide](DOCDB_README.md) and [MySQL Guide](MYSQL_README.md) for backend-specific details.
+
+Collections / Tables:
 
 - `app_config` — module configuration (enable/disable, OTP settings, etc.)
 - `otps` — OTP records (reference IDs, expiry, consumed state)
@@ -218,6 +245,7 @@ After deployment, `npm run setup-db` runs automatically to initialize DB indexes
 - Do not log secrets such as raw DB passwords or bearer tokens.
 - Use `LOG_LEVEL=debug` only for troubleshooting in non-production contexts.
 - The `customer` action router manages the DB connection lifecycle — individual services receive `dbClient` and must not open/close their own connections.
+- The adapter pattern (`actions/lib/db-adapters/`) ensures application code is backend-agnostic. New backends can be added by implementing the adapter interface.
 - Commerce operations (`generateCustomerToken`, `fetchCustomerProfile`) are shared via `actions/lib/commerce.js` to avoid duplication.
 - OTP generation uses `crypto.randomInt` (cryptographically secure) instead of `Math.random`.
 - The `config` action is **excluded** from the API Mesh — it is only accessible via the Admin UI SDK with IMS auth from the Commerce Admin host context.

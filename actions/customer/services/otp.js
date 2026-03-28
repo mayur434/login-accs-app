@@ -5,6 +5,14 @@ const { generateOtpValue, createReferenceId, levenshtein } = require('../../lib/
 const { hasValue } = require('../../lib/params')
 const { CUSTOMER_IDENTITY_COLLECTION } = require('../../lib/customer')
 
+// Collection handle wrapper that uses findOneOrNull for safe lookups
+function safeCollection (rawCollection) {
+  return {
+    ...rawCollection,
+    safeFindOne: (query) => findOneOrNull(rawCollection, query)
+  }
+}
+
 // ── Identity look-ups (backward-compat with legacy field names) ─────────
 
 async function findIdentityByEmail (collection, email, filter = {}) {
@@ -152,7 +160,7 @@ async function handleOtp (dbClient, params, operation, logger) {
     }
 
     // ── Verify OTP ────────────────────────────────────────────────────
-    const record = await otpCollection.findOne({ otpReferenceId: params.otpReferenceId })
+    const record = await findOneOrNull(otpCollection, { otpReferenceId: params.otpReferenceId })
     if (!record) return { response: badRequest('invalid otpReferenceId') }
     if (record.consumed) return { response: badRequest('otp already used') }
 

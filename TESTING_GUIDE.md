@@ -96,7 +96,7 @@ describe('<module-name>', () => {
 
 ### Mocking Adobe SDKs
 
-Actions depend on `@adobe/aio-sdk` and `@adobe/aio-lib-db`. Mock them at the top of your test file:
+Actions depend on `@adobe/aio-sdk` and `@adobe/aio-lib-db` (DocDB backend). Mock them at the top of your test file:
 
 ```javascript
 jest.mock('@adobe/aio-sdk', () => ({
@@ -153,6 +153,9 @@ These modules in `actions/lib/` are pure functions or have minimal dependencies,
 | `customer.js` | `parseCustomerIdValue`, `getCustomerId`, `getSyntheticEmail`, `normalizeMobile`, `buildLoginType`, `extractCustomerId` | Base64 decoding, ID extraction, email generation, mobile validation |
 | `commerce.js` | `generateCustomerToken`, `fetchCustomerProfile` | Mock GraphQL responses, error handling |
 | `db.js` | `findOneOrNull`, `isUniqueConstraintError`, `normalizeAppConfig` | Error classification, config defaults |
+| `db-adapters/index.js` | `getAdapter` | Returns correct adapter for `DB_TYPE` |
+| `db-adapters/docdb-adapter.js` | `connect` | IMS token resolution, DocDB init |
+| `db-adapters/mysql-adapter.js` | `connect`, `filterValidColumns`, `hydrateRow`, `toSqlValue` | SQL translation, column safety, boolean handling |
 
 ## Testing Service Handlers
 
@@ -219,3 +222,30 @@ npm run lint
 npm test
 npm run e2e
 ```
+
+## Dual-Backend Integration Tests
+
+The project includes a comprehensive integration test suite that runs against both DocDB and MySQL:
+
+```bash
+# Run against both backends (162 tests total)
+node scripts/test-mysql.js
+
+# Run against MySQL only (81 tests)
+node scripts/test-mysql.js mysql
+
+# Run against DocDB only (81 tests)
+node scripts/test-mysql.js docdb
+```
+
+### Test Suites (per backend)
+
+| Suite | Tests | Coverage |
+|---|---|---|
+| Adapter Layer | 23 | connect, list, findOne, insertOne, updateOne, deleteOne, upsert, unique constraints, filterValidColumns, getIndexes |
+| db.js Facade | 13 | getCollection, getAppConfig, findOneOrNull, error classifiers, normalizeAppConfig |
+| Config Action | 20 | GET, POST, PUT, PATCH, DELETE, validation, auto-create, backward compat |
+| OTP Service | 16 | generate (email/mobile), verify (correct/wrong/consumed/bad ref), persistence |
+| Customer Identity | 9 | insert, find by email/mobile/customer_id, update, upsert, delete |
+
+> **Note:** Integration tests require a live database connection. For MySQL, ensure `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` are set. For DocDB, ensure IMS credentials are configured.

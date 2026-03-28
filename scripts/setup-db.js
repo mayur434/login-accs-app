@@ -3,31 +3,31 @@
 /**
  * Database Setup Script for login-module
  *
+ * Supports both DocDB and MySQL backends, selected by DB_TYPE env var.
+ *
  * Prerequisites:
- *   - Run `aio app use` to generate .env with workspace credentials
- *   - Ensure "App Builder Data Services" API is added in Developer Console
- *   - Database must be provisioned first (run: npm run provision-db)
+ *   DocDB:
+ *     - Run `aio app use` to generate .env with workspace credentials
+ *     - Ensure "App Builder Data Services" API is added in Developer Console
+ *     - Database must be provisioned first (run: npm run provision-db)
+ *   MySQL:
+ *     - Set MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE in .env
  *
  * Usage:
  *   node scripts/setup-db.js
  *
  * What it does:
- *   1. Generates IMS access token from .env credentials
- *   2. Connects to Adobe docdb
- *   3. Creates collections: app_config, otps, customer_mobile_identity
- *   4. Creates unique indexes on customer_mobile_identity (mobile_number, email, customer_id)
- *   5. Seeds default app_config document
- *   6. Verifies everything by reading back collections, indexes, and data
+ *   1. Connects to the configured database backend
+ *   2. Creates collections/tables: app_config, otps, customer_mobile_identity
+ *   3. Creates unique indexes on customer_mobile_identity (mobile_number, email, customer_id)
+ *   4. Seeds default app_config document/row
+ *   5. Verifies everything by reading back collections, indexes, and data
  */
 
 const path = require('path')
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') })
 
-const { Core } = require('@adobe/aio-sdk')
-const { generateAccessToken } = Core.AuthClient
-const libDB = require('@adobe/aio-lib-db')
-
-const REGION = process.env.AIO_DB_REGION || 'apac'
+const DB_TYPE = (process.env.DB_TYPE || 'docdb').toLowerCase().trim()
 
 // ---------------------------------------------------------------------------
 // Collection definitions
@@ -41,7 +41,7 @@ const REGION = process.env.AIO_DB_REGION || 'apac'
  *   is_enabled                boolean   module enabled flag
  *   otp_expiration_validity   integer   OTP validity in minutes (>0)
  *   otp_in_response           boolean   include OTP in API response (testing)
- *   auto_login                boolean   auto-create customer on OTP verify
+ *   auto_register            boolean   auto-register customer on login if user not found
  *   allow_key_info_update     boolean   allow mobile/email mapping updates
  *   updatedAt                 number    Date.now() timestamp
  */
@@ -49,9 +49,9 @@ const APP_CONFIG_COLLECTION = 'app_config'
 const APP_CONFIG_SEED = {
   _id: 'app_config',
   is_enabled: true,
-  otp_expiration_validity: 5,
+  otp_expiration_validity: 10,
   otp_in_response: false,
-  auto_login: false,
+  auto_register: false,
   allow_key_info_update: false,
   updatedAt: Date.now()
 }
@@ -110,10 +110,20 @@ const IDENTITY_INDEXES = [
 const ALL_COLLECTIONS = [APP_CONFIG_COLLECTION, OTP_COLLECTION, IDENTITY_COLLECTION]
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Connection — delegates to adapter
 // ---------------------------------------------------------------------------
 
-async function getToken () {
+async function getDbClient () {
+  if (DB_TYPE === 'mysql') {
+    const adapter = require('../actions/lib/db-adapters/mysql-adapter')
+    const { dbClient } = await adapter.connect({})
+    return dbClient
+  }
+
+  // DocDB — needs IMS token
+  const { Core } = require('@adobe/aio-sdk')
+  const { generateAccessToken } = Core.AuthClient
+
   const clientId = process.env.IMS_OAUTH_S2S_CLIENT_ID
   const clientSecret = process.env.IMS_OAUTH_S2S_CLIENT_SECRET
   const orgId = process.env.IMS_OAUTH_S2S_ORG_ID
@@ -134,18 +144,10 @@ async function getToken () {
   if (!tokenResponse || !tokenResponse.access_token) {
     throw new Error('Failed to generate IMS access token.')
   }
-  return tokenResponse.access_token
-}
 
-async function getDbClient (token) {
-  if (!process.env.__OW_NAMESPACE) {
-    process.env.__OW_NAMESPACE = process.env.AIO_runtime_namespace || process.env.AIO_RUNTIME_NAMESPACE
-  }
-  if (!process.env.__OW_NAMESPACE) {
-    throw new Error('Missing runtime namespace. Set AIO_runtime_namespace in .env (run "aio app use").')
-  }
-  const db = await libDB.init({ region: REGION, token })
-  return db.connect()
+  const adapter = require('../actions/lib/db-adapters/docdb-adapter')
+  const { dbClient } = await adapter.connect({ AIO_DB_TOKEN: tokenResponse.access_token })
+  return dbClient
 }
 
 // ---------------------------------------------------------------------------
@@ -157,22 +159,22 @@ async function run () {
   const errors = []
 
   try {
-    console.log('=== Adobe DocDB Setup ===')
-    console.log(`Region : ${REGION}`)
-    console.log(`Namespace: ${process.env.AIO_runtime_namespace || process.env.AIO_RUNTIME_NAMESPACE || '(not set)'}`)
+    console.log(`=== Database Setup (${DB_TYPE.toUpperCase()}) ===`)
+    if (DB_TYPE === 'mysql') {
+      console.log(`Host    : ${process.env.MYSQL_HOST || 'localhost'}`)
+      console.log(`Database: ${process.env.MYSQL_DATABASE || 'login_module'}`)
+    } else {
+      console.log(`Region   : ${process.env.AIO_DB_REGION || 'apac'}`)
+      console.log(`Namespace: ${process.env.AIO_runtime_namespace || process.env.AIO_RUNTIME_NAMESPACE || '(not set)'}`)
+    }
 
-    // ---- Step 1: Token ----
-    console.log('\n[1/6] Generating IMS access token...')
-    const token = await getToken()
-    console.log('   ✓ Token generated')
-
-    // ---- Step 2: Connect ----
-    console.log('\n[2/6] Connecting to docdb...')
-    dbClient = await getDbClient(token)
+    // ---- Step 1: Connect ----
+    console.log('\n[1/5] Connecting to database...')
+    dbClient = await getDbClient()
     console.log('   ✓ Connected')
 
-    // ---- Step 3: Create collections ----
-    console.log('\n[3/6] Creating collections...')
+    // ---- Step 2: Create collections/tables ----
+    console.log('\n[2/5] Creating collections/tables...')
     const existing = await dbClient.listCollections()
     const existingNames = new Set((existing || []).map(c => c.name || c))
     console.log('   Currently on server:', existingNames.size ? [...existingNames].join(', ') : '(none)')
@@ -186,8 +188,8 @@ async function run () {
       }
     }
 
-    // ---- Step 4: Create indexes on customer_mobile_identity ----
-    console.log('\n[4/6] Creating indexes on customer_mobile_identity...')
+    // ---- Step 3: Create indexes on customer_mobile_identity ----
+    console.log('\n[3/5] Creating indexes on customer_mobile_identity...')
     const identityCol = dbClient.collection(IDENTITY_COLLECTION)
     for (const idx of IDENTITY_INDEXES) {
       try {
@@ -205,8 +207,8 @@ async function run () {
       }
     }
 
-    // ---- Step 5: Seed app_config ----
-    console.log('\n[5/6] Seeding default app_config document...')
+    // ---- Step 4: Seed app_config ----
+    console.log('\n[4/5] Seeding default app_config document...')
     const configCol = dbClient.collection(APP_CONFIG_COLLECTION)
     let configDoc = null
     try {
@@ -222,8 +224,8 @@ async function run () {
       console.log('   ✓ Default app_config document inserted')
     }
 
-    // ---- Step 6: Verify everything ----
-    console.log('\n[6/6] Verifying setup...')
+    // ---- Step 5: Verify everything ----
+    console.log('\n[5/5] Verifying setup...')
 
     // 6a. Verify collections exist
     const finalCollections = await dbClient.listCollections()
@@ -252,7 +254,7 @@ async function run () {
 
     // 6c. Verify app_config document
     const verifyConfig = await configCol.findOne({ _id: 'app_config' })
-    const requiredFields = ['is_enabled', 'otp_expiration_validity', 'otp_in_response', 'auto_login', 'allow_key_info_update', 'updatedAt']
+    const requiredFields = ['is_enabled', 'otp_expiration_validity', 'otp_in_response', 'auto_register', 'allow_key_info_update', 'updatedAt']
     const missingFields = requiredFields.filter(f => !(f in verifyConfig))
     if (missingFields.length > 0) {
       errors.push(`app_config missing fields: ${missingFields.join(', ')}`)

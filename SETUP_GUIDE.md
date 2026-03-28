@@ -6,9 +6,12 @@
 - **Adobe I/O CLI** (`aio`) — install via `npm install -g @adobe/aio-cli`
 - **App Builder workspace** with the following APIs enabled in Adobe Developer Console:
   - I/O Management API
-  - App Builder Data Services (for Doc DB)
+  - App Builder Data Services (for Doc DB — only if using DocDB backend)
   - API Mesh (for storefront/mobile consumption)
 - **Adobe Commerce instance** with GraphQL endpoint accessible
+- **Database backend** (one of):
+  - Adobe Doc DB (default, `DB_TYPE=docdb`) — see [DocDB Guide](DOCDB_README.md)
+  - MySQL 5.7+ (`DB_TYPE=mysql`) — see [MySQL Guide](MYSQL_README.md)
 
 ## 1. Clone & Install
 
@@ -46,23 +49,51 @@ Additionally, set the following in your `.env` or as action inputs in `ext.confi
 | `GRAPHQL_API_KEY` | Commerce API key | `abc123` |
 | `SERVICE_API_KEY` | Service API key for auth | `xyz789` |
 
+**Database backend variables** (add based on your chosen backend):
+
+| Variable | When | Description | Example |
+|---|---|---|---|
+| `DB_TYPE` | Always | `docdb` (default) or `mysql` | `mysql` |
+| `MYSQL_HOST` | If `DB_TYPE=mysql` | MySQL server hostname | `172.171.225.184` |
+| `MYSQL_PORT` | If `DB_TYPE=mysql` | MySQL server port | `3307` |
+| `MYSQL_USER` | If `DB_TYPE=mysql` | MySQL username | `root` |
+| `MYSQL_PASSWORD` | If `DB_TYPE=mysql` | MySQL password | `rootpassword` |
+| `MYSQL_DATABASE` | If `DB_TYPE=mysql` | MySQL database name | `mydb` |
+
 > **Note:** `.env` is gitignored and must never be committed to source control.
 
 ## 3. Database Setup
 
-Database auto-provisioning is disabled (`auto-provision: false` in config). Run the setup script to initialize collections and indexes:
+The setup script detects the `DB_TYPE` environment variable and initializes the appropriate backend.
+
+### Option A: DocDB (default)
+
+Requires IMS S2S credentials and "App Builder Data Services" API enabled.
 
 ```bash
+# DB_TYPE is unset or set to 'docdb'
 npm run setup-db
 ```
 
-This script:
+This generates an IMS token, connects to Adobe Doc DB (region: `apac`), creates collections, indexes, and seeds the default config.
 
-1. Generates an IMS access token from `.env` credentials
-2. Connects to Adobe Doc DB (region: `apac`)
-3. Creates collections: `app_config`, `otps`, `customer_mobile_identity`
-4. Creates unique indexes on `customer_mobile_identity` (`mobile_number`, `email`, `customer_id`)
-5. Seeds the default `app_config` document
+### Option B: MySQL
+
+Requires a running MySQL instance with the database already created.
+
+```bash
+export DB_TYPE=mysql
+export MYSQL_HOST=your-host
+export MYSQL_PORT=3306
+export MYSQL_USER=root
+export MYSQL_PASSWORD=your-password
+export MYSQL_DATABASE=your-database
+npm run setup-db
+```
+
+This connects to MySQL, creates tables (`app_config`, `otps`, `customer_mobile_identity`), indexes, and seeds the default config.
+
+> See [DocDB Guide](DOCDB_README.md) and [MySQL Guide](MYSQL_README.md) for detailed setup output and troubleshooting.
 
 ## 4. Local Development
 
@@ -142,6 +173,11 @@ actions/
     otp.js           # OTP generation & validation
     params.js        # Request parameter parsing
     customer.js      # Customer identity helpers
+    imsHelper.js     # IMS token resolution
+    db-adapters/     # Database backend adapters
+      index.js       # Adapter factory (reads DB_TYPE)
+      docdb-adapter.js  # Adobe Doc DB adapter
+      mysql-adapter.js  # MySQL adapter
   config/            # Module config CRUD — Admin UI SDK only
   customer/          # Customer router — API Mesh only
     services/
@@ -175,4 +211,7 @@ e2e/                 # End-to-end tests
 | `database token missing` | Deploy | Ensure "App Builder Data Services" API is enabled in Developer Console |
 | `GRAPHQL_ENDPOINT not configured` | Deploy | Set `GRAPHQL_ENDPOINT` in `.env` or `ext.config.yaml` inputs |
 | DB already provisioned (exit code 1) | Setup | Safe to ignore — `npm run dev` handles this automatically |
+| `ECONNREFUSED` on MySQL | Setup/Deploy | MySQL not running or wrong host/port. Verify `MYSQL_HOST` and `MYSQL_PORT` |
+| `Access denied for user` on MySQL | Setup/Deploy | Wrong MySQL credentials. Verify `MYSQL_USER` and `MYSQL_PASSWORD` |
+| `Unknown database` on MySQL | Setup | Database doesn’t exist. Create it: `CREATE DATABASE mydb` |
 | Storefront getting 401 calling action directly | Integration | Actions `otp`/`customer` are not auth-protected but their URLs are not published. Use the API Mesh URL instead. |

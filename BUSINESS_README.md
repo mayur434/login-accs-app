@@ -44,6 +44,7 @@ Provide two distinct service layers:
 - **Secure by default** — Admin UI actions are IMS-protected. Frontend actions are gated by the mesh as the security boundary.
 - **Mobile-first customer identity** — Customers register/login using mobile numbers, with email fallback
 - **Single gateway** — API Mesh combines Commerce GraphQL + Login Module REST into one endpoint
+- **Database flexibility** — Choose between Adobe Doc DB (managed, zero-ops) or MySQL (self-hosted, full control) via the `DB_TYPE` setting. Switch backends without code changes.
 
 ## Security and Compliance Intent
 
@@ -71,7 +72,7 @@ Provide two distinct service layers:
 2. Deploy API Mesh pointing to Stage actions (`cd mesh && npm run create`).
 3. Validate Admin UI config flows (Admin UI SDK → Config action).
 4. Validate storefront flows (API Mesh → OTP / Customer actions).
-5. Test Doc DB persistence and OTP configuration behavior.
+5. Test Doc DB or MySQL persistence and OTP configuration behavior.
 6. Test customer registration, login, and profile update end-to-end via mesh.
 7. Run UAT with operations/admin stakeholders (Admin UI) and frontend team (API Mesh).
 8. Promote to Production: deploy actions, then update mesh with production `ACTION_BASE_URL` (`cd mesh && npm run update`).
@@ -86,7 +87,10 @@ Provide two distinct service layers:
   - **Mitigation:** Ensure launch from Commerce Admin shell and verify IMS context handshake.
 
 - **Risk:** Commerce GraphQL errors during customer operations.
-  - **Mitigation:** Profile updates include automatic Doc DB rollback on Commerce failure. Monitor action logs for errors.
+  - **Mitigation:** Profile updates include automatic DB rollback on Commerce failure. Monitor action logs for errors.
+
+- **Risk:** Adobe Doc DB dependency or regional availability.
+  - **Mitigation:** MySQL backend available as an alternative (`DB_TYPE=mysql`). Switch at deployment time without code changes.
 
 - **Risk:** Duplicate customer identity records.
   - **Mitigation:** Unique indexes on identity collection enforced via post-deploy hook. Conflict detection before registration.

@@ -2,7 +2,7 @@ const { Core } = require('@adobe/aio-sdk')
 const { generateAccessToken } = Core.AuthClient
 const { stringParameters, checkMissingRequestInputs } = require('../utils')
 const { errorResponse } = require('../lib/http')
-const { getCollection, closeDb, getAppConfig, APP_CONFIG_DEFAULTS } = require('../lib/db')
+const { getCollection, closeDb, getAppConfig, findOneOrNull, APP_CONFIG_DEFAULTS } = require('../lib/db')
 const { graphQLRequest } = require('../lib/graphql')
 const { generateOtpValue, createReferenceId, levenshtein } = require('../lib/otp')
 const { getRequestParams } = require('../lib/params')
@@ -36,49 +36,56 @@ async function main (params) {
 
   try {
     logger.info('OTP action called')
-    const imsCredentials = {
-      clientId: process.env.IMS_OAUTH_S2S_CLIENT_ID,
-      clientSecret: process.env.IMS_OAUTH_S2S_CLIENT_SECRET,
-      orgId: process.env.IMS_OAUTH_S2S_ORG_ID,
-      scopes: process.env.IMS_OAUTH_S2S_SCOPES
-    }
-
-    let rawScopes = process.env.IMS_OAUTH_S2S_SCOPES
-
-    if (Array.isArray(rawScopes)) {
-      imsCredentials.scopes = rawScopes
-    } else if (typeof rawScopes === 'string') {
-      const trimmed = rawScopes.trim()
-      try {
-        const parsed = JSON.parse(trimmed)
-        imsCredentials.scopes = Array.isArray(parsed)
-          ? parsed.map(s => String(s).trim()).filter(Boolean)
-          : []
-      } catch (e) {
-        imsCredentials.scopes = trimmed
-          .split(',')
-          .map(s => s.trim())
-          .filter(Boolean)
-      }
-    } else {
-      imsCredentials.scopes = []
-    }
-
-    const tokenResponse = await generateAccessToken(imsCredentials)
-
-    logger.debug('Access token obtained successfully')
-    logger.debug(`Token response: ${JSON.stringify({
-      accessTokenPresent: !!tokenResponse.access_token,
-      tokenType: tokenResponse.token_type,
-      expiresIn: tokenResponse.expires_in
-    })}`);
-
 
     const inParams = getRequestParams(params)
     inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers || {}
 
+    const dbType = (params.DB_TYPE || process.env.DB_TYPE || 'docdb').toLowerCase().trim()
+    let aioDbToken = null
+
+    if (dbType !== 'mysql') {
+      const imsCredentials = {
+        clientId: process.env.IMS_OAUTH_S2S_CLIENT_ID,
+        clientSecret: process.env.IMS_OAUTH_S2S_CLIENT_SECRET,
+        orgId: process.env.IMS_OAUTH_S2S_ORG_ID,
+        scopes: process.env.IMS_OAUTH_S2S_SCOPES
+      }
+
+      let rawScopes = process.env.IMS_OAUTH_S2S_SCOPES
+
+      if (Array.isArray(rawScopes)) {
+        imsCredentials.scopes = rawScopes
+      } else if (typeof rawScopes === 'string') {
+        const trimmed = rawScopes.trim()
+        try {
+          const parsed = JSON.parse(trimmed)
+          imsCredentials.scopes = Array.isArray(parsed)
+            ? parsed.map(s => String(s).trim()).filter(Boolean)
+            : []
+        } catch (e) {
+          imsCredentials.scopes = trimmed
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean)
+        }
+      } else {
+        imsCredentials.scopes = []
+      }
+
+      const tokenResponse = await generateAccessToken(imsCredentials)
+
+      logger.debug('Access token obtained successfully')
+      logger.debug(`Token response: ${JSON.stringify({
+        accessTokenPresent: !!tokenResponse.access_token,
+        tokenType: tokenResponse.token_type,
+        expiresIn: tokenResponse.expires_in
+      })}`)
+
+      aioDbToken = tokenResponse.access_token
+    }
+
     const dbResult = await getCollection(
-      { ...inParams, AIO_DB_TOKEN: tokenResponse.access_token },
+      { ...inParams, AIO_DB_TOKEN: aioDbToken },
       'otps'
     )
     dbClient = dbResult.dbClient
@@ -174,7 +181,7 @@ async function main (params) {
     const missing = checkMissingRequestInputs(inParams, ['otpReferenceId', 'otpValue', 'loginType'], [])
     if (missing) return errorResponse(400, missing, logger)
 
-    const record = await otpCollection.findOne({ otpReferenceId: inParams.otpReferenceId })
+    const record = await findOneOrNull(otpCollection, { otpReferenceId: inParams.otpReferenceId })
     if (!record) return errorResponse(400, 'invalid otpReferenceId', logger)
 
     if (Date.now() > record.expiresAt) {

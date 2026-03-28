@@ -18,6 +18,12 @@ runtimeManifest:
           runtime: nodejs:22
           inputs:
             LOG_LEVEL: debug
+            DB_TYPE: $DB_TYPE
+            MYSQL_HOST: $MYSQL_HOST
+            MYSQL_PORT: $MYSQL_PORT
+            MYSQL_USER: $MYSQL_USER
+            MYSQL_PASSWORD: $MYSQL_PASSWORD
+            MYSQL_DATABASE: $MYSQL_DATABASE
           annotations:
             require-adobe-auth: false
             final: false
@@ -28,6 +34,12 @@ runtimeManifest:
           inputs:
             LOG_LEVEL: debug
             apikey: $SERVICE_API_KEY
+            DB_TYPE: $DB_TYPE
+            MYSQL_HOST: $MYSQL_HOST
+            MYSQL_PORT: $MYSQL_PORT
+            MYSQL_USER: $MYSQL_USER
+            MYSQL_PASSWORD: $MYSQL_PASSWORD
+            MYSQL_DATABASE: $MYSQL_DATABASE
           annotations:
             require-adobe-auth: true
             include-ims-credentials: true
@@ -41,6 +53,12 @@ runtimeManifest:
             apikey: $SERVICE_API_KEY
             GRAPHQL_ENDPOINT: $GRAPHQL_ENDPOINT
             COMMERCE_GRAPHQL_ENDPOINT: $COMMERCE_GRAPHQL_ENDPOINT
+            DB_TYPE: $DB_TYPE
+            MYSQL_HOST: $MYSQL_HOST
+            MYSQL_PORT: $MYSQL_PORT
+            MYSQL_USER: $MYSQL_USER
+            MYSQL_PASSWORD: $MYSQL_PASSWORD
+            MYSQL_DATABASE: $MYSQL_DATABASE
           annotations:
             require-adobe-auth: false
             include-ims-credentials: false

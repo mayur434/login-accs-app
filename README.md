@@ -42,7 +42,7 @@ The Admin UI runs as an App Builder extension within Adobe Commerce Admin. It ca
    ▼          ▼
 ┌─────────────────┐
 │   Commerce      │ ← GraphQL backend
-│   + Doc DB      │
+│ DocDB / MySQL   │ ← switchable via DB_TYPE
 └─────────────────┘
 ```
 
@@ -77,7 +77,9 @@ No auth headers required — the mesh acts as the security gateway.
 - Adobe App Builder workspace with I/O Runtime
 - Adobe Commerce instance with GraphQL endpoint
 - Adobe API Mesh (for frontend consumption)
-- Adobe Doc DB (auto-provisioned via `app.config.yaml`)
+- **Database backend** (one of):
+  - Adobe Doc DB (`DB_TYPE=docdb`, default) — see [DocDB Guide](DOCDB_README.md)
+  - MySQL 5.7+ (`DB_TYPE=mysql`) — see [MySQL Guide](MYSQL_README.md)
 - Node.js >= 18
 
 ### Adobe Developer Console APIs
@@ -99,6 +101,12 @@ No auth headers required — the mesh acts as the security gateway.
 | `COMMERCE_GRAPHQL_ENDPOINT` | Yes | Commerce storefront GraphQL URL (used by register and login actions) |
 | `GRAPHQL_API_KEY` | Yes | Commerce API key |
 | `SERVICE_API_KEY` | Yes | Service API key |
+| `DB_TYPE` | No | Database backend: `docdb` (default) or `mysql` |
+| `MYSQL_HOST` | If MySQL | MySQL server hostname |
+| `MYSQL_PORT` | If MySQL | MySQL server port (default: 3306) |
+| `MYSQL_USER` | If MySQL | MySQL username |
+| `MYSQL_PASSWORD` | If MySQL | MySQL password |
+| `MYSQL_DATABASE` | If MySQL | MySQL database name |
 
 Generate via `aio app use`, then add Commerce-specific variables.
 
@@ -161,6 +169,7 @@ npm run lint           # ESLint
 ```
 actions/
   lib/            # Shared libraries (http, db, graphql, commerce, otp, params, customer)
+    db-adapters/  # Database backend adapters (DocDB, MySQL)
   config/         # Module config CRUD — Admin UI SDK only
   customer/       # Customer router (register/login/update) — via API Mesh
     services/     # Service handlers (otp, login, register, update)
@@ -185,4 +194,6 @@ e2e/              # End-to-end tests
 - [Dev & Integration Testing Guide](DEV_INTEGRATION_GUIDE.md) — cURL samples, Postman setup, request/response reference, end-to-end flows
 - [API Documentation (Postman)](https://documenter.getpostman.com/view/38215772/2sBXijJBVG) — interactive API reference with request/response examples
 - [Technical Documentation](TECHNICAL_README.md) — architecture, mesh config, S2S auth, shared libraries, and engineering notes
+- [DocDB Backend Guide](DOCDB_README.md) — DocDB setup, collections, IMS auth, and troubleshooting
+- [MySQL Backend Guide](MYSQL_README.md) — MySQL setup, table schemas, SQL translation, and troubleshooting
 - [Business Documentation](BUSINESS_README.md) — objectives, success criteria, rollout plan, and risks

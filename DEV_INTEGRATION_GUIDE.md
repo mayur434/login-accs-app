@@ -595,6 +595,8 @@ curl -X POST "https://ims-na1.adobelogin.com/ims/token/v3" \
 
 ## 7. Database Collections Reference
 
+The following data structures apply to both database backends. With DocDB, these are **collections** storing JSON documents. With MySQL (`DB_TYPE=mysql`), these are **tables** with equivalent columns. The application code is backend-agnostic — see [DocDB Guide](DOCDB_README.md) and [MySQL Guide](MYSQL_README.md) for backend-specific details.
+
 ### `app_config`
 
 Singleton document (`_id: 'app_config'`) holding module settings. Managed via Admin UI SDK (config action).

@@ -1,35 +1,25 @@
 /**
- * Shared database connection and query helpers for Adobe Doc DB.
+ * Shared database connection and query helpers.
+ *
+ * The concrete database backend (DocDB or MySQL) is selected by the DB_TYPE
+ * environment variable (default: 'docdb').  All consumers use the same
+ * interface — the adapter layer handles translation.
  */
 
-const { Core } = require('@adobe/aio-sdk')
-const { generateAccessToken } = Core.AuthClient
-const libDB = require('@adobe/aio-lib-db')
+const { getAdapter } = require('./db-adapters')
 
 const APP_CONFIG_ID = 'app_config'
 const APP_CONFIG_COLLECTION = 'app_config'
 
 /**
- * Opens a DB connection and returns { dbClient, db }.
+ * Opens a DB connection and returns { dbClient }.
  * Callers must close dbClient when done.
  *
- * Token resolution order:
- *   1. params.AIO_DB_TOKEN  (pre-generated IMS token)
- *   2. generateAccessToken(params)  (IMS OAuth S2S)
+ * The adapter is chosen by DB_TYPE env var ('docdb' | 'mysql').
  */
 async function connectDb (params) {
-  const region = params.AIO_DB_REGION || process.env.AIO_DB_REGION || 'apac'
-
-  let token = params.AIO_DB_TOKEN
-  if (!token) {
-    const tokenResponse = await generateAccessToken(params)
-    token = tokenResponse.access_token
-  }
-  if (!token) throw new Error('database token missing (IMS credentials not available)')
-
-  const db = await libDB.init({ region, token })
-  const dbClient = await db.connect()
-  return { dbClient }
+  const adapter = getAdapter(params)
+  return adapter.connect(params)
 }
 
 /**
@@ -63,14 +53,23 @@ function isDocumentNotFoundError (error) {
 
 function isCollectionNotFoundError (error) {
   const message = String(error?.message ?? '').toLowerCase()
-  return message.includes('collection not found') || message.includes('does not exist')
+  return (
+    error?.code === 'ER_NO_SUCH_TABLE' ||
+    error?.errno === 1146 ||
+    message.includes('collection not found') ||
+    message.includes('does not exist') ||
+    message.includes("doesn't exist")
+  )
 }
 
 function isUniqueConstraintError (error) {
   const message = String(error?.message ?? '').toLowerCase()
   return (
     error?.code === 11000 ||
+    error?.code === 'ER_DUP_ENTRY' ||
+    error?.errno === 1062 ||
     message.includes('duplicate key') ||
+    message.includes('duplicate entry') ||
     message.includes('already exists') ||
     message.includes('unique')
   )
@@ -90,7 +89,7 @@ async function findOneOrNull (collection, query, logger) {
     if (isDocumentNotFoundError(error)) return null
 
     if (logger) {
-      logger.error('Doc DB findOne failed', {
+      logger.error('DB findOne failed', {
         status: error?.status || error?.response?.status || null,
         payload: error?.response?.data || error?.message || 'unknown error',
         query
@@ -98,7 +97,7 @@ async function findOneOrNull (collection, query, logger) {
     }
 
     if (isUnauthorizedDbError(error)) {
-      throw new Error(`Doc DB unauthorized (${error?.status || error?.response?.status})`)
+      throw new Error(`DB unauthorized (${error?.status || error?.response?.status})`)
     }
 
     throw error

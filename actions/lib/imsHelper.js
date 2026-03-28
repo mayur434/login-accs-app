@@ -10,6 +10,10 @@ const { generateAccessToken } = Core.AuthClient
  * @returns {Promise<string>} - IMS access token
  */
 async function getAioDbToken(headers = {}) {
+  // MySQL mode does not require IMS tokens for DB access
+  const dbType = (process.env.DB_TYPE || 'docdb').toLowerCase().trim()
+  if (dbType === 'mysql') return null
+
   const host = headers.host || headers.origin || ''
   const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1')
 
