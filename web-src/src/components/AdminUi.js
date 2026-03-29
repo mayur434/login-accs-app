@@ -208,7 +208,7 @@ const AdminUi = (props) => {
       <Flex direction='column' gap='size-100' marginTop='size-50'>
         <Link>
           <a href='https://documenter.getpostman.com/view/38215772/2sBXijJBVG' target='_blank' rel='noopener noreferrer'>
-            API Documentation (Postman)
+            App API Documentation
           </a>
         </Link>
         <Link>

@@ -195,7 +195,7 @@ e2e/              # End-to-end tests
 - [Testing Guide](TESTING_GUIDE.md) — running tests, writing new tests, mocking, and CI
 - [Manual Testing Guide](MANUAL_TESTING_GUIDE.md) — comprehensive manual test cases for all actions with permutations
 - [Dev & Integration Testing Guide](DEV_INTEGRATION_GUIDE.md) — cURL samples, Postman setup, request/response reference, end-to-end flows
-- [API Documentation (Postman)](https://documenter.getpostman.com/view/38215772/2sBXijJBVG) — interactive API reference with request/response examples
+- [App API Documentation (Postman)](https://documenter.getpostman.com/view/38215772/2sBXijJBVG) — interactive API reference with request/response examples
 - [Technical Documentation](TECHNICAL_README.md) — architecture, mesh config, S2S auth, shared libraries, and engineering notes
 - [DocDB Backend Guide](DOCDB_README.md) — DocDB setup, collections, IMS auth, and troubleshooting
 - [MySQL Backend Guide](MYSQL_README.md) — MySQL setup, table schemas, SQL translation, and troubleshooting
