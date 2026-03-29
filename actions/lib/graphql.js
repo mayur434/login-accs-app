@@ -26,7 +26,7 @@ async function _doRequest (endpoint, query, variables, logger, authToken) {
   if (!text?.trim()) {
     throw new Error(
       `Commerce GraphQL returned an empty body (HTTP ${res.status}). ` +
-      `Check that COMMERCE_GRAPHQL_ENDPOINT points to the storefront GraphQL URL ` +
+      `Check that GRAPHQL_ENDPOINT points to the storefront GraphQL URL ` +
       `(e.g. https://your-store.com/graphql), not the Admin or SaaS portal endpoint.`
     )
   }
@@ -72,7 +72,7 @@ async function graphQLRequest (params, query, variables = {}, logger, authToken)
  * Use this for native Commerce mutations (createCustomerV2, generateCustomerToken, customer query, etc.)
  * which are NOT exposed through the API Mesh schema.
  *
- * @param {object}  params      Action params (needs COMMERCE_GRAPHQL_ENDPOINT).
+ * @param {object}  params      Action params (needs GRAPHQL_ENDPOINT).
  * @param {string}  query       GraphQL query or mutation string.
  * @param {object}  variables   Variables for the query.
  * @param {object}  logger      Logger instance.
@@ -83,7 +83,7 @@ async function commerceGraphQLRequest (params, query, variables = {}, logger, au
   if (!endpoint) throw new Error('GRAPHQL_ENDPOINT not configured in params or env')
   if (endpoint.includes('admin.commerce.adobe.com')) {
     throw new Error(
-      'Invalid COMMERCE_GRAPHQL_ENDPOINT: admin.commerce.adobe.com is not a storefront GraphQL endpoint. ' +
+      'Invalid GRAPHQL_ENDPOINT: admin.commerce.adobe.com is not a storefront GraphQL endpoint. ' +
       'Use your Commerce GraphQL gateway/storefront endpoint (for example, na1-sandbox.api.commerce.adobe.com/<tenant>/graphql).'
     )
   }

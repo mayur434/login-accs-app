@@ -44,8 +44,7 @@ Additionally, set the following in your `.env` or as action inputs in `ext.confi
 
 | Variable | Description | Example |
 |---|---|---|
-| `GRAPHQL_ENDPOINT` | GraphQL endpoint URL (used by OTP and update actions) | `https://your-store.com/graphql` |
-| `COMMERCE_GRAPHQL_ENDPOINT` | Commerce storefront GraphQL URL (used by register and login actions) | `https://na1-sandbox.api.commerce.adobe.com/<tenant>/graphql` |
+| `GRAPHQL_ENDPOINT` | Commerce storefront GraphQL URL (all actions use this single endpoint) | `https://na1-sandbox.api.commerce.adobe.com/<tenant>/graphql` |
 | `GRAPHQL_API_KEY` | Commerce API key | `abc123` |
 | `SERVICE_API_KEY` | Service API key for auth | `xyz789` |
 

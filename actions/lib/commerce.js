@@ -1,6 +1,6 @@
 /**
  * Shared Commerce GraphQL operation helpers.
- * These functions call the Commerce endpoint directly (COMMERCE_GRAPHQL_ENDPOINT),
+ * These functions call the Commerce endpoint via GRAPHQL_ENDPOINT,
  * NOT the API Mesh, because createCustomerV2 / generateCustomerToken / customer
  * are native Commerce mutations that are not exposed through the Mesh schema.
  */

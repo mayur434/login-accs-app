@@ -100,8 +100,7 @@ No auth headers required — the mesh acts as the security gateway.
 | `IMS_OAUTH_S2S_CLIENT_ID` | Yes | OAuth S2S client ID |
 | `IMS_OAUTH_S2S_CLIENT_SECRET` | Yes | OAuth S2S client secret |
 | `IMS_OAUTH_S2S_ORG_ID` | Yes | IMS organization ID |
-| `GRAPHQL_ENDPOINT` | Yes | GraphQL endpoint URL (used by OTP and update actions) |
-| `COMMERCE_GRAPHQL_ENDPOINT` | Yes | Commerce storefront GraphQL URL (used by register and login actions) |
+| `GRAPHQL_ENDPOINT` | Yes | Commerce storefront GraphQL URL (all actions use this single endpoint) |
 | `GRAPHQL_API_KEY` | Yes | Commerce API key |
 | `SERVICE_API_KEY` | Yes | Service API key |
 | `DB_TYPE` | No | Database backend: `docdb` (default) or `mysql` |
