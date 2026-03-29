@@ -13,7 +13,9 @@ Provide two distinct service layers:
 - Enable/disable OTP module
 - Configure OTP validity and response behavior
 - Control auto-register behavior
-- Toggle key info updates (mobile, email, name) for customers
+- Toggle key info updates (mobile, email) for customers
+- Configure SMS delivery — gateway host, endpoint, API key, and template
+- Configure Email delivery — SMTP settings, sender details, and template
 
 ### For Storefronts & Mobile Apps (API Mesh)
 
@@ -43,6 +45,7 @@ Provide two distinct service layers:
 - **Clear separation of concerns** — Admin config is isolated from customer-facing APIs
 - **Secure by default** — Admin UI actions are IMS-protected. Frontend actions are gated by the mesh as the security boundary.
 - **Mobile-first customer identity** — Customers register/login using mobile numbers, with email fallback
+- **Multi-channel OTP delivery** — OTP can be dispatched via SMS (configurable gateway) or Email (SMTP), with template customization from the Admin UI
 - **Single gateway** — API Mesh combines Commerce GraphQL + Login Module REST into one endpoint
 - **Database flexibility** — Choose between Adobe Doc DB (managed, zero-ops) or MySQL (self-hosted, full control) via the `DB_TYPE` setting. Switch backends without code changes.
 

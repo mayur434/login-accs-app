@@ -174,6 +174,9 @@ actions/
     params.js        # Request parameter parsing
     customer.js      # Customer identity helpers
     imsHelper.js     # IMS token resolution
+    sms.js           # SMS OTP sender stub
+    email.js         # Email OTP sender stub
+    template.js      # Shared {{KEY}} template resolver
     db-adapters/     # Database backend adapters
       index.js       # Adapter factory (reads DB_TYPE)
       docdb-adapter.js  # Adobe Doc DB adapter

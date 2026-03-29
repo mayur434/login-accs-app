@@ -1,4 +1,4 @@
-const { badRequest, notFound, serverError, success } = require('../../lib/http')
+const { badRequest, notFound, serverError } = require('../../lib/http')
 const { findOneOrNull, isUniqueConstraintError } = require('../../lib/db')
 const { hasValue } = require('../../lib/params')
 const { normalizeMobile, CUSTOMER_IDENTITY_COLLECTION, parseCustomerIdFromToken, buildLoginType, getSyntheticEmail } = require('../../lib/customer')

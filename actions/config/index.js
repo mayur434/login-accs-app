@@ -112,8 +112,6 @@ async function main (params) {
   try {
     logger.info('app_config action called')
     logger.debug(stringParameters(params))
-
-    logger.info('OTP action called')
     const inParams = getRequestParams(params)
     inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers || {}
     const headers = inParams.__ow_headers || {}

@@ -7,14 +7,6 @@ const { CUSTOMER_IDENTITY_COLLECTION } = require('../../lib/customer')
 const { sendSmsOtp } = require('../../lib/sms')
 const { sendEmailOtp } = require('../../lib/email')
 
-// Collection handle wrapper that uses findOneOrNull for safe lookups
-function safeCollection (rawCollection) {
-  return {
-    ...rawCollection,
-    safeFindOne: (query) => findOneOrNull(rawCollection, query)
-  }
-}
-
 // ── Identity look-ups (backward-compat with legacy field names) ─────────
 
 async function findIdentityByEmail (collection, email, filter = {}) {

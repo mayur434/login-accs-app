@@ -6,13 +6,7 @@
  * call when ready for production.
  */
 
-function resolveTemplate (template, vars) {
-  let result = template || ''
-  for (const [key, value] of Object.entries(vars)) {
-    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value))
-  }
-  return result
-}
+const { resolveTemplate } = require('./template')
 
 /**
  * Send an Email OTP (stub — logs the resolved message).

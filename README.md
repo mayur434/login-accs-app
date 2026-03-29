@@ -17,7 +17,10 @@ All frontend-facing APIs are consumed exclusively through **Adobe API Mesh**. Th
 
 ### For Commerce Admin (via Admin UI SDK)
 
-- **Admin Configuration** — Self-service UI in Commerce Admin to control OTP validity, auto-register, module enable/disable, and more
+- **Admin Configuration** — Self-service UI in Commerce Admin with three management panels:
+  - **Application Setup** — OTP validity, auto-register, module enable/disable, key info updates
+  - **SMS Setup** — SMS gateway host, endpoint, API key, template toggle, template ID & string
+  - **Email Setup** — SMTP host/port/user/password, from address/name, template toggle, template ID & string
 
 The Admin UI runs as an App Builder extension within Adobe Commerce Admin. It calls the `config` action directly using the IMS token provided by the host context.
 
@@ -168,7 +171,7 @@ npm run lint           # ESLint
 
 ```
 actions/
-  lib/            # Shared libraries (http, db, graphql, commerce, otp, params, customer)
+  lib/            # Shared libraries (http, db, graphql, commerce, otp, params, customer, sms, email, template)
     db-adapters/  # Database backend adapters (DocDB, MySQL)
   config/         # Module config CRUD — Admin UI SDK only
   customer/       # Customer router (register/login/update) — via API Mesh
@@ -191,6 +194,7 @@ e2e/              # End-to-end tests
 
 - [Setup Guide](SETUP_GUIDE.md) — prerequisites, installation, configuration, and deployment
 - [Testing Guide](TESTING_GUIDE.md) — running tests, writing new tests, mocking, and CI
+- [Manual Testing Guide](MANUAL_TESTING_GUIDE.md) — comprehensive manual test cases for all actions with permutations
 - [Dev & Integration Testing Guide](DEV_INTEGRATION_GUIDE.md) — cURL samples, Postman setup, request/response reference, end-to-end flows
 - [API Documentation (Postman)](https://documenter.getpostman.com/view/38215772/2sBXijJBVG) — interactive API reference with request/response examples
 - [Technical Documentation](TECHNICAL_README.md) — architecture, mesh config, S2S auth, shared libraries, and engineering notes

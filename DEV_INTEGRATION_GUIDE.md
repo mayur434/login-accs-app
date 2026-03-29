@@ -80,11 +80,28 @@ curl -X GET "{{ADMIN_BASE_URL}}/config" \
   "otp_expiration_validity": 10,
   "otp_in_response": false,
   "auto_register": false,
-  "allow_key_info_update": false
+  "allow_key_info_update": false,
+  "sms_api_host": "",
+  "sms_endpoint": "",
+  "sms_api_key": "",
+  "sms_template_enabled": false,
+  "sms_template_id": "",
+  "sms_template_string": "Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes.",
+  "email_smtp_host": "",
+  "email_smtp_port": 587,
+  "email_smtp_user": "",
+  "email_smtp_password": "",
+  "email_from_address": "",
+  "email_from_name": "",
+  "email_template_enabled": false,
+  "email_template_id": "",
+  "email_template_string": "Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes."
 }
 ```
 
 #### 2.2 Update Config (POST / PUT / PATCH)
+
+Partial updates are supported — only the provided fields are modified.
 
 ```bash
 curl -X POST "{{ADMIN_BASE_URL}}/config" \
@@ -100,17 +117,41 @@ curl -X POST "{{ADMIN_BASE_URL}}/config" \
   }'
 ```
 
-**Response (200):**
+**Response (200):** Full config object with all 20 fields.
 
-```json
-{
-  "is_enabled": true,
-  "otp_expiration_validity": 10,
-  "otp_in_response": true,
-  "auto_register": true,
-  "allow_key_info_update": true,
-  "updatedAt": 1711017600000
-}
+**SMS Config Update Example:**
+
+```bash
+curl -X PATCH "{{ADMIN_BASE_URL}}/config" \
+  -H "Authorization: Bearer {{IMS_TOKEN}}" \
+  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sms_api_host": "https://api.sms-provider.com",
+    "sms_endpoint": "/v1/send",
+    "sms_api_key": "your-sms-api-key",
+    "sms_template_enabled": true,
+    "sms_template_string": "Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes."
+  }'
+```
+
+**Email Config Update Example:**
+
+```bash
+curl -X PATCH "{{ADMIN_BASE_URL}}/config" \
+  -H "Authorization: Bearer {{IMS_TOKEN}}" \
+  -H "x-gw-ims-org-id: {{ORG_ID}}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email_smtp_host": "smtp.example.com",
+    "email_smtp_port": 587,
+    "email_smtp_user": "noreply@example.com",
+    "email_smtp_password": "your-smtp-password",
+    "email_from_address": "noreply@example.com",
+    "email_from_name": "My Store",
+    "email_template_enabled": true,
+    "email_template_string": "Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes."
+  }'
 ```
 
 **Validation Error (400):**
@@ -146,7 +187,24 @@ curl -X DELETE "{{ADMIN_BASE_URL}}/config" \
 | `otp_expiration_validity` | integer | `10` | OTP validity in minutes |
 | `otp_in_response` | boolean | `false` | Include OTP value in response (for testing) |
 | `auto_register` | boolean | `false` | Auto-register Commerce customer on login if user not found |
-| `allow_key_info_update` | boolean | `false` | Allow customer profile updates (mobile/email/name) |
+| `allow_key_info_update` | boolean | `false` | Allow customer profile updates (mobile/email) |
+| **SMS Communication** | | | |
+| `sms_api_host` | string | `''` | SMS gateway base URL |
+| `sms_endpoint` | string | `''` | SMS gateway endpoint path |
+| `sms_api_key` | string | `''` | SMS gateway API key |
+| `sms_template_enabled` | boolean | `false` | Enable SMS template dispatch |
+| `sms_template_id` | string | `''` | SMS provider template ID |
+| `sms_template_string` | string | `'Your OTP is {{OTP}}...'` | SMS template with `{{OTP}}` / `{{VALIDITY}}` / `{{MOBILE}}` placeholders |
+| **Email Communication** | | | |
+| `email_smtp_host` | string | `''` | SMTP server hostname |
+| `email_smtp_port` | integer | `587` | SMTP server port |
+| `email_smtp_user` | string | `''` | SMTP auth username |
+| `email_smtp_password` | string | `''` | SMTP auth password |
+| `email_from_address` | string | `''` | Sender email address |
+| `email_from_name` | string | `''` | Sender display name |
+| `email_template_enabled` | boolean | `false` | Enable email template dispatch |
+| `email_template_id` | string | `''` | Email provider template ID |
+| `email_template_string` | string | `'Your OTP is {{OTP}}...'` | Email template with `{{OTP}}` / `{{VALIDITY}}` / `{{EMAIL}}` placeholders |
 
 ---
 
@@ -608,6 +666,21 @@ Singleton document (`_id: 'app_config'`) holding module settings. Managed via Ad
 | `otp_in_response` | boolean | Show OTP in API response |
 | `auto_register` | boolean | Auto-register customer on login if user not found |
 | `allow_key_info_update` | boolean | Allow profile updates |
+| `sms_api_host` | string | SMS gateway base URL |
+| `sms_endpoint` | string | SMS gateway endpoint path |
+| `sms_api_key` | string | SMS gateway API key |
+| `sms_template_enabled` | boolean | Enable SMS template dispatch |
+| `sms_template_id` | string | SMS provider template ID |
+| `sms_template_string` | string | SMS template (`{{OTP}}`, `{{VALIDITY}}`, `{{MOBILE}}`) |
+| `email_smtp_host` | string | SMTP server hostname |
+| `email_smtp_port` | integer | SMTP server port (default 587) |
+| `email_smtp_user` | string | SMTP auth username |
+| `email_smtp_password` | string | SMTP auth password |
+| `email_from_address` | string | Sender email address |
+| `email_from_name` | string | Sender display name |
+| `email_template_enabled` | boolean | Enable email template dispatch |
+| `email_template_id` | string | Email provider template ID |
+| `email_template_string` | string | Email template (`{{OTP}}`, `{{VALIDITY}}`, `{{EMAIL}}`) |
 | `updatedAt` | number | Last update timestamp |
 
 ### `otps`

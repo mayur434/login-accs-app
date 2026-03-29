@@ -11,9 +11,12 @@ This project is an Adobe App Builder extension with two distinct access layers:
 
 **Admin UI SDK (direct action calls):**
 
-- **UI**: `web-src/src/components/AdminUi.js` — Module configuration panel
+- **UI**: `web-src/src/components/AdminUi.js` — Application Setup panel
+- **UI**: `web-src/src/components/SmsConfigUi.js` — SMS Setup panel
+- **UI**: `web-src/src/components/EmailConfigUi.js` — Email Setup panel
+- **UI**: `web-src/src/components/SideBar.js` — Navigation sidebar with three sections
 - **Extension registration**: `web-src/src/components/ExtensionRegistration.js`
-- **Config action**: `actions/config/index.js` — Module configuration CRUD
+- **Config action**: `actions/config/index.js` — Module configuration CRUD (20 fields)
 - **Registration action**: `actions/registration/index.js` — Commerce Admin menu registration
 
 **API Mesh (frontend consumption):**
@@ -35,6 +38,9 @@ This project is an Adobe App Builder extension with two distinct access layers:
 - `params.js` — request parameter parsing and normalization
 - `customer.js` — customer identity helpers (ID parsing, token extraction, mobile/email utils)
 - `imsHelper.js` — IMS token resolution for DB access (returns `null` when `DB_TYPE=mysql`)
+- `sms.js` — SMS OTP sender stub (uses configurable template)
+- `email.js` — Email OTP sender stub (uses configurable template)
+- `template.js` — shared template resolver for `{{KEY}}` placeholder substitution
 
 **Database adapters** (`actions/lib/db-adapters/`):
 
@@ -197,7 +203,7 @@ See [DocDB Guide](DOCDB_README.md) and [MySQL Guide](MYSQL_README.md) for backen
 
 Collections / Tables:
 
-- `app_config` — module configuration (enable/disable, OTP settings, etc.)
+- `app_config` — module configuration (enable/disable, OTP settings, SMS/Email dispatch settings, etc.)
 - `otps` — OTP records (reference IDs, expiry, consumed state)
 - `customer_mobile_identity` — customer identity mapping (email, mobile, Commerce customer ID)
 
@@ -205,10 +211,10 @@ Collections / Tables:
 
 ### Admin UI SDK (Direct)
 
-- `GET /config` — fetch current module configuration.
+- `GET /config` — fetch current module configuration (20 fields including SMS/Email settings).
 - `POST /config` — create/update module configuration.
 - `PUT /config` — update module configuration.
-- `PATCH /config` — partial update module configuration.
+- `PATCH /config` — partial update module configuration. Only provided fields are updated; others are preserved.
 - `DELETE /config` — reset module configuration.
 
 ### API Mesh (Frontend)

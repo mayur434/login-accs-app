@@ -56,17 +56,41 @@ jest.setup.js         # Global test setup (timeout, hooks)
 
 ## Current Test Coverage
 
-The existing test suite (`test/utils.test.js`) covers the public API of `actions/utils.js`:
+The test suite covers all shared libraries, utilities, actions, and service handlers:
+
+### Utility Tests (`test/utils.test.js`)
 
 | Function | Tests | What's Verified |
 |---|---|---|
-| `errorResponse` | 2 | Correct error wrapper format, logger integration |
+| `errorResponse` | 2 | Error wrapper format, logger integration |
 | `stringParameters` | 2 | Auth header masking, parameter serialization |
 | `checkMissingRequestInputs` | 10 | Missing params, headers, nested keys, edge cases |
 | `getBearerToken` | 5 | Bearer extraction, malformed headers, missing headers |
 | `normalizeMobile` | 6 | Indian mobile normalization, country code handling, invalid input |
 
-**Total: 28 tests, 1 suite**
+### Library Tests (`test/lib/`)
+
+| Suite | Tests | Coverage |
+|---|---|---|
+| `http.test.js` | 10 | All response helpers (success/badRequest/unauthorized/forbidden/notFound/conflict/serverError/errorResponse) |
+| `otp.test.js` | 10 | OTP format, uniqueness, reference ID format, Levenshtein distance (exact/close/far/empty/null) |
+| `params.test.js` | 13 | hasValue, getRequestParams (__ow_body/body/params), normalizeRequestParams (aliases, loginType inference) |
+| `customer.test.js` | 30 | parseCustomerIdValue, getCustomerId, parseCustomerIdFromToken, extractCustomerId, extractCustomerToken, extractBearerToken, getSyntheticEmail, getCommerceMobileValue, buildLoginType, normalizeEmailInput, normalizeMobile |
+| `db.test.js` | 19 | APP_CONFIG_DEFAULTS (20 fields), error classifiers, normalizeAppConfig (defaults, actual values, auto_login compat, type coercion) |
+| `template.test.js` | 8 | resolveTemplate (single/multiple/repeated placeholders, missing vars, null/empty template, type coercion) |
+| `sms-email.test.js` | 6 | sendSmsOtp/sendEmailOtp (enabled/disabled template, empty template) |
+| `graphql.test.js` | 9 | graphQLRequest (endpoint validation, headers, auth token, empty body, non-JSON, GraphQL errors, HTTP errors), commerceGraphQLRequest (admin URL rejection) |
+| `commerce.test.js` | 4 | generateCustomerToken (success/missing token), fetchCustomerProfile (success/missing customer) |
+| `db-adapters.test.js` | 7 | Adapter factory (default/docdb/mysql/case-insensitive/whitespace/unknown/env fallback) |
+
+### Action Tests (`test/`)
+
+| Suite | Tests | Coverage |
+|---|---|---|
+| `config.test.js` | 10 | GET config, POST validation (empty body, non-boolean, non-integer, non-string), valid inputs (boolean/SMS/email fields), auto_login compat, DELETE |
+| `customer-services.test.js` | 16 | Register (missing password/identifiers, duplicate mobile, invalid mobile, successful email register), Login (missing password/email/mobile, mobile not found, successful email login), Update (missing customer_id/token/fields, key info disabled, identity not found, invalid mobile) |
+
+**Total: 211 tests, 13 suites**
 
 ## Writing New Tests
 
@@ -153,6 +177,9 @@ These modules in `actions/lib/` are pure functions or have minimal dependencies,
 | `customer.js` | `parseCustomerIdValue`, `getCustomerId`, `getSyntheticEmail`, `normalizeMobile`, `buildLoginType`, `extractCustomerId` | Base64 decoding, ID extraction, email generation, mobile validation |
 | `commerce.js` | `generateCustomerToken`, `fetchCustomerProfile` | Mock GraphQL responses, error handling |
 | `db.js` | `findOneOrNull`, `isUniqueConstraintError`, `normalizeAppConfig` | Error classification, config defaults |
+| `template.js` | `resolveTemplate` | Placeholder substitution (`{{OTP}}`, `{{VALIDITY}}`), missing vars handling |
+| `sms.js` | `sendSmsOtp` | Template dispatch when enabled, skip when disabled |
+| `email.js` | `sendEmailOtp` | Template dispatch when enabled, skip when disabled |
 | `db-adapters/index.js` | `getAdapter` | Returns correct adapter for `DB_TYPE` |
 | `db-adapters/docdb-adapter.js` | `connect` | IMS token resolution, DocDB init |
 | `db-adapters/mysql-adapter.js` | `connect`, `filterValidColumns`, `hydrateRow`, `toSqlValue` | SQL translation, column safety, boolean handling |
