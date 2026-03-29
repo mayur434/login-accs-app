@@ -16,6 +16,16 @@ config.json
 # Mesh secrets (contains endpoints & URLs)
 mesh/.env.mesh
 
+# Mesh build artifacts & caches
+mesh/.mesh
+mesh/.wrangler
+mesh/mesh-artifact
+mesh/meshes
+mesh/tempfiles
+mesh/node_modules
+mesh/testMesh
+mesh/testMesh.txt
+
 # Adobe I/O console config
 console.json
 
