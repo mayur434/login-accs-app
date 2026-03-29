@@ -25,6 +25,8 @@ mesh/tempfiles
 mesh/node_modules
 mesh/testMesh
 mesh/testMesh.txt
+mesh/testMesh.txt
+mesh/testMesh/*
 
 # Adobe I/O console config
 console.json
