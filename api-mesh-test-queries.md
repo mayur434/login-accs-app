@@ -1,336 +1,109 @@
-# Adobe API Mesh Test Queries for Custom Login App
+# API Mesh Test Queries — Login Module
 
-This file lists example GraphQL operations you can use to test the Adobe API Mesh source built from the OpenAPI schema.
+GraphQL mutations for testing the API Mesh endpoint. The mesh auto-generates these
+from the OpenAPI spec (`mesh/openapi.json`).
 
-## Assumptions
+## Mesh Setup
 
-These examples assume your OpenAPI source uses these `operationId` values:
+| Source | Handler | Description |
+|---|---|---|
+| **Commerce** | `graphql` | Adobe Commerce GraphQL passthrough |
+| **LoginModule** | `openapi` | OTP + Customer actions via `openapi.json` |
 
-- `invokeOtp`
-- `invokeCustomer`
-- `getConfig`
-- `saveConfig`
-- `replaceConfig`
-- `patchConfig`
-- `deleteConfig`
+**Operations exposed by the LoginModule source:**
 
-They also assume API Mesh generated GraphQL fields directly from those operation IDs.
+| Mutation | Upstream | Description |
+|---|---|---|
+| `otpAction` | `POST /otp` | Generate or validate OTP |
+| `customerAction` | `POST /customer` | Register, login, or update customer profile |
 
-## Important note before testing
+> **Config actions** (`getConfig`, `updateConfig`, `deleteConfig`) are **NOT** in the mesh.
+> They are admin-only and called directly from the Admin UI SDK.
 
-Depending on your API Mesh/OpenAPI generation, the request body may be exposed in one of these two shapes:
+## Getting the Mesh Endpoint
 
-### Shape A
-
-```graphql
-mutation {
-  invokeOtp(input: {
-    loginType: "mobile"
-    mobile: "9876543210"
-  }) {
-    success
-  }
-}
+```bash
+cd mesh && npm run get
 ```
 
-### Shape B
-
-```graphql
-mutation {
-  invokeOtp(body: {
-    loginType: "mobile"
-    mobile: "9876543210"
-  }) {
-    success
-  }
-}
-```
-
-In most setups, `input` is the common shape. If `input` does not work in your Mesh explorer, try `body`.
+The output shows your mesh GraphQL URL (e.g. `https://<mesh-id>.adobeioruntime.net/graphql`).
 
 ---
 
-# 1. OTP Flow
+# 1. OTP Flow (via `otpAction`)
 
-## 1.1 Generate OTP using mobile
+## 1.1 Generate OTP — mobile
 
 ```graphql
 mutation GenerateOtpMobile {
-  invokeOtp(input: {
+  otpAction(input: {
     loginType: "mobile"
     mobile: "9876543210"
   }) {
-    success
-    message
     otpReferenceId
     otpValue
-    customer_token
-    customer_id
   }
 }
 ```
 
-## 1.2 Generate OTP using email
+## 1.2 Generate OTP — email
 
 ```graphql
 mutation GenerateOtpEmail {
-  invokeOtp(input: {
+  otpAction(input: {
     loginType: "email"
     email: "john@example.com"
   }) {
-    success
-    message
     otpReferenceId
     otpValue
-    customer_token
-    customer_id
   }
 }
 ```
 
-## 1.3 Validate OTP for existing mobile customer
+## 1.3 Generate OTP for registration
+
+```graphql
+mutation GenerateOtpRegister {
+  otpAction(input: {
+    loginType: "mobile"
+    mobile: "9876543210"
+    firstname: "John"
+    lastname: "Doe"
+    register: true
+  }) {
+    otpReferenceId
+    otpValue
+  }
+}
+```
+
+## 1.4 Validate OTP — mobile
 
 ```graphql
 mutation ValidateOtpMobile {
-  invokeOtp(input: {
+  otpAction(input: {
     loginType: "mobile"
     otpReferenceId: "otp_1711017600000_12345"
     otpValue: "4821"
   }) {
     success
-    message
     customer_token
-    customer_id
+    message
   }
 }
 ```
 
-## 1.4 Validate OTP for existing email customer
+## 1.5 Validate OTP — email
 
 ```graphql
 mutation ValidateOtpEmail {
-  invokeOtp(input: {
+  otpAction(input: {
     loginType: "email"
     otpReferenceId: "otp_1711017600000_12345"
     otpValue: "4821"
   }) {
     success
-    message
     customer_token
-    customer_id
-  }
-}
-```
-
-## 1.5 Validate OTP with auto-register
-
-```graphql
-mutation ValidateOtpAutoRegister {
-  invokeOtp(input: {
-    loginType: "mobile"
-    otpReferenceId: "otp_1711017600000_12345"
-    otpValue: "4821"
-    register: true
-  }) {
-    success
-    message
-    customer_token
-    customer_id
-  }
-}
-```
-
----
-
-# 2. Customer Flow
-
-## 2.1 Request OTP for registration
-
-Use this to start registration and generate OTP.
-
-```graphql
-mutation RequestRegistrationOtp {
-  invokeCustomer(input: {
-    operation: "register"
-    loginType: "mobile"
-    firstname: "John"
-    lastname: "Doe"
-    email: "john@example.com"
-    mobile: "9876543210"
-  }) {
-    success
-    message
-    otpReferenceId
-    otpValue
-    customer_id
-    customer_token
-  }
-}
-```
-
-## 2.2 Verify OTP and complete registration
-
-```graphql
-mutation CompleteRegistration {
-  invokeCustomer(input: {
-    operation: "register"
-    loginType: "mobile"
-    firstname: "John"
-    lastname: "Doe"
-    email: "john@example.com"
-    mobile: "9876543210"
-    otpReferenceId: "otp_1711017600000_12345"
-    otpValue: "4821"
-  }) {
-    success
-    message
-    customer_id
-    customer_token
-    customer
-  }
-}
-```
-
-## 2.3 Update full customer profile
-
-```graphql
-mutation UpdateCustomerFull {
-  invokeCustomer(input: {
-    operation: "updateCustomerDetails"
-    customer_token: "customer_token_here"
-    new_email: "john.new@example.com"
-    new_mobile: "9988776655"
-    new_firstname: "Johnathan"
-    new_lastname: "Doe"
-  }) {
-    success
-    message
-    customer_id
-    customer
-  }
-}
-```
-
-## 2.4 Update mobile only
-
-```graphql
-mutation UpdateCustomerMobileOnly {
-  invokeCustomer(input: {
-    operation: "updateCustomerDetails"
-    customer_token: "customer_token_here"
-    new_mobile: "9988776655"
-  }) {
-    success
-    message
-    customer_id
-    customer
-  }
-}
-```
-
-## 2.5 Update name only
-
-```graphql
-mutation UpdateCustomerNameOnly {
-  invokeCustomer(input: {
-    operation: "updateCustomerDetails"
-    customer_token: "customer_token_here"
-    new_firstname: "Johnathan"
-    new_lastname: "Doe"
-  }) {
-    success
-    message
-    customer_id
-    customer
-  }
-}
-```
-
-## 2.6 Update email only
-
-```graphql
-mutation UpdateCustomerEmailOnly {
-  invokeCustomer(input: {
-    operation: "updateCustomerDetails"
-    customer_token: "customer_token_here"
-    new_email: "john.new@example.com"
-  }) {
-    success
-    message
-    customer_id
-    customer
-  }
-}
-```
-
----
-
-# 3. Config Flow
-
-## 3.1 Get config
-
-```graphql
-query GetConfig {
-  getConfig {
-    otp_expiration_validity
-    otp_in_response
-    auto_login
-  }
-}
-```
-
-## 3.2 Save config using POST
-
-```graphql
-mutation SaveConfig {
-  saveConfig(input: {
-    otp_expiration_validity: 300
-    otp_in_response: true
-    auto_login: true
-  }) {
-    otp_expiration_validity
-    otp_in_response
-    auto_login
-  }
-}
-```
-
-## 3.3 Replace config using PUT
-
-```graphql
-mutation ReplaceConfig {
-  replaceConfig(input: {
-    otp_expiration_validity: 600
-    otp_in_response: false
-    auto_login: true
-  }) {
-    otp_expiration_validity
-    otp_in_response
-    auto_login
-  }
-}
-```
-
-## 3.4 Patch config using PATCH
-
-```graphql
-mutation PatchConfig {
-  patchConfig(input: {
-    otp_in_response: true
-  }) {
-    otp_expiration_validity
-    otp_in_response
-    auto_login
-  }
-}
-```
-
-## 3.5 Delete config
-
-```graphql
-mutation DeleteConfig {
-  deleteConfig {
-    success
     message
   }
 }
@@ -338,83 +111,272 @@ mutation DeleteConfig {
 
 ---
 
-# 4. Quick copy-paste test order
+# 2. Customer Flow (via `customerAction`)
 
-## Existing customer login
-
-### Step 1: Generate OTP
+## 2.1 Register — Step 1: Request OTP
 
 ```graphql
-mutation {
-  invokeOtp(input: {
+mutation RegisterStep1 {
+  customerAction(input: {
+    operation: "register"
     loginType: "mobile"
     mobile: "9876543210"
+    firstname: "John"
+    lastname: "Doe"
   }) {
-    success
-    message
     otpReferenceId
     otpValue
   }
 }
 ```
 
-### Step 2: Validate OTP
+## 2.2 Register — Step 2: Validate OTP & Complete
 
 ```graphql
-mutation {
-  invokeOtp(input: {
-    loginType: "mobile"
-    otpReferenceId: "paste-reference-id-here"
-    otpValue: "paste-otp-here"
-  }) {
-    success
-    message
-    customer_token
-    customer_id
-  }
-}
-```
-
-## New customer registration
-
-### Step 1: Request registration OTP
-
-```graphql
-mutation {
-  invokeCustomer(input: {
+mutation RegisterStep2 {
+  customerAction(input: {
     operation: "register"
     loginType: "mobile"
-    firstname: "John"
-    lastname: "Doe"
-    email: "john@example.com"
-    mobile: "9876543210"
-  }) {
-    success
-    message
-    otpReferenceId
-    otpValue
-  }
-}
-```
-
-### Step 2: Complete registration
-
-```graphql
-mutation {
-  invokeCustomer(input: {
-    operation: "register"
-    loginType: "mobile"
-    firstname: "John"
-    lastname: "Doe"
-    email: "john@example.com"
     mobile: "9876543210"
     otpReferenceId: "paste-reference-id-here"
     otpValue: "paste-otp-here"
   }) {
     success
-    message
-    customer_id
     customer_token
+    customer {
+      customer_id
+      firstname
+      lastname
+      email
+      mobile_number
+      login_type
+    }
+  }
+}
+```
+
+## 2.3 Login — Step 1: Request OTP
+
+```graphql
+mutation LoginStep1 {
+  customerAction(input: {
+    operation: "login"
+    loginType: "mobile"
+    mobile: "9876543210"
+  }) {
+    otpReferenceId
+    otpValue
+  }
+}
+```
+
+## 2.4 Login — Step 2: Validate OTP & Get Token
+
+```graphql
+mutation LoginStep2 {
+  customerAction(input: {
+    operation: "login"
+    loginType: "mobile"
+    otpReferenceId: "paste-reference-id-here"
+    otpValue: "paste-otp-here"
+  }) {
+    success
+    customerToken
+    customer {
+      id
+      firstname
+      lastname
+      email
+    }
+  }
+}
+```
+
+## 2.5 Update Customer — Mobile Number
+
+```graphql
+mutation UpdateMobile {
+  customerAction(input: {
+    operation: "updateCustomerDetails"
+    customer_token: "paste-customer-token-here"
+    customer_id: 42
+    mobile_number: "9988776655"
+  }) {
+    success
+    customer {
+      customer_id
+      mobile_number
+      email
+      login_type
+      status
+    }
+  }
+}
+```
+
+## 2.6 Update Customer — Email
+
+```graphql
+mutation UpdateEmail {
+  customerAction(input: {
+    operation: "updateCustomerDetails"
+    customer_token: "paste-customer-token-here"
+    customer_id: 42
+    new_email: "john.new@example.com"
+  }) {
+    success
+    customer {
+      customer_id
+      email
+      mobile_number
+      login_type
+      status
+    }
+  }
+}
+```
+
+## 2.7 Update Customer — Mobile + Email
+
+```graphql
+mutation UpdateBoth {
+  customerAction(input: {
+    operation: "updateCustomerDetails"
+    customer_token: "paste-customer-token-here"
+    customer_id: 42
+    mobile_number: "9988776655"
+    new_email: "john.new@example.com"
+  }) {
+    success
+    customer {
+      customer_id
+      mobile_number
+      email
+      login_type
+      status
+    }
+  }
+}
+```
+
+---
+
+# 3. Commerce Passthrough
+
+The mesh also proxies the full Commerce GraphQL schema. Example:
+
+```graphql
+query CommerceProducts {
+  products(search: "shirt", pageSize: 3) {
+    items {
+      name
+      sku
+      price_range {
+        minimum_price {
+          final_price { value currency }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+# 4. Quick Copy-Paste Flows
+
+## Flow A: Existing Customer Login
+
+### Step 1 — Generate OTP
+
+```graphql
+mutation {
+  otpAction(input: { loginType: "mobile", mobile: "9876543210" }) {
+    otpReferenceId
+    otpValue
+  }
+}
+```
+
+### Step 2 — Validate OTP
+
+```graphql
+mutation {
+  otpAction(input: {
+    loginType: "mobile"
+    otpReferenceId: "paste-ref-here"
+    otpValue: "paste-otp-here"
+  }) {
+    success
+    customer_token
+    message
+  }
+}
+```
+
+## Flow B: New Customer Registration (via customerAction)
+
+### Step 1 — Request Registration OTP
+
+```graphql
+mutation {
+  customerAction(input: {
+    operation: "register"
+    loginType: "mobile"
+    mobile: "9876543210"
+    firstname: "John"
+    lastname: "Doe"
+  }) {
+    otpReferenceId
+    otpValue
+  }
+}
+```
+
+### Step 2 — Complete Registration
+
+```graphql
+mutation {
+  customerAction(input: {
+    operation: "register"
+    loginType: "mobile"
+    mobile: "9876543210"
+    otpReferenceId: "paste-ref-here"
+    otpValue: "paste-otp-here"
+  }) {
+    success
+    customer_token
+    customer { customer_id firstname lastname email mobile_number login_type }
+  }
+}
+```
+
+## Flow C: Login via customerAction (with auto-register)
+
+### Step 1 — Request Login OTP
+
+```graphql
+mutation {
+  customerAction(input: { operation: "login", loginType: "email", email: "john@example.com" }) {
+    otpReferenceId
+    otpValue
+  }
+}
+```
+
+### Step 2 — Validate & Login
+
+```graphql
+mutation {
+  customerAction(input: {
+    operation: "login"
+    loginType: "email"
+    otpReferenceId: "paste-ref-here"
+    otpValue: "paste-otp-here"
+  }) {
+    success
+    customerToken
+    customer { id firstname lastname email }
   }
 }
 ```
@@ -423,31 +385,38 @@ mutation {
 
 # 5. Troubleshooting
 
-## If `input` fails
+## Input argument name
 
-Try replacing `input` with `body`:
+The OpenAPI handler may generate the argument as `input` or `otpActionInput` / `customerActionInput`
+depending on the API Mesh version. Run introspection to check:
 
 ```graphql
-mutation {
-  invokeOtp(body: {
-    loginType: "mobile"
-    mobile: "9876543210"
-  }) {
-    success
-    otpReferenceId
+{
+  __schema {
+    mutationType {
+      fields {
+        name
+        args { name type { name } }
+      }
+    }
   }
 }
 ```
 
-## If response field names differ
+## Response field names
 
-Run GraphQL introspection in Mesh playground and verify:
+Use the Mesh playground explorer to see the exact auto-generated response type fields.
+Key differences between operations:
 
-- mutation field names
-- argument name: `input` or `body`
-- response fields like `customer_token` vs `token`
+| Operation | Token field | Customer ID field |
+|---|---|---|
+| Register | `customer_token` | `customer.customer_id` |
+| Login | `customerToken` | `customer.id` |
+| Update | — | `customer.customer_id` |
 
-## If `/config` fields are scalar/object-mapped differently
+## Mesh not returning data
 
-Select the fields shown in the explorer instead of forcing the exact field list above.
+1. Confirm mesh is deployed: `cd mesh && npm run get`
+2. Verify `ACTION_BASE_URL` in `.env.mesh` points to deployed actions (not localhost)
+3. Re-deploy mesh after URL change: `npm run update`
 

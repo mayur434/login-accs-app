@@ -118,7 +118,12 @@ Actions proxied through the mesh:
 
 ### Mesh Auth (S2S)
 
-The mesh injects auth headers from environment variables — **not from client request headers**:
+Actions self-generate IMS tokens from environment credentials when no authorization header is present.
+This means the mesh does **not** need to inject S2S tokens — the `otp` and `customer` actions handle
+their own DocDB authentication internally.
+
+If you need to pass explicit auth headers through the mesh, add `operationHeaders` to the
+LoginModule source in `mesh.json`:
 
 ```json
 "operationHeaders": {

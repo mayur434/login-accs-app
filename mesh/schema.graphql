@@ -1,122 +1,103 @@
-schema {
-  query: Query
-  mutation: Mutation
-}
+# ─────────────────────────────────────────────────────────────────────────────
+# Login Module — Auto-generated GraphQL Schema Reference
+# ─────────────────────────────────────────────────────────────────────────────
+# This file is a REFERENCE ONLY. The actual GraphQL schema is auto-generated
+# by the API Mesh OpenAPI handler from mesh/openapi.json.
+#
+# The mesh exposes two mutations from the LoginModule source:
+#
+#   mutation { otpAction(input: OtpRequest_Input!): OtpResponse }
+#   mutation { customerAction(input: CustomerRequest_Input!): CustomerResponse }
+#
+# These are combined with the full Commerce GraphQL schema at the mesh endpoint.
+#
+# Config actions (getConfig, updateConfig, deleteConfig) are NOT in the mesh —
+# they are admin-only and called directly from the Admin UI SDK.
+# ─────────────────────────────────────────────────────────────────────────────
 
-type Query {
-  getConfig: ConfigPayload!
-}
+# ── OTP Action ───────────────────────────────────────────────────────────────
+# Generate OTP:
+#   mutation {
+#     otpAction(input: { loginType: "mobile", mobile: "9876543210" }) {
+#       otpReferenceId
+#       otpValue
+#     }
+#   }
+#
+# Validate OTP:
+#   mutation {
+#     otpAction(input: {
+#       loginType: "mobile",
+#       otpReferenceId: "ref-id",
+#       otpValue: "1234"
+#     }) {
+#       success
+#       customer_token
+#       message
+#     }
+#   }
 
-type Mutation {
-  updateConfig(input: UpdateConfigInput!): ConfigPayload!
-  deleteConfig: DeleteConfigPayload!
-
-  generateOtp(input: GenerateOtpInput!): GenerateOtpPayload!
-  validateOtp(input: ValidateOtpInput!): ValidateOtpPayload!
-
-  registerCustomer(input: RegisterCustomerInput!): RegisterCustomerPayload!
-  updateCustomerDetails(input: UpdateCustomerDetailsInput!): UpdateCustomerPayload!
-}
-
-enum LoginType {
-  email
-  mobile
-}
-
-type ConfigPayload {
-  success: Boolean!
-  message: String
-  config: Config
-}
-
-type DeleteConfigPayload {
-  success: Boolean!
-  message: String!
-}
-
-type Config {
-  is_enabled: Boolean
-  otp_expiration_validity: Int
-  otp_in_response: Boolean
-  auto_login: Boolean
-  allow_key_info_update: Boolean
-}
-
-input UpdateConfigInput {
-  is_enabled: Boolean
-  otp_expiration_validity: Int
-  otp_in_response: Boolean
-  auto_login: Boolean
-  allow_key_info_update: Boolean
-}
-
-input GenerateOtpInput {
-  loginType: LoginType!
-  email: String
-  mobile: String
-  register: Boolean
-}
-
-type GenerateOtpPayload {
-  success: Boolean!
-  message: String!
-  otpReferenceId: String
-  otpValue: String
-}
-
-input ValidateOtpInput {
-  loginType: LoginType!
-  email: String
-  mobile: String
-  otpReferenceId: String!
-  otpValue: String!
-  register: Boolean
-}
-
-type ValidateOtpPayload {
-  success: Boolean!
-  message: String!
-  customer_token: String
-  customer_id: String
-}
-
-input RegisterCustomerInput {
-  loginType: LoginType!
-  email: String
-  mobile: String
-  firstname: String
-  lastname: String
-  otpReferenceId: String!
-  otpValue: String!
-}
-
-type Customer {
-  id: String
-  firstname: String
-  lastname: String
-  email: String
-  mobile: String
-}
-
-type RegisterCustomerPayload {
-  success: Boolean!
-  message: String!
-  customer_id: String
-  customer_token: String
-  customer: Customer
-}
-
-input UpdateCustomerDetailsInput {
-  customer_token: String!
-  new_email: String
-  new_mobile: String
-  new_firstname: String
-  new_lastname: String
-}
-
-type UpdateCustomerPayload {
-  success: Boolean!
-  message: String!
-  customer_id: String
-  customer: Customer
-}
+# ── Customer Action ──────────────────────────────────────────────────────────
+# Register (step 1 — triggers OTP):
+#   mutation {
+#     customerAction(input: {
+#       operation: "register",
+#       loginType: "mobile",
+#       mobile: "9876543210",
+#       firstname: "John",
+#       lastname: "Doe"
+#     }) {
+#       otpReferenceId
+#       otpValue
+#     }
+#   }
+#
+# Register (step 2 — validate OTP):
+#   mutation {
+#     customerAction(input: {
+#       operation: "register",
+#       loginType: "mobile",
+#       mobile: "9876543210",
+#       otpReferenceId: "ref-id",
+#       otpValue: "1234"
+#     }) {
+#       success
+#       customer_token
+#       customer { customer_id firstname lastname email mobile_number login_type }
+#     }
+#   }
+#
+# Login (step 1 — triggers OTP):
+#   mutation {
+#     customerAction(input: { operation: "login", loginType: "mobile", mobile: "9876543210" }) {
+#       otpReferenceId
+#       otpValue
+#     }
+#   }
+#
+# Login (step 2 — validate OTP):
+#   mutation {
+#     customerAction(input: {
+#       operation: "login",
+#       loginType: "mobile",
+#       otpReferenceId: "ref-id",
+#       otpValue: "1234"
+#     }) {
+#       success
+#       customerToken
+#       customer { id firstname lastname email }
+#     }
+#   }
+#
+# Update Customer Details:
+#   mutation {
+#     customerAction(input: {
+#       operation: "updateCustomerDetails",
+#       customer_token: "jwt-token",
+#       customer_id: 42,
+#       mobile_number: "8765432109"
+#     }) {
+#       success
+#       customer { customer_id mobile_number email login_type status }
+#     }
+#   }

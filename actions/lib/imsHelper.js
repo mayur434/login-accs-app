@@ -5,53 +5,53 @@ const { Core } = require('@adobe/aio-sdk')
 const { generateAccessToken } = Core.AuthClient
 
 /**
- * Get IMS token for DB access
+ * Get IMS token for DB access.
+ * Priority: 1) header token (if present), 2) self-generate from env credentials.
+ * This ensures the action works when called directly (with headers) AND
+ * when called via API Mesh (no auth headers from consumer).
+ *
  * @param {object} headers - HTTP headers (from __ow_headers)
- * @returns {Promise<string>} - IMS access token
+ * @returns {Promise<string|null>} - IMS access token, or null for MySQL
  */
 async function getAioDbToken(headers = {}) {
   // MySQL mode does not require IMS tokens for DB access
   const dbType = (process.env.DB_TYPE || 'docdb').toLowerCase().trim()
   if (dbType === 'mysql') return null
 
-  const host = headers.host || headers.origin || ''
-  const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1')
+  // 1. Try extracting token from request headers (direct caller or mesh with operationHeaders)
+  const headerToken = headers['authorization']
+    ? headers['authorization'].replace(/^Bearer\s+/i, '')
+    : headers['x-ims-token'] || null
+  if (headerToken) return headerToken
 
-  if (isLocalhost) {
-    // Use .env credentials and generate token
-    const imsCredentials = {
-      clientId: process.env.IMS_OAUTH_S2S_CLIENT_ID,
-      clientSecret: process.env.IMS_OAUTH_S2S_CLIENT_SECRET,
-      orgId: process.env.IMS_OAUTH_S2S_ORG_ID,
-      scopes: process.env.IMS_OAUTH_S2S_SCOPES
+  // 2. Fallback: generate from environment S2S credentials
+  const clientId = process.env.IMS_OAUTH_S2S_CLIENT_ID
+  const clientSecret = process.env.IMS_OAUTH_S2S_CLIENT_SECRET
+  const orgId = process.env.IMS_OAUTH_S2S_ORG_ID
+  if (!clientId || !clientSecret || !orgId) return ''
+
+  const imsCredentials = { clientId, clientSecret, orgId }
+  let rawScopes = process.env.IMS_OAUTH_S2S_SCOPES
+  if (Array.isArray(rawScopes)) {
+    imsCredentials.scopes = rawScopes
+  } else if (typeof rawScopes === 'string') {
+    const trimmed = rawScopes.trim()
+    try {
+      const parsed = JSON.parse(trimmed)
+      imsCredentials.scopes = Array.isArray(parsed)
+        ? parsed.map(s => String(s).trim()).filter(Boolean)
+        : []
+    } catch (e) {
+      imsCredentials.scopes = trimmed
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
     }
-    let rawScopes = process.env.IMS_OAUTH_S2S_SCOPES
-    if (Array.isArray(rawScopes)) {
-      imsCredentials.scopes = rawScopes
-    } else if (typeof rawScopes === 'string') {
-      const trimmed = rawScopes.trim()
-      try {
-        const parsed = JSON.parse(trimmed)
-        imsCredentials.scopes = Array.isArray(parsed)
-          ? parsed.map(s => String(s).trim()).filter(Boolean)
-          : []
-      } catch (e) {
-        imsCredentials.scopes = trimmed
-          .split(',')
-          .map(s => s.trim())
-          .filter(Boolean)
-      }
-    } else {
-      imsCredentials.scopes = []
-    }
-    const tokenResponse = await generateAccessToken(imsCredentials)
-    return tokenResponse.access_token
   } else {
-    // Fetch IMS token from header (e.g., authorization or x-ims-token)
-    return headers['authorization']
-      ? headers['authorization'].replace(/^Bearer\s+/i, '')
-      : headers['x-ims-token'] || ''
+    imsCredentials.scopes = []
   }
+  const tokenResponse = await generateAccessToken(imsCredentials)
+  return tokenResponse.access_token
 }
 
 module.exports = { getAioDbToken }
