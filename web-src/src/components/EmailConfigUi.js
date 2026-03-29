@@ -55,7 +55,7 @@ const mapSave = (s) => ({
 export default function EmailConfigUi ({ ims }) {
   const {
     isLoading, isSaving, errorMessage, successMessage,
-    savedRef, loadConfig, saveConfig, isLocal
+    savedRef, loadConfig, saveConfig, isAuthBypass
   } = useConfigApi(ims, mapLoad, mapSave)
 
   const [emailSmtpHost, setEmailSmtpHost] = useState('')

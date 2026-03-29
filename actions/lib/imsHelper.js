@@ -1,30 +1,16 @@
 // imsHelper.js
-// Helper to get IMS token for DB access, supporting localhost (dev) and production
+// Helper to get IMS token for DB access.
+// Actions are publicly accessible — tokens are ALWAYS self-generated
+// from S2S credentials injected via include-ims-credentials annotation.
 
 const { Core } = require('@adobe/aio-sdk')
 const { generateAccessToken } = Core.AuthClient
 
 /**
- * Get IMS token for DB access.
- * Priority: 1) header token (if present), 2) self-generate from env credentials.
- * This ensures the action works when called directly (with headers) AND
- * when called via API Mesh (no auth headers from consumer).
- *
- * @param {object} headers - HTTP headers (from __ow_headers)
- * @returns {Promise<string|null>} - IMS access token, or null for MySQL
+ * Generate IMS access token from S2S environment credentials.
+ * @returns {Promise<string>} access token, or empty string if credentials missing
  */
-async function getAioDbToken(headers = {}) {
-  // MySQL mode does not require IMS tokens for DB access
-  const dbType = (process.env.DB_TYPE || 'docdb').toLowerCase().trim()
-  if (dbType === 'mysql') return null
-
-  // 1. Try extracting token from request headers (direct caller or mesh with operationHeaders)
-  const headerToken = headers['authorization']
-    ? headers['authorization'].replace(/^Bearer\s+/i, '')
-    : headers['x-ims-token'] || null
-  if (headerToken) return headerToken
-
-  // 2. Fallback: generate from environment S2S credentials
+async function generateSelfToken() {
   const clientId = process.env.IMS_OAUTH_S2S_CLIENT_ID
   const clientSecret = process.env.IMS_OAUTH_S2S_CLIENT_SECRET
   const orgId = process.env.IMS_OAUTH_S2S_ORG_ID
@@ -52,6 +38,20 @@ async function getAioDbToken(headers = {}) {
   }
   const tokenResponse = await generateAccessToken(imsCredentials)
   return tokenResponse.access_token
+}
+
+/**
+ * Get IMS token for DB access.
+ * Always self-generates from S2S credentials. No header auth required.
+ *
+ * @param {object} headers - HTTP headers (unused, kept for API compatibility)
+ * @returns {Promise<string|null>} - IMS access token, or null for MySQL
+ */
+async function getAioDbToken(headers = {}) {
+  const dbType = (process.env.DB_TYPE || 'docdb').toLowerCase().trim()
+  if (dbType === 'mysql') return null
+
+  return generateSelfToken()
 }
 
 module.exports = { getAioDbToken }

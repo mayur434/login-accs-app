@@ -49,7 +49,7 @@ const mapSave = (s) => ({
 export default function SmsConfigUi ({ ims }) {
   const {
     isLoading, isSaving, errorMessage, successMessage,
-    savedRef, loadConfig, saveConfig, isLocal
+    savedRef, loadConfig, saveConfig, isAuthBypass
   } = useConfigApi(ims, mapLoad, mapSave)
 
   const [smsApiHost, setSmsApiHost] = useState('')

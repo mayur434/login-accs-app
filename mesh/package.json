@@ -10,6 +10,7 @@
     "get": "aio api-mesh:get",
     "describe": "aio api-mesh:describe"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "graphql-import-node": "^0.0.5"
+  }
 }

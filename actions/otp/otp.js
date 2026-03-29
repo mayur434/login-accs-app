@@ -1,15 +1,15 @@
 const { Core } = require('@adobe/aio-sdk')
-const { generateAccessToken } = Core.AuthClient
 const { stringParameters, checkMissingRequestInputs } = require('../utils')
 const { errorResponse } = require('../lib/http')
 const { getCollection, closeDb, getAppConfig, findOneOrNull, APP_CONFIG_DEFAULTS } = require('../lib/db')
 const { graphQLRequest } = require('../lib/graphql')
 const { generateOtpValue, createReferenceId, levenshtein } = require('../lib/otp')
 const { getRequestParams } = require('../lib/params')
-const { INTERNAL_CUSTOMER_PASSWORD, CUSTOMER_IDENTITY_COLLECTION, parseCustomerIdFromToken, normalizeMobile, buildLoginType, getSyntheticEmail } = require('../lib/customer')
+const { INTERNAL_CUSTOMER_PASSWORD, CUSTOMER_IDENTITY_COLLECTION, parseCustomerIdFromToken, normalizeMobile, buildLoginType, getSyntheticEmail, getCommerceMobileValue } = require('../lib/customer')
 const { isUniqueConstraintError } = require('../lib/db')
 const { sendSmsOtp } = require('../lib/sms')
 const { sendEmailOtp } = require('../lib/email')
+const { getAioDbToken } = require('../lib/imsHelper')
 
 // ── Commerce helpers ────────────────────────────────────────────────────
 
@@ -17,7 +17,10 @@ async function upsertIdentity (dbClient, record, token, logger) {
   try {
     const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
     const customerId = parseCustomerIdFromToken(token)
-    if (!customerId) return
+    if (!customerId) {
+      logger.warn('upsertIdentity: could not parse customer_id from token — skipping')
+      return
+    }
 
     let normalizedMobile = null
     if (record.mobile) {
@@ -60,12 +63,24 @@ async function upsertIdentity (dbClient, record, token, logger) {
         { $set: doc }
       )
     } else {
-      // Insert new record — set login_type only on insert
-      await collection.updateOne(
-        { customer_id: customerId },
-        { $set: doc, $setOnInsert: { login_type: loginType, created_at: now } },
-        { upsert: true }
-      )
+      // Insert new record with login_type and created_at
+      try {
+        await collection.insertOne({
+          ...doc,
+          login_type: loginType,
+          created_at: now
+        })
+      } catch (insertErr) {
+        if (isUniqueConstraintError(insertErr)) {
+          // Race condition: record was created between findOne and insertOne
+          await collection.updateOne(
+            { customer_id: customerId },
+            { $set: doc }
+          )
+        } else {
+          throw insertErr
+        }
+      }
     }
     logger.info(`Identity upserted for customer_id=${customerId}, email=${email}`)
   } catch (e) {
@@ -89,8 +104,25 @@ async function tryLogin (email, password, params, logger) {
 async function createUser (email, password, mobile, params, logger) {
   const firstname = params.firstname || params.firstName || 'Guest'
   const lastname = params.lastname || params.lastName || 'User'
-  const mutation = `mutation createCustomerV2($email: String!, $firstname: String!, $lastname: String!){ createCustomerV2(input:{ firstname: $firstname, lastname: $lastname, email: $email, password: "${INTERNAL_CUSTOMER_PASSWORD}" }){ customer{ firstname lastname email } } }`
-  return graphQLRequest(params, mutation, { email, firstname, lastname }, logger)
+
+  const input = {
+    firstname,
+    lastname,
+    email,
+    password: INTERNAL_CUSTOMER_PASSWORD
+  }
+
+  if (mobile) {
+    try {
+      const mobileValue = getCommerceMobileValue(normalizeMobile(mobile))
+      if (mobileValue) {
+        input.custom_attributes = [{ attribute_code: 'mobile_number', value: mobileValue }]
+      }
+    } catch (_) { /* normalization failed, skip mobile attr */ }
+  }
+
+  const mutation = `mutation createCustomerV2($input: CustomerCreateInput!){ createCustomerV2(input: $input){ customer{ firstname lastname email } } }`
+  return graphQLRequest(params, mutation, { input }, logger)
 }
 
 // ── Main action ─────────────────────────────────────────────────────────
@@ -105,49 +137,8 @@ async function main (params) {
     const inParams = getRequestParams(params)
     inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers || {}
 
-    const dbType = (params.DB_TYPE || process.env.DB_TYPE || 'docdb').toLowerCase().trim()
-    let aioDbToken = null
-
-    if (dbType !== 'mysql') {
-      const imsCredentials = {
-        clientId: process.env.IMS_OAUTH_S2S_CLIENT_ID,
-        clientSecret: process.env.IMS_OAUTH_S2S_CLIENT_SECRET,
-        orgId: process.env.IMS_OAUTH_S2S_ORG_ID,
-        scopes: process.env.IMS_OAUTH_S2S_SCOPES
-      }
-
-      let rawScopes = process.env.IMS_OAUTH_S2S_SCOPES
-
-      if (Array.isArray(rawScopes)) {
-        imsCredentials.scopes = rawScopes
-      } else if (typeof rawScopes === 'string') {
-        const trimmed = rawScopes.trim()
-        try {
-          const parsed = JSON.parse(trimmed)
-          imsCredentials.scopes = Array.isArray(parsed)
-            ? parsed.map(s => String(s).trim()).filter(Boolean)
-            : []
-        } catch (e) {
-          imsCredentials.scopes = trimmed
-            .split(',')
-            .map(s => s.trim())
-            .filter(Boolean)
-        }
-      } else {
-        imsCredentials.scopes = []
-      }
-
-      const tokenResponse = await generateAccessToken(imsCredentials)
-
-      logger.debug('Access token obtained successfully')
-      logger.debug(`Token response: ${JSON.stringify({
-        accessTokenPresent: !!tokenResponse.access_token,
-        tokenType: tokenResponse.token_type,
-        expiresIn: tokenResponse.expires_in
-      })}`)
-
-      aioDbToken = tokenResponse.access_token
-    }
+    const headers = inParams.__ow_headers || {}
+    const aioDbToken = await getAioDbToken(headers)
 
     const dbResult = await getCollection(
       { ...inParams, AIO_DB_TOKEN: aioDbToken },

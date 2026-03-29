@@ -54,7 +54,7 @@ const mapSave = (s) => ({
 const AdminUi = (props) => {
   const {
     isLoading, isSaving, errorMessage, successMessage,
-    savedRef, loadConfig, saveConfig, isLocal
+    savedRef, loadConfig, saveConfig, isAuthBypass
   } = useConfigApi(props.ims, mapLoad, mapSave)
 
   // ── Form state ──

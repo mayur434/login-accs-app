@@ -55,3 +55,15 @@ async function actionWebInvoke (actionUrl, headers = {}, params = {}, options = 
 }
 
 export default actionWebInvoke
+
+/**
+ * Check if the current host allows bypassing Adobe IMS auth.
+ * Built-in: localhost, 127.0.0.1, *.adobeio-static.net
+ */
+export function isAuthBypass () {
+  if (typeof window === 'undefined') return false
+  const host = window.location.hostname.toLowerCase()
+  if (host === 'localhost' || host === '127.0.0.1') return true
+  if (host.endsWith('.adobeio-static.net')) return true
+  return false
+}

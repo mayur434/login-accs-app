@@ -315,3 +315,115 @@ Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-a
 💡 [1m🕸️  Mesh[0m [36mCleanup[0m
 💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
 Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mConfiguration file is not valid![0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mThis is just a warning! It doesn't have any effects on runtime.[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mError: must NOT have additional properties[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mConfiguration file is not valid![0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mThis is just a warning! It doesn't have any effects on runtime.[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mError: must NOT have additional properties[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mConfiguration file is not valid![0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mThis is just a warning! It doesn't have any effects on runtime.[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mError: must NOT have additional properties[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mConfiguration file is not valid![0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mThis is just a warning! It doesn't have any effects on runtime.[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mError: must NOT have additional properties[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mConfiguration file is not valid![0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mThis is just a warning! It doesn't have any effects on runtime.[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mError: must NOT have additional properties[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mConfiguration file is not valid![0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mThis is just a warning! It doesn't have any effects on runtime.[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mError: must NOT have additional properties[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully
+Building Mesh with config: /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh
+💡 [1m🕸️  Mesh[0m [36mCleaning existing artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mReading the configuration[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mConfiguration file is not valid![0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mThis is just a warning! It doesn't have any effects on runtime.[0m
+⚠️ [1m🕸️  Mesh - config[0m [48:5:166mError: must NOT have additional properties[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating the unified schema[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mDereferencing the bundle[0m
+💡 [1m🕸️  Mesh - LoginModule[0m [36mCreating the GraphQL Schema from dereferenced schema[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating artifacts[0m
+💡 [1m🕸️  Mesh[0m [36mGenerating index file in TypeScript[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for ESM to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mWriting index.ts for CJS to the disk.[0m
+💡 [1m🕸️  Mesh[0m [36mCleanup[0m
+💡 [1m🕸️  Mesh[0m [36mDone! => /Users/mayur.parmar/Documents/code/appbuilder/login-accs-app/mesh/testMesh/.mesh[0m
+Mesh built successfully

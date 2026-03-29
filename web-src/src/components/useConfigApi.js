@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import allActions from '../config.json'
 import actionWebInvoke from '../utils'
 
+import { isAuthBypass } from '../utils'
+
 /**
  * Shared hook for loading / saving the unified app_config.
  * Every admin page uses the same backend action – this hook centralises
@@ -20,9 +22,6 @@ export default function useConfigApi (ims, mapLoad, mapSave) {
   const savedRef = useRef(null)
   const formRef = useRef(null)
 
-  const isLocal = typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-
   // ── Auth ────────────────────────────────────────────────────────
   function getAuthHeaders () {
     const headers = {}
@@ -37,7 +36,7 @@ export default function useConfigApi (ims, mapLoad, mapSave) {
     setErrorMessage(null)
 
     const authHeaders = getAuthHeaders()
-    if (!authHeaders.authorization && !isLocal) {
+    if (!authHeaders.authorization && !isAuthBypass()) {
       setErrorMessage('Missing Adobe IMS session.')
       setIsLoading(false)
       return null
@@ -105,6 +104,6 @@ export default function useConfigApi (ims, mapLoad, mapSave) {
   return {
     isLoading, isSaving, errorMessage, successMessage,
     setErrorMessage, setSuccessMessage,
-    savedRef, loadConfig, saveConfig, isLocal
+    savedRef, loadConfig, saveConfig, isAuthBypass: isAuthBypass()
   }
 }

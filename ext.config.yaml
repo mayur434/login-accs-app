@@ -18,8 +18,16 @@ runtimeManifest:
           runtime: nodejs:22
           inputs:
             LOG_LEVEL: debug
+            GRAPHQL_ENDPOINT: $GRAPHQL_ENDPOINT
+            DB_TYPE: $DB_TYPE
+            MYSQL_HOST: $MYSQL_HOST
+            MYSQL_PORT: $MYSQL_PORT
+            MYSQL_USER: $MYSQL_USER
+            MYSQL_PASSWORD: $MYSQL_PASSWORD
+            MYSQL_DATABASE: $MYSQL_DATABASE
           annotations:
             require-adobe-auth: false
+            include-ims-credentials: true
             final: false
         config:
           function: actions/config/index.js
@@ -28,9 +36,15 @@ runtimeManifest:
           inputs:
             LOG_LEVEL: debug
             apikey: $SERVICE_API_KEY
+            DB_TYPE: $DB_TYPE
+            MYSQL_HOST: $MYSQL_HOST
+            MYSQL_PORT: $MYSQL_PORT
+            MYSQL_USER: $MYSQL_USER
+            MYSQL_PASSWORD: $MYSQL_PASSWORD
+            MYSQL_DATABASE: $MYSQL_DATABASE
           annotations:
             require-adobe-auth: false
-            include-ims-credentials: false
+            include-ims-credentials: true
             final: true
         customer:
           function: actions/customer/index.js
@@ -39,9 +53,16 @@ runtimeManifest:
           inputs:
             LOG_LEVEL: debug
             apikey: $SERVICE_API_KEY
+            GRAPHQL_ENDPOINT: $GRAPHQL_ENDPOINT
+            DB_TYPE: $DB_TYPE
+            MYSQL_HOST: $MYSQL_HOST
+            MYSQL_PORT: $MYSQL_PORT
+            MYSQL_USER: $MYSQL_USER
+            MYSQL_PASSWORD: $MYSQL_PASSWORD
+            MYSQL_DATABASE: $MYSQL_DATABASE
           annotations:
             require-adobe-auth: false
-            include-ims-credentials: false
+            include-ims-credentials: true
             final: true
         registration:
           function: actions/registration/index.js
@@ -51,4 +72,5 @@ runtimeManifest:
             LOG_LEVEL: debug
           annotations:
             require-adobe-auth: true
+            include-ims-credentials: true
             final: true

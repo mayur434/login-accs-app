@@ -9,11 +9,11 @@ import ReactDOM from 'react-dom'
 import App from './components/App'
 import './index.css'
 
+import { isAuthBypass } from './utils'
+
 window.React = require('react')
 
-const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-
-if (!isLocal && window.location !== window.parent.location) {
+if (!isAuthBypass() && window.location !== window.parent.location) {
   // Running inside EXC shell (iframe) — use @adobe/exc-app for IMS context
   import('@adobe/exc-app').then(({ init }) => {
     init().then(runtime => {

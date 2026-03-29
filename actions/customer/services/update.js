@@ -27,8 +27,9 @@ function getPreparedInput (params) {
     const hasMobile = !!mobileInput
     const normalizedMobile = hasMobile ? normalizeMobile(mobileInput) : null
 
-    const hasEmail = hasValue(params.new_email)
-    const resolvedEmail = hasEmail ? normalizeEmailInput(params.new_email) : null
+    const emailInput = hasValue(params.new_email) ? params.new_email : (hasValue(params.email) ? params.email : null)
+    const hasEmail = !!emailInput
+    const resolvedEmail = hasEmail ? normalizeEmailInput(emailInput) : null
 
     if (!hasMobile && !hasEmail) {
       return { error: badRequest("provide at least one field: 'mobile_number' or 'new_email'") }
