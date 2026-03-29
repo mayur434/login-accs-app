@@ -69,7 +69,8 @@ exports.main = async (params) => {
     }
 
     if (operation === 'register') {
-      if (!requestParams.email && !requestParams.mobile) {
+      const isOtpValidation = requestParams.otpReferenceId && requestParams.otpValue
+      if (!isOtpValidation && !requestParams.email && !requestParams.mobile) {
         return badRequest("provide at least one identifier: 'email' or 'mobile_number'")
       }
     }

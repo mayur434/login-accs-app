@@ -66,6 +66,21 @@ const TABLE_SCHEMAS = {
     otp_in_response TINYINT(1) DEFAULT 0,
     auto_register TINYINT(1) DEFAULT 0,
     allow_key_info_update TINYINT(1) DEFAULT 0,
+    sms_api_host VARCHAR(500) DEFAULT '',
+    sms_endpoint VARCHAR(500) DEFAULT '',
+    sms_api_key VARCHAR(500) DEFAULT '',
+    sms_template_enabled TINYINT(1) DEFAULT 0,
+    sms_template_id VARCHAR(255) DEFAULT '',
+    sms_template_string TEXT,
+    email_smtp_host VARCHAR(500) DEFAULT '',
+    email_smtp_port INT DEFAULT 587,
+    email_smtp_user VARCHAR(255) DEFAULT '',
+    email_smtp_password VARCHAR(500) DEFAULT '',
+    email_from_address VARCHAR(255) DEFAULT '',
+    email_from_name VARCHAR(255) DEFAULT '',
+    email_template_enabled TINYINT(1) DEFAULT 0,
+    email_template_id VARCHAR(255) DEFAULT '',
+    email_template_string TEXT,
     updatedAt BIGINT DEFAULT 0
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
@@ -173,7 +188,8 @@ function buildWhere (query) {
  * Boolean columns are stored as TINYINT(1); convert them back to true/false.
  */
 const BOOLEAN_COLUMNS = new Set([
-  'is_enabled', 'otp_in_response', 'auto_register', 'allow_key_info_update', 'consumed'
+  'is_enabled', 'otp_in_response', 'auto_register', 'allow_key_info_update', 'consumed',
+  'sms_template_enabled', 'email_template_enabled'
 ])
 
 function hydrateRow (row) {
@@ -187,8 +203,9 @@ function hydrateRow (row) {
   return out
 }
 
-/** Prepare a value for MySQL insertion – booleans → 0/1, Dates → ISO string. */
+/** Prepare a value for MySQL insertion – booleans → 0/1, Dates → ISO string, undefined → null. */
 function toSqlValue (v) {
+  if (v === undefined) return null
   if (typeof v === 'boolean') return v ? 1 : 0
   if (v instanceof Date) return v.toISOString().slice(0, 19).replace('T', ' ')
   return v

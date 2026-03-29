@@ -5,12 +5,11 @@
 import React from 'react'
 import { Provider, defaultTheme, Grid, View } from '@adobe/react-spectrum'
 import ErrorBoundary from 'react-error-boundary'
-import { HashRouter as Router, Routes, Route } from 'react-router-dom'
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import SideBar from './SideBar'
-import ActionsForm from './ActionsForm'
-import { Home } from './Home'
-import { About } from './About'
 import AdminUi from './AdminUi'
+import SmsConfigUi from './SmsConfigUi'
+import EmailConfigUi from './EmailConfigUi'
 import ExtensionRegistration from './ExtensionRegistration'
 
 function App (props) {
@@ -33,24 +32,27 @@ function App (props) {
         <Provider theme={defaultTheme} colorScheme={'light'}>
           <Grid
             areas={['sidebar content']}
-            columns={['256px', '3fr']}
+            columns={['256px', '1fr']}
             rows={['auto']}
             height='100vh'
-            gap='size-100'
+            gap='size-0'
           >
-            {/* <View
+            <View
               gridArea='sidebar'
-              backgroundColor='gray-200'
-              padding='size-200'
+              backgroundColor='gray-100'
+              borderEndWidth='thin'
+              borderEndColor='gray-300'
+              UNSAFE_style={{ minHeight: '100vh' }}
             >
-              <SideBar></SideBar>
-            </View> */}
-            <View gridArea='content' padding='size-200'>
+              <SideBar />
+            </View>
+            <View gridArea='content' padding='size-400' UNSAFE_style={{ overflowY: 'auto' }}>
               <Routes>
                 <Route path='/' element={<ExtensionRegistration runtime={props.runtime} ims={props.ims} />} />
-                <Route path='/actions' element={<ActionsForm runtime={props.runtime} ims={props.ims} />}/>
-                <Route path='/about' element={<About />}/>
-                <Route path='/admin' element={<AdminUi ims={props.ims} />}/>
+                <Route path='/admin' element={<AdminUi ims={props.ims} />} />
+                <Route path='/admin/sms' element={<SmsConfigUi ims={props.ims} />} />
+                <Route path='/admin/email' element={<EmailConfigUi ims={props.ims} />} />
+                <Route path='*' element={<Navigate to='/admin' replace />} />
               </Routes>
             </View>
           </Grid>

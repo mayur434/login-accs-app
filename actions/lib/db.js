@@ -111,7 +111,24 @@ const APP_CONFIG_DEFAULTS = {
   otp_expiration_validity: 10,
   otp_in_response: false,
   auto_register: false,
-  allow_key_info_update: false
+  allow_key_info_update: false,
+  // SMS communication
+  sms_api_host: '',
+  sms_endpoint: '',
+  sms_api_key: '',
+  sms_template_enabled: false,
+  sms_template_id: '',
+  sms_template_string: 'Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes.',
+  // Email communication
+  email_smtp_host: '',
+  email_smtp_port: 587,
+  email_smtp_user: '',
+  email_smtp_password: '',
+  email_from_address: '',
+  email_from_name: '',
+  email_template_enabled: false,
+  email_template_id: '',
+  email_template_string: 'Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes.'
 }
 
 function normalizeAppConfig (config) {
@@ -119,34 +136,43 @@ function normalizeAppConfig (config) {
     ? config.auto_register
     : APP_CONFIG_DEFAULTS.auto_register
 
+  const str = (key) => (typeof config?.[key] === 'string' ? config[key] : APP_CONFIG_DEFAULTS[key])
+  const bool = (key) => (typeof config?.[key] === 'boolean' ? config[key] : APP_CONFIG_DEFAULTS[key])
+  const int = (key) => (Number.isInteger(config?.[key]) ? config[key] : APP_CONFIG_DEFAULTS[key])
+
   return {
     is_enabled: Boolean(config?.is_enabled),
-    otp_expiration_validity: Number.isInteger(config?.otp_expiration_validity)
-      ? config.otp_expiration_validity
-      : APP_CONFIG_DEFAULTS.otp_expiration_validity,
-    otp_in_response: typeof config?.otp_in_response === 'boolean'
-      ? config.otp_in_response
-      : APP_CONFIG_DEFAULTS.otp_in_response,
+    otp_expiration_validity: int('otp_expiration_validity'),
+    otp_in_response: bool('otp_in_response'),
     auto_register: autoRegister,
     auto_login: autoRegister, // backward compat alias for Admin UI
-    allow_key_info_update: typeof config?.allow_key_info_update === 'boolean'
-      ? config.allow_key_info_update
-      : APP_CONFIG_DEFAULTS.allow_key_info_update
+    allow_key_info_update: bool('allow_key_info_update'),
+    // SMS
+    sms_api_host: str('sms_api_host'),
+    sms_endpoint: str('sms_endpoint'),
+    sms_api_key: str('sms_api_key'),
+    sms_template_enabled: bool('sms_template_enabled'),
+    sms_template_id: str('sms_template_id'),
+    sms_template_string: str('sms_template_string'),
+    // Email
+    email_smtp_host: str('email_smtp_host'),
+    email_smtp_port: int('email_smtp_port'),
+    email_smtp_user: str('email_smtp_user'),
+    email_smtp_password: str('email_smtp_password'),
+    email_from_address: str('email_from_address'),
+    email_from_name: str('email_from_name'),
+    email_template_enabled: bool('email_template_enabled'),
+    email_template_id: str('email_template_id'),
+    email_template_string: str('email_template_string')
   }
 }
 
 /**
  * Read app_config from a connected dbClient (creates collection handle internally).
+ * Tables/collections must already exist — run `npm run setup-db` first.
  */
 async function getAppConfig (dbClient) {
-  let collection
-  try {
-    collection = await dbClient.collection(APP_CONFIG_COLLECTION)
-  } catch (error) {
-    if (!isCollectionNotFoundError(error)) throw error
-    await dbClient.createCollection(APP_CONFIG_COLLECTION)
-    collection = await dbClient.collection(APP_CONFIG_COLLECTION)
-  }
+  const collection = await dbClient.collection(APP_CONFIG_COLLECTION)
 
   let config = null
   try {

@@ -19,7 +19,24 @@ function validateUpdatePayload (params) {
     otp_expiration_validity: { value: params.otp_expiration_validity, type: 'integer' },
     otp_in_response: { value: params.otp_in_response, type: 'boolean' },
     auto_register: { value: autoRegisterValue, type: 'boolean' },
-    allow_key_info_update: { value: params.allow_key_info_update, type: 'boolean' }
+    allow_key_info_update: { value: params.allow_key_info_update, type: 'boolean' },
+    // SMS communication
+    sms_api_host: { value: params.sms_api_host, type: 'string' },
+    sms_endpoint: { value: params.sms_endpoint, type: 'string' },
+    sms_api_key: { value: params.sms_api_key, type: 'string' },
+    sms_template_enabled: { value: params.sms_template_enabled, type: 'boolean' },
+    sms_template_id: { value: params.sms_template_id, type: 'string' },
+    sms_template_string: { value: params.sms_template_string, type: 'string' },
+    // Email communication
+    email_smtp_host: { value: params.email_smtp_host, type: 'string' },
+    email_smtp_port: { value: params.email_smtp_port, type: 'integer' },
+    email_smtp_user: { value: params.email_smtp_user, type: 'string' },
+    email_smtp_password: { value: params.email_smtp_password, type: 'string' },
+    email_from_address: { value: params.email_from_address, type: 'string' },
+    email_from_name: { value: params.email_from_name, type: 'string' },
+    email_template_enabled: { value: params.email_template_enabled, type: 'boolean' },
+    email_template_id: { value: params.email_template_id, type: 'string' },
+    email_template_string: { value: params.email_template_string, type: 'string' }
   }
 
   const provided = {}
@@ -31,7 +48,9 @@ function validateUpdatePayload (params) {
     if (type === 'boolean' && typeof value !== 'boolean') {
       errors.push(`${key} must be boolean true/false`)
     } else if (type === 'integer' && (!Number.isInteger(value) || value <= 0)) {
-      errors.push(`${key} must be a positive integer (minutes)`)
+      errors.push(`${key} must be a positive integer`)
+    } else if (type === 'string' && typeof value !== 'string') {
+      errors.push(`${key} must be a string`)
     } else {
       provided[key] = value
     }
@@ -41,15 +60,11 @@ function validateUpdatePayload (params) {
 
   if (Object.keys(provided).length === 0) {
     return {
-      error: badRequest(
-        'Provide is_enabled (boolean) and/or otp_expiration_validity (integer minutes) ' +
-        'and/or otp_in_response (boolean) and/or auto_register (boolean) and/or allow_key_info_update (boolean)'
-      )
+      error: badRequest('Provide at least one configuration field to update')
     }
   }
 
   const updateFields = {
-    ...APP_CONFIG_DEFAULTS,
     ...provided,
     updatedAt: Date.now()
   }
@@ -70,7 +85,7 @@ async function getDocDbConfig (collection) {
     patchFields.auto_register = config.auto_login
   }
 
-  for (const key of ['otp_in_response', 'auto_register', 'allow_key_info_update']) {
+  for (const key of ['otp_in_response', 'auto_register', 'allow_key_info_update', 'sms_template_enabled', 'email_template_enabled']) {
     if (typeof config[key] !== 'boolean') {
       patchFields[key] = APP_CONFIG_DEFAULTS[key]
     }

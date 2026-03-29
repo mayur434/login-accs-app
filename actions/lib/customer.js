@@ -83,19 +83,24 @@ function parseCustomerIdFromToken (token) {
 // ── Extraction from request params ──────────────────────────────────────
 
 function extractCustomerId (params) {
+  // Try explicit params / context first
   const candidates = [
     params.context?.customer_id,
     params.context?.customerId,
     params.customer_id,
     params.customerId,
-    params.id,
-    params.__ow_headers?.['x-customer-id'],
-    params.__ow_headers?.['x-customerid']
+    params.id
   ]
   for (const c of candidates) {
     const parsed = parseCustomerIdValue(c)
     if (parsed) return parsed
   }
+
+  // Fall back to extracting customer_id from the JWT customer_token
+  const token = params.customer_token || params.customerToken || params.token
+  const fromToken = parseCustomerIdFromToken(token)
+  if (fromToken) return fromToken
+
   return null
 }
 

@@ -48,12 +48,12 @@ async function createCommerceCustomerAndToken(params, prepared, logger) {
   const firstname =
   params.firstname?.trim() ||
   params.firstName?.trim() ||
-  ''
+  'Guest'
 
 const lastname =
   params.lastname?.trim() ||
   params.lastName?.trim() ||
-  ''
+  'User'
   const commerceMobile = getCommerceMobileValue(prepared.normalizedMobile)
 
   const mutation = commerceMobile
@@ -84,10 +84,17 @@ const lastname =
 
 // ── Customer ID resolution ──────────────────────────────────────────────
 
-async function resolveCustomerId(params, createResponse, prepared, logger) {
+async function resolveCustomerId(params, createResponse, prepared, logger, existingToken) {
   const idFromCreate = getCustomerId(createResponse)
   if (idFromCreate) return idFromCreate
 
+  // Try parsing ID from the token already obtained during registration
+  if (existingToken) {
+    const fromToken = parseCustomerIdFromToken(existingToken)
+    if (fromToken) return fromToken
+  }
+
+  // Last resort: generate a fresh token to extract the ID
   const token = await generateCustomerToken(params, prepared.resolvedEmail, prepared.password, logger)
   return parseCustomerIdFromToken(token)
 }
@@ -127,7 +134,8 @@ module.exports = async function register(dbClient, params, logger) {
       params,
       { data: { createCustomerV2: { customer: customerData } } },
       prepared,
-      logger
+      logger,
+      customerToken
     )
     if (!customerId) throw new Error('customer id missing in createCustomer response')
 
@@ -136,10 +144,7 @@ module.exports = async function register(dbClient, params, logger) {
     const doc = {
       email: prepared.resolvedEmail,
       mobile_number: prepared.normalizedMobile,
-      login_type: prepared.loginType,
       customer_id: customerId,
-      firstname: customerData?.firstname,
-      lastname: customerData?.lastname,
       status: 'active',
       updated_at: now
     }
@@ -147,7 +152,7 @@ module.exports = async function register(dbClient, params, logger) {
     try {
       await collection.updateOne(
         { customer_id: customerId },
-        { $set: doc, $setOnInsert: { created_at: now } },
+        { $set: doc, $setOnInsert: { login_type: prepared.loginType, created_at: now } },
         { upsert: true }
       )
     } catch (dbError) {

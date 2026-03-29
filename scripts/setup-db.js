@@ -37,13 +37,28 @@ const DB_TYPE = (process.env.DB_TYPE || 'docdb').toLowerCase().trim()
  * app_config — singleton document holding module configuration
  *
  * Fields:
- *   _id                       string    always 'app_config'
- *   is_enabled                boolean   module enabled flag
- *   otp_expiration_validity   integer   OTP validity in minutes (>0)
- *   otp_in_response           boolean   include OTP in API response (testing)
- *   auto_register            boolean   auto-register customer on login if user not found
- *   allow_key_info_update     boolean   allow mobile/email mapping updates
- *   updatedAt                 number    Date.now() timestamp
+ *   _id                        string    always 'app_config'
+ *   is_enabled                 boolean   module enabled flag
+ *   otp_expiration_validity    integer   OTP validity in minutes (>0)
+ *   otp_in_response            boolean   include OTP in API response (testing)
+ *   auto_register              boolean   auto-register customer on login if user not found
+ *   allow_key_info_update      boolean   allow mobile/email mapping updates
+ *   sms_api_host               string    SMS gateway base URL
+ *   sms_endpoint               string    SMS gateway endpoint path
+ *   sms_api_key                string    SMS gateway API key
+ *   sms_template_enabled       boolean   enable SMS template dispatch
+ *   sms_template_id            string    SMS provider template ID
+ *   sms_template_string        string    SMS template with {{OTP}} / {{VALIDITY}} placeholders
+ *   email_smtp_host            string    SMTP server hostname
+ *   email_smtp_port            integer   SMTP server port (default 587)
+ *   email_smtp_user            string    SMTP auth username
+ *   email_smtp_password        string    SMTP auth password
+ *   email_from_address         string    sender email address
+ *   email_from_name            string    sender display name
+ *   email_template_enabled     boolean   enable email template dispatch
+ *   email_template_id          string    email provider template ID
+ *   email_template_string      string    email template with {{OTP}} / {{VALIDITY}} placeholders
+ *   updatedAt                  number    Date.now() timestamp
  */
 const APP_CONFIG_COLLECTION = 'app_config'
 const APP_CONFIG_SEED = {
@@ -53,6 +68,23 @@ const APP_CONFIG_SEED = {
   otp_in_response: false,
   auto_register: false,
   allow_key_info_update: false,
+  // SMS communication
+  sms_api_host: '',
+  sms_endpoint: '',
+  sms_api_key: '',
+  sms_template_enabled: false,
+  sms_template_id: '',
+  sms_template_string: 'Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes.',
+  // Email communication
+  email_smtp_host: '',
+  email_smtp_port: 587,
+  email_smtp_user: '',
+  email_smtp_password: '',
+  email_from_address: '',
+  email_from_name: '',
+  email_template_enabled: false,
+  email_template_id: '',
+  email_template_string: 'Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes.',
   updatedAt: Date.now()
 }
 
@@ -108,6 +140,56 @@ const IDENTITY_INDEXES = [
 ]
 
 const ALL_COLLECTIONS = [APP_CONFIG_COLLECTION, OTP_COLLECTION, IDENTITY_COLLECTION]
+
+// ---------------------------------------------------------------------------
+// MySQL column migration map — add missing columns to existing tables
+// ---------------------------------------------------------------------------
+
+const MYSQL_EXPECTED_COLUMNS = {
+  app_config: {
+    sms_api_host: "VARCHAR(500) DEFAULT ''",
+    sms_endpoint: "VARCHAR(500) DEFAULT ''",
+    sms_api_key: "VARCHAR(500) DEFAULT ''",
+    sms_template_enabled: 'TINYINT(1) DEFAULT 0',
+    sms_template_id: "VARCHAR(255) DEFAULT ''",
+    sms_template_string: 'TEXT',
+    email_smtp_host: "VARCHAR(500) DEFAULT ''",
+    email_smtp_port: 'INT DEFAULT 587',
+    email_smtp_user: "VARCHAR(255) DEFAULT ''",
+    email_smtp_password: "VARCHAR(500) DEFAULT ''",
+    email_from_address: "VARCHAR(255) DEFAULT ''",
+    email_from_name: "VARCHAR(255) DEFAULT ''",
+    email_template_enabled: 'TINYINT(1) DEFAULT 0',
+    email_template_id: "VARCHAR(255) DEFAULT ''",
+    email_template_string: 'TEXT'
+  }
+}
+
+/**
+ * For MySQL only: ALTER TABLE to add any columns that exist in the DDL
+ * but are missing from a previously-created table.
+ */
+async function mysqlMigrateColumns (pool, tableName) {
+  const expected = MYSQL_EXPECTED_COLUMNS[tableName]
+  if (!expected) return 0
+
+  let existingCols
+  try {
+    const [rows] = await pool.execute(`SHOW COLUMNS FROM \`${tableName}\``)
+    existingCols = new Set(rows.map(r => r.Field))
+  } catch {
+    return 0
+  }
+
+  let added = 0
+  for (const [col, definition] of Object.entries(expected)) {
+    if (!existingCols.has(col)) {
+      await pool.execute(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${col}\` ${definition}`)
+      added++
+    }
+  }
+  return added
+}
 
 // ---------------------------------------------------------------------------
 // Connection — delegates to adapter
@@ -169,12 +251,12 @@ async function run () {
     }
 
     // ---- Step 1: Connect ----
-    console.log('\n[1/5] Connecting to database...')
+    console.log('\n[1/6] Connecting to database...')
     dbClient = await getDbClient()
     console.log('   ✓ Connected')
 
     // ---- Step 2: Create collections/tables ----
-    console.log('\n[2/5] Creating collections/tables...')
+    console.log('\n[2/6] Creating collections/tables...')
     const existing = await dbClient.listCollections()
     const existingNames = new Set((existing || []).map(c => c.name || c))
     console.log('   Currently on server:', existingNames.size ? [...existingNames].join(', ') : '(none)')
@@ -188,8 +270,24 @@ async function run () {
       }
     }
 
-    // ---- Step 3: Create indexes on customer_mobile_identity ----
-    console.log('\n[3/5] Creating indexes on customer_mobile_identity...')
+    // ---- Step 3: MySQL column migration ----
+    if (DB_TYPE === 'mysql') {
+      console.log('\n[3/6] Migrating MySQL columns (adding any missing)...')
+      const pool = dbClient._pool
+      for (const name of ALL_COLLECTIONS) {
+        const added = await mysqlMigrateColumns(pool, name)
+        if (added > 0) {
+          console.log(`   ✓ ${name}: added ${added} missing column(s)`)
+        } else {
+          console.log(`   ✓ ${name}: all columns present`)
+        }
+      }
+    } else {
+      console.log('\n[3/6] Column migration — skipped (DocDB is schemaless)')
+    }
+
+    // ---- Step 4: Create indexes on customer_mobile_identity ----
+    console.log('\n[4/6] Creating indexes on customer_mobile_identity...')
     const identityCol = dbClient.collection(IDENTITY_COLLECTION)
     for (const idx of IDENTITY_INDEXES) {
       try {
@@ -207,8 +305,8 @@ async function run () {
       }
     }
 
-    // ---- Step 4: Seed app_config ----
-    console.log('\n[4/5] Seeding default app_config document...')
+    // ---- Step 5: Seed app_config ----
+    console.log('\n[5/6] Seeding default app_config document...')
     const configCol = dbClient.collection(APP_CONFIG_COLLECTION)
     let configDoc = null
     try {
@@ -218,14 +316,28 @@ async function run () {
     }
 
     if (configDoc) {
-      console.log('   ✓ app_config document already exists (not overwriting)')
+      console.log('   ✓ app_config document already exists')
+      // Patch: add any missing fields from the seed to the existing document
+      const patchFields = {}
+      for (const [key, value] of Object.entries(APP_CONFIG_SEED)) {
+        if (key === '_id') continue
+        if (!(key in configDoc)) {
+          patchFields[key] = value
+        }
+      }
+      if (Object.keys(patchFields).length > 0) {
+        await configCol.updateOne({ _id: 'app_config' }, { $set: { ...patchFields, updatedAt: Date.now() } })
+        console.log(`   ✓ Patched ${Object.keys(patchFields).length} missing field(s): ${Object.keys(patchFields).join(', ')}`)
+      } else {
+        console.log('   ✓ All fields present — no patch needed')
+      }
     } else {
       await configCol.insertOne(APP_CONFIG_SEED)
       console.log('   ✓ Default app_config document inserted')
     }
 
-    // ---- Step 5: Verify everything ----
-    console.log('\n[5/5] Verifying setup...')
+    // ---- Step 6: Verify everything ----
+    console.log('\n[6/6] Verifying setup...')
 
     // 6a. Verify collections exist
     const finalCollections = await dbClient.listCollections()
@@ -254,7 +366,13 @@ async function run () {
 
     // 6c. Verify app_config document
     const verifyConfig = await configCol.findOne({ _id: 'app_config' })
-    const requiredFields = ['is_enabled', 'otp_expiration_validity', 'otp_in_response', 'auto_register', 'allow_key_info_update', 'updatedAt']
+    const requiredFields = [
+      'is_enabled', 'otp_expiration_validity', 'otp_in_response', 'auto_register', 'allow_key_info_update',
+      'sms_api_host', 'sms_endpoint', 'sms_api_key', 'sms_template_enabled', 'sms_template_id', 'sms_template_string',
+      'email_smtp_host', 'email_smtp_port', 'email_smtp_user', 'email_smtp_password',
+      'email_from_address', 'email_from_name', 'email_template_enabled', 'email_template_id', 'email_template_string',
+      'updatedAt'
+    ]
     const missingFields = requiredFields.filter(f => !(f in verifyConfig))
     if (missingFields.length > 0) {
       errors.push(`app_config missing fields: ${missingFields.join(', ')}`)

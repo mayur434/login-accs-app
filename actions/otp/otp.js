@@ -6,9 +6,74 @@ const { getCollection, closeDb, getAppConfig, findOneOrNull, APP_CONFIG_DEFAULTS
 const { graphQLRequest } = require('../lib/graphql')
 const { generateOtpValue, createReferenceId, levenshtein } = require('../lib/otp')
 const { getRequestParams } = require('../lib/params')
-const { INTERNAL_CUSTOMER_PASSWORD } = require('../lib/customer')
+const { INTERNAL_CUSTOMER_PASSWORD, CUSTOMER_IDENTITY_COLLECTION, parseCustomerIdFromToken, normalizeMobile, buildLoginType, getSyntheticEmail } = require('../lib/customer')
+const { isUniqueConstraintError } = require('../lib/db')
+const { sendSmsOtp } = require('../lib/sms')
+const { sendEmailOtp } = require('../lib/email')
 
 // ── Commerce helpers ────────────────────────────────────────────────────
+
+async function upsertIdentity (dbClient, record, token, logger) {
+  try {
+    const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
+    const customerId = parseCustomerIdFromToken(token)
+    if (!customerId) return
+
+    let normalizedMobile = null
+    if (record.mobile) {
+      try { normalizedMobile = normalizeMobile(record.mobile) } catch (_) { normalizedMobile = record.mobile }
+    }
+
+    // Look up existing identity by customer_id first
+    const existing = await findOneOrNull(collection, { customer_id: customerId })
+
+    // Determine email: NEVER overwrite a real email with a pattern email
+    let email
+    if (record.email) {
+      // OTP record has an explicit email — use it
+      email = record.email
+    } else if (existing?.email && !/^\d+@email\.com$/i.test(existing.email)) {
+      // Existing identity has a real (non-pattern) email — keep it
+      email = existing.email
+    } else {
+      // No real email anywhere — use pattern email
+      email = normalizedMobile ? getSyntheticEmail(normalizedMobile) : (existing?.email || null)
+    }
+
+    const hasEmail = !!email
+    const hasMobile = !!normalizedMobile
+    const loginType = buildLoginType(hasEmail, hasMobile)
+    const now = new Date()
+
+    const doc = {
+      email,
+      mobile_number: normalizedMobile,
+      customer_id: customerId,
+      status: 'active',
+      updated_at: now
+    }
+
+    if (existing) {
+      // Update existing record — do NOT overwrite login_type
+      await collection.updateOne(
+        { customer_id: customerId },
+        { $set: doc }
+      )
+    } else {
+      // Insert new record — set login_type only on insert
+      await collection.updateOne(
+        { customer_id: customerId },
+        { $set: doc, $setOnInsert: { login_type: loginType, created_at: now } },
+        { upsert: true }
+      )
+    }
+    logger.info(`Identity upserted for customer_id=${customerId}, email=${email}`)
+  } catch (e) {
+    if (!isUniqueConstraintError(e)) {
+      logger.warn('identity upsert failed (non-critical): ' + e.message)
+    }
+  }
+}
 
 async function tryLogin (email, password, params, logger) {
   const mutation = `mutation generateCustomerToken($email: String!){ generateCustomerToken(email: $email, password: "${INTERNAL_CUSTOMER_PASSWORD}"){ token } }`
@@ -22,7 +87,7 @@ async function tryLogin (email, password, params, logger) {
 }
 
 async function createUser (email, password, mobile, params, logger) {
-  const firstname = params.firstname || params.firstName || (typeof email === 'string' ? email.split('@')[0] : 'Customer')
+  const firstname = params.firstname || params.firstName || 'Guest'
   const lastname = params.lastname || params.lastName || 'User'
   const mutation = `mutation createCustomerV2($email: String!, $firstname: String!, $lastname: String!){ createCustomerV2(input:{ firstname: $firstname, lastname: $lastname, email: $email, password: "${INTERNAL_CUSTOMER_PASSWORD}" }){ customer{ firstname lastname email } } }`
   return graphQLRequest(params, mutation, { email, firstname, lastname }, logger)
@@ -117,7 +182,13 @@ async function main (params) {
 
       let emailForLogin = inParams.email
       if (inParams.loginType === 'mobile') {
-        emailForLogin = `${inParams.mobile}@email.com`
+        // First check identity table for existing record with this mobile
+        const identityCollection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
+        let normalizedMobile = inParams.mobile
+        try { normalizedMobile = normalizeMobile(inParams.mobile) } catch (_) { /* keep raw */ }
+        const identity = await findOneOrNull(identityCollection, { mobile_number: normalizedMobile, status: 'active' })
+        emailForLogin = identity?.email || getSyntheticEmail(normalizedMobile)
+        logger.info(`Mobile login: resolved email = ${emailForLogin} (from ${identity ? 'identity table' : 'pattern'})`)
       }
 
       let token = null
@@ -165,9 +236,24 @@ async function main (params) {
         createdAt: Date.now(),
         expiresAt: Date.now() + (otpValidityMinutes * 60 * 1000),
         otpExpirationValidityMinutes: otpValidityMinutes,
+        consumed: false,
         token,
         tokenStoredAt: Date.now()
       })
+
+      // ── Dispatch OTP via SMS / Email when bypass is OFF ───────────
+      if (!otpInResponse) {
+        try {
+          if (inParams.loginType === 'mobile' && inParams.mobile) {
+            await sendSmsOtp(appConfig, inParams.mobile, otpValue, otpValidityMinutes, logger)
+          }
+          if (inParams.loginType === 'email' && emailForLogin) {
+            await sendEmailOtp(appConfig, emailForLogin, otpValue, otpValidityMinutes, logger)
+          }
+        } catch (dispatchErr) {
+          logger.warn('OTP dispatch failed (non-critical): ' + dispatchErr.message)
+        }
+      }
 
       return {
         statusCode: 200,
@@ -183,6 +269,7 @@ async function main (params) {
 
     const record = await findOneOrNull(otpCollection, { otpReferenceId: inParams.otpReferenceId })
     if (!record) return errorResponse(400, 'invalid otpReferenceId', logger)
+    if (record.consumed) return errorResponse(400, 'otp already used', logger)
 
     if (Date.now() > record.expiresAt) {
       await otpCollection.deleteOne({ otpReferenceId: inParams.otpReferenceId })
@@ -192,21 +279,41 @@ async function main (params) {
     const distance = levenshtein(String(inParams.otpValue), String(record.otp))
     if (distance > 1) return errorResponse(401, 'invalid otp', logger)
 
+    // Mark OTP as consumed immediately after successful validation
+    await otpCollection.updateOne(
+      { otpReferenceId: inParams.otpReferenceId },
+      { $set: { consumed: true, consumedAt: Date.now() } }
+    )
+
     let emailToUse = record.email
     if (inParams.loginType === 'mobile') {
       if (!record.mobile) return errorResponse(400, 'mobile not present for this reference', logger)
-      emailToUse = `${record.mobile}@email.com`
+      // Look up real email from identity table before falling back to pattern email
+      const identityCollection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
+      let normalizedMobile = record.mobile
+      try { normalizedMobile = normalizeMobile(record.mobile) } catch (_) { /* keep raw */ }
+      const identity = await findOneOrNull(identityCollection, { mobile_number: normalizedMobile, status: 'active' })
+      emailToUse = identity?.email || getSyntheticEmail(normalizedMobile)
+      logger.info(`OTP validation: resolved email = ${emailToUse} (from ${identity ? 'identity table' : 'pattern'})`)
     }
 
-    // Try login
-    try {
-      const token = await tryLogin(emailToUse, INTERNAL_CUSTOMER_PASSWORD, inParams, logger)
-      if (token) {
-        await otpCollection.updateOne({ otpReferenceId: inParams.otpReferenceId }, { $set: { token, tokenStoredAt: Date.now() } })
-        return { statusCode: 200, body: { success: true, customer_token: token, message: 'otp matched' } }
+    // Reuse the token cached during OTP generation to avoid a redundant Commerce call
+    let token = record.token || null
+    if (token) {
+      logger.info('Reusing cached customer token from OTP generation')
+    } else {
+      // Fallback: token was not stored during generation (edge case)
+      logger.info('No cached token found, generating new customer token')
+      try {
+        token = await tryLogin(emailToUse, INTERNAL_CUSTOMER_PASSWORD, inParams, logger)
+      } catch (err) {
+        logger.info('login attempt failed: ' + err.message)
       }
-    } catch (err) {
-      logger.info('login attempt failed: ' + err.message)
+    }
+
+    if (token) {
+      await upsertIdentity(dbClient, record, token, logger)
+      return { statusCode: 200, body: { success: true, customer_token: token, message: 'otp matched' } }
     }
 
     const autoRegister = !!appConfig.auto_register
@@ -220,7 +327,7 @@ async function main (params) {
       await createUser(emailToUse, INTERNAL_CUSTOMER_PASSWORD, record.mobile, inParams, logger)
       const tokenAfterCreate = await tryLogin(emailToUse, INTERNAL_CUSTOMER_PASSWORD, inParams, logger)
       if (tokenAfterCreate) {
-        await otpCollection.updateOne({ otpReferenceId: inParams.otpReferenceId }, { $set: { token: tokenAfterCreate, tokenStoredAt: Date.now() } })
+        await upsertIdentity(dbClient, record, tokenAfterCreate, logger)
         return { statusCode: 200, body: { success: true, customer_token: tokenAfterCreate, message: 'otp matched' } }
       }
       return errorResponse(500, 'unable to obtain token after user creation', logger)

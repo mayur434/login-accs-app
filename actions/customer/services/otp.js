@@ -4,6 +4,8 @@ const { getAppConfig, findOneOrNull, APP_CONFIG_DEFAULTS } = require('../../lib/
 const { generateOtpValue, createReferenceId, levenshtein } = require('../../lib/otp')
 const { hasValue } = require('../../lib/params')
 const { CUSTOMER_IDENTITY_COLLECTION } = require('../../lib/customer')
+const { sendSmsOtp } = require('../../lib/sms')
+const { sendEmailOtp } = require('../../lib/email')
 
 // Collection handle wrapper that uses findOneOrNull for safe lookups
 function safeCollection (rawCollection) {
@@ -150,6 +152,22 @@ async function handleOtp (dbClient, params, operation, logger) {
         otpExpirationValidityMinutes: otpValidityMinutes,
         consumed: false
       })
+
+      // ── Dispatch OTP via SMS / Email when bypass is OFF ───────────
+      if (!otpInResponse) {
+        try {
+          const lt = String(params.loginType).toLowerCase()
+          const mobile = params.mobile || params.mobile_number || null
+          if (lt === 'mobile' && mobile) {
+            await sendSmsOtp(appConfig, mobile, otpValue, otpValidityMinutes, logger)
+          }
+          if (lt === 'email' && params.email) {
+            await sendEmailOtp(appConfig, params.email, otpValue, otpValidityMinutes, logger)
+          }
+        } catch (dispatchErr) {
+          logger.warn('OTP dispatch failed (non-critical): ' + dispatchErr.message)
+        }
+      }
 
       return {
         response: {

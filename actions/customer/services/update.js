@@ -1,21 +1,27 @@
-const { badRequest, unauthorized, forbidden, notFound, conflict, serverError } = require('../../lib/http')
+const { badRequest, forbidden, notFound, conflict, serverError } = require('../../lib/http')
 const { findOneOrNull, isUniqueConstraintError, getAppConfig } = require('../../lib/db')
-const { graphQLRequest } = require('../../lib/graphql')
+const { commerceGraphQLRequest } = require('../../lib/graphql')
 const { hasValue } = require('../../lib/params')
 const {
   normalizeMobile,
   normalizeEmailInput,
   extractCustomerId,
-  extractCustomerToken,
   getCommerceMobileValue,
   buildLoginType,
+  getSyntheticEmail,
   CUSTOMER_IDENTITY_COLLECTION,
   INTERNAL_CUSTOMER_PASSWORD
 } = require('../../lib/customer')
 
+// ── Helpers ─────────────────────────────────────────────────────────────
+
+function isPatternEmail (email) {
+  return /^\d+@email\.com$/i.test(String(email || ''))
+}
+
 // ── Input preparation ───────────────────────────────────────────────────
 
-function getPreparedInput(params) {
+function getPreparedInput (params) {
   try {
     const mobileInput = hasValue(params.mobile_number) ? String(params.mobile_number).trim() : null
     const hasMobile = !!mobileInput
@@ -23,30 +29,20 @@ function getPreparedInput(params) {
 
     const hasEmail = hasValue(params.new_email)
     const resolvedEmail = hasEmail ? normalizeEmailInput(params.new_email) : null
-    const password = hasEmail ? INTERNAL_CUSTOMER_PASSWORD : null
 
-    const firstName = hasValue(params.firstName) ? String(params.firstName).trim()
-      : (hasValue(params.firstname) ? String(params.firstname).trim() : null)
-    const lastName = hasValue(params.lastName) ? String(params.lastName).trim()
-      : (hasValue(params.lastname) ? String(params.lastname).trim() : null)
-
-    if (!hasMobile && !hasEmail && !firstName && !lastName) {
-      return { error: badRequest("provide at least one field: 'mobile_number', 'new_email', 'firstName', 'lastName'") }
+    if (!hasMobile && !hasEmail) {
+      return { error: badRequest("provide at least one field: 'mobile_number' or 'new_email'") }
     }
 
-    if (hasEmail && !password) {
-      return { error: badRequest("missing parameter(s) 'password' for email update") }
-    }
-
-    return { prepared: { hasMobile, hasEmail, normalizedMobile, resolvedEmail, password, firstName, lastName } }
+    return { prepared: { hasMobile, hasEmail, normalizedMobile, resolvedEmail } }
   } catch (e) {
     return { error: badRequest(e.message || 'invalid input') }
   }
 }
 
-// ── Conflict checks ────────────────────────────────────────────────────
+// ── Uniqueness checks ───────────────────────────────────────────────────
 
-async function checkConflicts(collection, customerId, prepared) {
+async function checkUniqueness (collection, customerId, prepared, currentEmail) {
   if (prepared.hasMobile) {
     const existing = await findOneOrNull(collection, { mobile_number: prepared.normalizedMobile })
     if (existing && Number(existing.customer_id) !== customerId) {
@@ -59,27 +55,47 @@ async function checkConflicts(collection, customerId, prepared) {
       return conflict('email already exists')
     }
   }
+  if (prepared.hasMobile && !prepared.hasEmail && isPatternEmail(currentEmail)) {
+    const newPatternEmail = getSyntheticEmail(prepared.normalizedMobile)
+    const existing = await findOneOrNull(collection, { email: newPatternEmail })
+    if (existing && Number(existing.customer_id) !== customerId) {
+      return conflict('email already exists (pattern email conflict for new mobile)')
+    }
+  }
   return null
 }
 
-// ── Commerce update ─────────────────────────────────────────────────────
+// ── Commerce mutations ──────────────────────────────────────────────────
 
-function isUnauthorizedCommerceError(error) {
-  const msg = String(error?.message || '').toLowerCase()
-  return msg.includes("current customer isn't authorized") || msg.includes('not authorized')
-}
+async function updateCommerceProfile (params, customerToken, prepared, currentEmail, logger) {
+  const currentIsPattern = isPatternEmail(currentEmail)
+  let profileResult = null
+  let emailResult = null
 
-async function updateCommerceProfile(params, prepared, logger) {
-  const customerToken = extractCustomerToken(params)
-  logger.info('customerToken resolved:', customerToken ? `${customerToken.substring(0, 10)}...` : 'NULL/UNDEFINED')
-  if (!customerToken) {
-    throw new Error('customer token is required for Commerce profile update')
+  // 1. Mobile update FIRST — does NOT invalidate token
+  if (prepared.hasMobile) {
+    const input = {
+      custom_attributes: [{ attribute_code: 'mobile_number', value: getCommerceMobileValue(prepared.normalizedMobile) }]
+    }
+    const mutation = `
+      mutation updateCustomerV2($input: CustomerUpdateInput!) {
+        updateCustomerV2(input: $input) {
+          customer { id email custom_attributes { code ...on AttributeValue { value } } }
+        }
+      }
+    `
+    profileResult = await commerceGraphQLRequest(params, mutation, { input }, logger, customerToken)
   }
 
-  let emailResult = null
-  let profileResult = null
-
+  // 2. Email change LAST — INVALIDATES the customer token
+  let newCommerceEmail = null
   if (prepared.hasEmail) {
+    newCommerceEmail = prepared.resolvedEmail
+  } else if (prepared.hasMobile && currentIsPattern) {
+    newCommerceEmail = getSyntheticEmail(prepared.normalizedMobile)
+  }
+
+  if (newCommerceEmail && newCommerceEmail !== currentEmail) {
     const mutation = `
       mutation UpdateCustomerEmail($email: String!, $password: String!) {
         updateCustomerEmail(email: $email, password: $password) {
@@ -87,127 +103,95 @@ async function updateCommerceProfile(params, prepared, logger) {
         }
       }
     `
-    emailResult = await graphQLRequest(params, mutation, { email: prepared.resolvedEmail, password: prepared.password }, logger, customerToken)
-  }
-
-  const hasProfileUpdate = prepared.hasMobile || !!prepared.firstName || !!prepared.lastName
-  if (hasProfileUpdate) {
-    const input = {}
-    if (prepared.firstName) input.firstname = prepared.firstName
-    if (prepared.lastName) input.lastname = prepared.lastName
-    if (prepared.hasMobile) {
-      input.custom_attributes = [{ attribute_code: 'mobile_number', value: getCommerceMobileValue(prepared.normalizedMobile) }]
-    }
-
-    const mutation = `
-      mutation updateCustomerV2($input: CustomerUpdateInput!) {
-        updateCustomerV2(input: $input) {
-          customer {
-            id firstname lastname email
-            custom_attributes { code ...on AttributeValue { value } }
-          }
-        }
-      }
-    `
-    profileResult = await graphQLRequest(params, mutation, { input }, logger, customerToken)
+    emailResult = await commerceGraphQLRequest(
+      params, mutation,
+      { email: newCommerceEmail, password: INTERNAL_CUSTOMER_PASSWORD },
+      logger, customerToken
+    )
   }
 
   return {
-    updateCustomerEmail: emailResult?.data?.updateCustomerEmail || null,
-    updateCustomerV2: profileResult?.data?.updateCustomerV2 || null
+    newCommerceEmail,
+    emailResult: emailResult?.data?.updateCustomerEmail || null,
+    profileResult: profileResult?.data?.updateCustomerV2 || null
   }
 }
 
 // ── Exported handler ────────────────────────────────────────────────────
 
-module.exports = async function update(dbClient, params, logger) {
+module.exports = async function update (dbClient, params, logger) {
   try {
+    // 1. Get customer_id
     const customerId = extractCustomerId(params)
-    if (!customerId) return badRequest('authenticated customer_id not found in request context')
+    if (!customerId) return badRequest('customer_id is required (pass in body or via customer_token)')
 
+    // 2. customer_token is required for Commerce mutations
+    const customerToken = params.customer_token || params.customerToken || params.token
+    if (!customerToken) return badRequest('customer_token is required')
+
+    // 3. Parse input — only email and mobile
     const { error, prepared } = getPreparedInput(params)
     if (error) return error
 
-    const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
-
+    // 4. Check admin config
     const appConfig = await getAppConfig(dbClient)
     if (!appConfig.allow_key_info_update) return forbidden('key info updates are disabled')
 
-    const conflictError = await checkConflicts(collection, customerId, prepared)
+    // 5. Look up existing identity record
+    const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
+    const customerRecord = await findOneOrNull(collection, { customer_id: customerId })
+    if (!customerRecord) return notFound('customer identity not found')
+
+    const currentEmail = customerRecord.email || null
+
+    // 6. Check uniqueness in identity table
+    const conflictError = await checkUniqueness(collection, customerId, prepared, currentEmail)
     if (conflictError) return conflictError
 
-    const customerRecord = await findOneOrNull(collection, { customer_id: customerId })
-    if (!customerRecord) return notFound('customer record not found')
-
-    const previousState = {
-      email: customerRecord.email || null,
-      mobile_number: customerRecord.mobile_number || null,
-      firstname: customerRecord.firstname || null,
-      lastname: customerRecord.lastname || null,
-      login_type: customerRecord.login_type || null
+    // 7. Update Commerce — mobile FIRST, email LAST (email change revokes token)
+    let commerceResult
+    try {
+      commerceResult = await updateCommerceProfile(params, customerToken, prepared, currentEmail, logger)
+    } catch (commerceError) {
+      logger.error(commerceError)
+      return serverError(commerceError.message || 'failed to update in Commerce')
     }
 
-    // Update identity document
-    const nextEmail = prepared.hasEmail ? prepared.resolvedEmail : customerRecord.email || null
-    const nextMobile = prepared.hasMobile ? prepared.normalizedMobile : customerRecord.mobile_number || null
+    // 8. Commerce succeeded → update App Builder DB (DocDB / MySQL)
+    const dbUpdate = {}
+    if (prepared.hasMobile) dbUpdate.mobile_number = prepared.normalizedMobile
+    if (prepared.hasEmail) {
+      dbUpdate.email = prepared.resolvedEmail
+    } else if (prepared.hasMobile && isPatternEmail(currentEmail)) {
+      dbUpdate.email = getSyntheticEmail(prepared.normalizedMobile)
+    }
+
+    const nextEmail = dbUpdate.email || currentEmail
+    const nextMobile = prepared.hasMobile ? prepared.normalizedMobile : (customerRecord.mobile_number || null)
+    dbUpdate.updated_at = new Date()
 
     try {
       await collection.updateOne(
         { customer_id: customerId },
-        {
-          $set: {
-            ...(prepared.hasEmail ? { email: prepared.resolvedEmail } : {}),
-            ...(prepared.hasMobile ? { mobile_number: prepared.normalizedMobile } : {}),
-            ...(prepared.firstName ? { firstname: prepared.firstName } : {}),
-            ...(prepared.lastName ? { lastname: prepared.lastName } : {}),
-            login_type: buildLoginType(nextEmail, nextMobile),
-            updated_at: new Date()
-          }
-        }
+        { $set: dbUpdate }
       )
     } catch (updateError) {
       if (isUniqueConstraintError(updateError)) return conflict('email or mobile number already exists')
       throw updateError
     }
 
-    // Sync to Commerce — rollback DB on failure
-    try {
-      const commerce = await updateCommerceProfile(params, prepared, logger)
-      const updatedFirstname = commerce.updateCustomerV2?.customer?.firstname || prepared.firstName || customerRecord.firstname || null
-      const updatedLastname = commerce.updateCustomerV2?.customer?.lastname || prepared.lastName || customerRecord.lastname || null
-
-      return {
-        statusCode: 200,
-        body: {
-          success: true,
-          customer: {
-            customer_id: customerId,
-            mobile_number: nextMobile,
-            email: nextEmail,
-            firstname: updatedFirstname,
-            lastname: updatedLastname
-          }
+    return {
+      statusCode: 200,
+      body: {
+        success: true,
+        customer: {
+          customer_id: customerId,
+          mobile_number: nextMobile,
+          email: nextEmail,
+          login_type: customerRecord.login_type || null,
+          status: customerRecord.status || 'active'
         }
       }
-    } catch (commerceError) {
-      await collection.updateOne(
-        { customer_id: customerId },
-        {
-          $set: {
-            email: previousState.email,
-            mobile_number: previousState.mobile_number,
-            firstname: previousState.firstname,
-            lastname: previousState.lastname,
-            login_type: previousState.login_type,
-            updated_at: new Date()
-          }
-        }
-      )
-      if (isUnauthorizedCommerceError(commerceError)) {
-        return unauthorized('customer token is required/invalid for key info update')
-      }
-      logger.error(commerceError)
-      return serverError(commerceError.message || 'failed to update key info in commerce')
     }
   } catch (error) {
     logger.error(error)

@@ -79,8 +79,8 @@ async function graphQLRequest (params, query, variables = {}, logger, authToken)
  * @param {string}  [authToken] Optional bearer token for customer-scoped requests.
  */
 async function commerceGraphQLRequest (params, query, variables = {}, logger, authToken) {
-  const endpoint = params.COMMERCE_GRAPHQL_ENDPOINT || process.env.COMMERCE_GRAPHQL_ENDPOINT
-  if (!endpoint) throw new Error('COMMERCE_GRAPHQL_ENDPOINT not configured in params or env')
+  const endpoint = params.GRAPHQL_ENDPOINT || process.env.GRAPHQL_ENDPOINT
+  if (!endpoint) throw new Error('GRAPHQL_ENDPOINT not configured in params or env')
   if (endpoint.includes('admin.commerce.adobe.com')) {
     throw new Error(
       'Invalid COMMERCE_GRAPHQL_ENDPOINT: admin.commerce.adobe.com is not a storefront GraphQL endpoint. ' +
