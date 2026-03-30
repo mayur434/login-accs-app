@@ -46,7 +46,7 @@ exports.main = async (params) => {
     try {
       requestParams.__ow_headers = params.__ow_headers || requestParams.__ow_headers || {}
       const headers = requestParams.__ow_headers || {}
-      aioDbToken = await getAioDbToken(headers)
+      aioDbToken = await getAioDbToken(requestParams)
     } catch (e) {
       logger.warn(`Unable to generate IMS token for DB: ${e.message}`)
     }

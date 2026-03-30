@@ -138,7 +138,7 @@ async function main (params) {
     inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers || {}
 
     const headers = inParams.__ow_headers || {}
-    const aioDbToken = await getAioDbToken(headers)
+    const aioDbToken = await getAioDbToken(inParams)
 
     const dbResult = await getCollection(
       { ...inParams, AIO_DB_TOKEN: aioDbToken },

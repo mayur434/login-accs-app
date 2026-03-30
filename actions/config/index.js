@@ -115,7 +115,7 @@ async function main (params) {
     const inParams = getRequestParams(params)
     inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers || {}
     const headers = inParams.__ow_headers || {}
-    const aioDbToken = await getAioDbToken(headers)
+    const aioDbToken = await getAioDbToken(inParams)
 
     const method = ((params.__ow_method || headers['x-http-method-override'] || 'GET') + '').toUpperCase()
     const { dbClient: connectedClient, collection } = await getCollection(

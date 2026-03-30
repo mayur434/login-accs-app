@@ -7,8 +7,8 @@ const fetch = require('node-fetch')
 /**
  * Internal helper – executes a GraphQL request against the given endpoint.
  */
-async function _doRequest (endpoint, query, variables, logger, authToken) {
-  const headers = { 'Content-Type': 'application/json' }
+async function _doRequest (endpoint, query, variables, logger, authToken, extraHeaders = {}) {
+  const headers = { 'Content-Type': 'application/json', ...extraHeaders }
   if (authToken) {
     headers.authorization = `Bearer ${authToken}`
   }
@@ -87,7 +87,19 @@ async function commerceGraphQLRequest (params, query, variables = {}, logger, au
       'Use your Commerce GraphQL gateway/storefront endpoint (for example, na1-sandbox.api.commerce.adobe.com/<tenant>/graphql).'
     )
   }
-  return _doRequest(endpoint, query, variables, logger, authToken)
+
+  // Forward Magento Commerce SaaS headers when configured
+  const magentoHeaders = {}
+  const envId = params.MAGENTO_ENVIRONMENT_ID || process.env.MAGENTO_ENVIRONMENT_ID
+  const storeCode = params.MAGENTO_STORE_CODE || process.env.MAGENTO_STORE_CODE
+  const storeViewCode = params.MAGENTO_STORE_VIEW_CODE || process.env.MAGENTO_STORE_VIEW_CODE
+  const websiteCode = params.MAGENTO_WEBSITE_CODE || process.env.MAGENTO_WEBSITE_CODE
+  if (envId) magentoHeaders['Magento-Environment-Id'] = envId
+  if (storeCode) magentoHeaders['Magento-Store-Code'] = storeCode
+  if (storeViewCode) magentoHeaders['Magento-Store-View-Code'] = storeViewCode
+  if (websiteCode) magentoHeaders['Magento-Website-Code'] = websiteCode
+
+  return _doRequest(endpoint, query, variables, logger, authToken, magentoHeaders)
 }
 
 module.exports = { graphQLRequest, commerceGraphQLRequest }
