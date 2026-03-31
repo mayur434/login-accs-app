@@ -220,7 +220,7 @@ async function getDbClient () {
 
   let scopes
   try { scopes = JSON.parse(rawScopes) } catch { scopes = rawScopes.split(',') }
-  scopes = scopes.map(s => s.trim()).filter(s => s.startsWith('adobeio.abdata.') || s === 'adobeio_api')
+  scopes = scopes.map(s => s.trim()).filter(Boolean)
 
   const tokenResponse = await generateAccessToken({ clientId, clientSecret, orgId, scopes })
   if (!tokenResponse || !tokenResponse.access_token) {
@@ -228,7 +228,9 @@ async function getDbClient () {
   }
 
   const adapter = require('../actions/lib/db-adapters/docdb-adapter')
-  const { dbClient } = await adapter.connect({ AIO_DB_TOKEN: tokenResponse.access_token })
+  const namespace = process.env.AIO_runtime_namespace || process.env.AIO_RUNTIME_NAMESPACE
+  const region = process.env.AIO_DB_REGION || 'apac'
+  const { dbClient } = await adapter.connect({ AIO_DB_TOKEN: tokenResponse.access_token, AIO_runtime_namespace: namespace, AIO_DB_REGION: region })
   return dbClient
 }
 

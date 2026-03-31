@@ -31,7 +31,7 @@ async function connect (params) {
   }
   if (!token) throw new Error('database token missing (IMS credentials not available)')
 
-  const db = await libDB.init({ region, token, namespace })
+  const db = await libDB.init({ region, token, ow: { namespace } })
   const rawClient = await db.connect()
 
   // Wrap so that the public surface is uniform
