@@ -43,6 +43,7 @@ module.exports = async function login(dbClient, params, logger) {
 
     const customerToken = await generateCustomerToken(params, resolved.email, params.password, logger)
     const customer = await fetchCustomerProfile(params, customerToken, logger)
+    let customerResponse = customer
 
     // Upsert identity on every successful login
     try {
@@ -56,6 +57,9 @@ module.exports = async function login(dbClient, params, logger) {
 
       // Look up existing identity to protect real emails
       const existing = customerId ? await findOneOrNull(collection, { customer_id: customerId }) : null
+
+      const firstName = customer?.firstname || existing?.firstname || null
+      const lastName = customer?.lastname || existing?.lastname || null
 
       // Never overwrite a real email with a pattern email
       let emailToStore = resolved.email
@@ -73,8 +77,16 @@ module.exports = async function login(dbClient, params, logger) {
         email: emailToStore,
         mobile_number: normalizedMobile,
         customer_id: customerId,
+        firstname: firstName,
+        lastname: lastName,
         status: 'active',
         updated_at: now
+      }
+
+      customerResponse = {
+        ...(customer || {}),
+        firstname: firstName,
+        lastname: lastName
       }
 
       if (customerId) {
@@ -96,7 +108,7 @@ module.exports = async function login(dbClient, params, logger) {
       body: {
         success: true,
         customerToken,
-        customer
+        customer: customerResponse
       }
     }
   } catch (error) {

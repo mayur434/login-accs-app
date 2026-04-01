@@ -82,6 +82,22 @@ function validateUpdatePayload (params) {
   return { updateFields }
 }
 
+function sanitizeConfigForResponse (config) {
+  if (!config) return config
+
+  const out = { ...config }
+
+  out.sms_api_key_configured = !!out.sms_api_key
+  out.sms_ics_password_configured = !!out.sms_ics_password
+  out.email_smtp_password_configured = !!out.email_smtp_password
+
+  out.sms_api_key = ''
+  out.sms_ics_password = ''
+  out.email_smtp_password = ''
+
+  return out
+}
+
 // ── Migrate legacy docs that may be missing newer boolean fields ────────
 
 async function getDocDbConfig (collection) {
@@ -135,7 +151,7 @@ async function main (params) {
     dbClient = connectedClient
 
     if (method === 'GET') {
-      return success(await getDocDbConfig(collection))
+      return success(sanitizeConfigForResponse(await getDocDbConfig(collection)))
     }
 
     if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
@@ -149,7 +165,7 @@ async function main (params) {
       )
 
       const updatedConfig = await findOneOrNull(collection, { _id: APP_CONFIG_ID })
-      return success(normalizeAppConfig(updatedConfig))
+      return success(sanitizeConfigForResponse(normalizeAppConfig(updatedConfig)))
     }
 
     if (method === 'DELETE') {

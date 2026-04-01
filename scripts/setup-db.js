@@ -46,6 +46,15 @@ const DB_TYPE = (process.env.DB_TYPE || 'docdb').toLowerCase().trim()
  *   sms_api_host               string    SMS gateway base URL
  *   sms_endpoint               string    SMS gateway endpoint path
  *   sms_api_key                string    SMS gateway API key
+ *   sms_sender_id              string    SMS sender ID
+ *   sms_type                   string    SMS type (e.g. OTP)
+ *   sms_fallback_enabled       boolean   enable ICS fallback when Kaleyra fails
+ *   sms_ics_api_host           string    ICS host
+ *   sms_ics_endpoint           string    ICS endpoint
+ *   sms_ics_username           string    ICS username
+ *   sms_ics_password           string    ICS password
+ *   sms_ics_sender             string    ICS sender ID
+ *   sms_ics_urlshortening      string    ICS urlshortening flag
  *   sms_template_enabled       boolean   enable SMS template dispatch
  *   sms_template_id            string    SMS provider template ID
  *   sms_template_string        string    SMS template with {{OTP}} / {{VALIDITY}} placeholders
@@ -55,6 +64,7 @@ const DB_TYPE = (process.env.DB_TYPE || 'docdb').toLowerCase().trim()
  *   email_smtp_password        string    SMTP auth password
  *   email_from_address         string    sender email address
  *   email_from_name            string    sender display name
+ *   email_subject              string    email subject line
  *   email_template_enabled     boolean   enable email template dispatch
  *   email_template_id          string    email provider template ID
  *   email_template_string      string    email template with {{OTP}} / {{VALIDITY}} placeholders
@@ -72,6 +82,15 @@ const APP_CONFIG_SEED = {
   sms_api_host: '',
   sms_endpoint: '',
   sms_api_key: '',
+  sms_sender_id: '',
+  sms_type: 'OTP',
+  sms_fallback_enabled: false,
+  sms_ics_api_host: 'https://sms.sendmsg.in',
+  sms_ics_endpoint: '/smpp',
+  sms_ics_username: '',
+  sms_ics_password: '',
+  sms_ics_sender: '',
+  sms_ics_urlshortening: '1',
   sms_template_enabled: false,
   sms_template_id: '',
   sms_template_string: 'Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes.',
@@ -82,6 +101,7 @@ const APP_CONFIG_SEED = {
   email_smtp_password: '',
   email_from_address: '',
   email_from_name: '',
+  email_subject: 'Your OTP for Vijay Sales',
   email_template_enabled: false,
   email_template_id: '',
   email_template_string: 'Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes.',
@@ -150,6 +170,15 @@ const MYSQL_EXPECTED_COLUMNS = {
     sms_api_host: "VARCHAR(500) DEFAULT ''",
     sms_endpoint: "VARCHAR(500) DEFAULT ''",
     sms_api_key: "VARCHAR(500) DEFAULT ''",
+    sms_sender_id: "VARCHAR(100) DEFAULT ''",
+    sms_type: "VARCHAR(50) DEFAULT 'OTP'",
+    sms_fallback_enabled: 'TINYINT(1) DEFAULT 0',
+    sms_ics_api_host: "VARCHAR(500) DEFAULT 'https://sms.sendmsg.in'",
+    sms_ics_endpoint: "VARCHAR(500) DEFAULT '/smpp'",
+    sms_ics_username: "VARCHAR(255) DEFAULT ''",
+    sms_ics_password: "VARCHAR(500) DEFAULT ''",
+    sms_ics_sender: "VARCHAR(100) DEFAULT ''",
+    sms_ics_urlshortening: "VARCHAR(10) DEFAULT '1'",
     sms_template_enabled: 'TINYINT(1) DEFAULT 0',
     sms_template_id: "VARCHAR(255) DEFAULT ''",
     sms_template_string: 'TEXT',
@@ -159,6 +188,7 @@ const MYSQL_EXPECTED_COLUMNS = {
     email_smtp_password: "VARCHAR(500) DEFAULT ''",
     email_from_address: "VARCHAR(255) DEFAULT ''",
     email_from_name: "VARCHAR(255) DEFAULT ''",
+    email_subject: "VARCHAR(255) DEFAULT 'Your OTP for Vijay Sales'",
     email_template_enabled: 'TINYINT(1) DEFAULT 0',
     email_template_id: "VARCHAR(255) DEFAULT ''",
     email_template_string: 'TEXT'

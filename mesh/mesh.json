@@ -18,6 +18,27 @@
           }
         }
       }
-    ]
+    ],
+    "responseConfig": {
+      "headers": {
+        "Cache-Control": "max-age=120",
+        "Vary": "Accept"
+      },
+      "cache": true,
+      "CORS": {
+        "maxAge": 60480,
+        "methods": [
+          "GET",
+          "POST",
+          "PUT",
+          "HEAD",
+          "OPTIONS"
+        ],
+        "origin": [
+          "http://localhost:3000",
+          "https://feature-otplogin--storefront-otp-project-private--moin-mohd17.aem.page"
+        ]
+      }
+    }
   }
 }

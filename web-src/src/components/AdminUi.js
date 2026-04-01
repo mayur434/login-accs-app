@@ -38,7 +38,11 @@ const mapLoad = (r) => ({
   autoLogin: Boolean(r.auto_login),
   allowKeyInfoUpdate: Boolean(r.allow_key_info_update),
   otpValidity: Number.isInteger(r.otp_expiration_validity) ? r.otp_expiration_validity : 5,
-  otpBypass: typeof r.otp_in_response === 'boolean' ? r.otp_in_response : true
+  // OTP value should be hidden by default unless explicitly enabled for dev.
+  otpBypass: typeof r.otp_in_response === 'boolean' ? r.otp_in_response : false,
+  smsTemplateEnabled: Boolean(r.sms_template_enabled),
+  smsFallbackEnabled: Boolean(r.sms_fallback_enabled),
+  emailTemplateEnabled: Boolean(r.email_template_enabled)
 })
 
 const mapSave = (s) => ({
@@ -46,7 +50,10 @@ const mapSave = (s) => ({
   auto_login: s.autoLogin,
   allow_key_info_update: s.allowKeyInfoUpdate,
   otp_expiration_validity: s.otpValidity,
-  otp_in_response: s.otpBypass
+  otp_in_response: s.otpBypass,
+  sms_template_enabled: s.smsTemplateEnabled,
+  sms_fallback_enabled: s.smsFallbackEnabled,
+  email_template_enabled: s.emailTemplateEnabled
 })
 
 /* ── Component ────────────────────────────────────────────── */
@@ -63,6 +70,9 @@ const AdminUi = (props) => {
   const [otpBypass, setOtpBypass] = useState(false)
   const [otpValidity, setOtpValidity] = useState(5)
   const [allowKeyInfoUpdate, setAllowKeyInfoUpdate] = useState(false)
+  const [smsTemplateEnabled, setSmsTemplateEnabled] = useState(false)
+  const [smsFallbackEnabled, setSmsFallbackEnabled] = useState(false)
+  const [emailTemplateEnabled, setEmailTemplateEnabled] = useState(false)
 
   const formDisabled = isLoading || isSaving
 
@@ -72,7 +82,10 @@ const AdminUi = (props) => {
     const s = savedRef.current
     return isEnabled !== s.isEnabled || autoLogin !== s.autoLogin ||
       otpBypass !== s.otpBypass || otpValidity !== s.otpValidity ||
-      allowKeyInfoUpdate !== s.allowKeyInfoUpdate
+      allowKeyInfoUpdate !== s.allowKeyInfoUpdate ||
+      smsTemplateEnabled !== s.smsTemplateEnabled ||
+      smsFallbackEnabled !== s.smsFallbackEnabled ||
+      emailTemplateEnabled !== s.emailTemplateEnabled
   })()
 
   // ── Load on mount ──
@@ -88,12 +101,33 @@ const AdminUi = (props) => {
     setOtpBypass(l.otpBypass)
     setOtpValidity(l.otpValidity)
     setAllowKeyInfoUpdate(l.allowKeyInfoUpdate)
+    setSmsTemplateEnabled(l.smsTemplateEnabled)
+    setSmsFallbackEnabled(l.smsFallbackEnabled)
+    setEmailTemplateEnabled(l.emailTemplateEnabled)
   }
 
   async function handleSave () {
-    const ok = await saveConfig({ isEnabled, autoLogin, otpBypass, otpValidity, allowKeyInfoUpdate })
+    const ok = await saveConfig({
+      isEnabled,
+      autoLogin,
+      otpBypass,
+      otpValidity,
+      allowKeyInfoUpdate,
+      smsTemplateEnabled,
+      smsFallbackEnabled,
+      emailTemplateEnabled
+    })
     if (ok) {
-      savedRef.current = { isEnabled, autoLogin, otpBypass, otpValidity, allowKeyInfoUpdate }
+      savedRef.current = {
+        isEnabled,
+        autoLogin,
+        otpBypass,
+        otpValidity,
+        allowKeyInfoUpdate,
+        smsTemplateEnabled,
+        smsFallbackEnabled,
+        emailTemplateEnabled
+      }
     }
   }
 
@@ -187,6 +221,29 @@ const AdminUi = (props) => {
             Allow Key Info Update
           </Switch>
           <InfoTip label='Allows customers to update identity fields such as mobile-to-email mappings.' />
+        </Flex>
+      </Section>
+
+      <Section title='Communication Flags' description='Quick toggles for SMS and email delivery behavior.'>
+        <Flex direction='column' gap='size-150'>
+          <Flex alignItems='center' gap='size-100'>
+            <Switch isSelected={smsTemplateEnabled} isDisabled={formDisabled || !isEnabled} onChange={onToggle(setSmsTemplateEnabled)}>
+              Enable SMS Template
+            </Switch>
+            <InfoTip label='Controls whether OTP SMS messages are sent at all.' />
+          </Flex>
+          <Flex alignItems='center' gap='size-100'>
+            <Switch isSelected={smsFallbackEnabled} isDisabled={formDisabled || !isEnabled} onChange={onToggle(setSmsFallbackEnabled)}>
+              Enable SMS Fallback
+            </Switch>
+            <InfoTip label='Uses the ICS provider when the primary SMS provider fails.' />
+          </Flex>
+          <Flex alignItems='center' gap='size-100'>
+            <Switch isSelected={emailTemplateEnabled} isDisabled={formDisabled || !isEnabled} onChange={onToggle(setEmailTemplateEnabled)}>
+              Enable Email Template
+            </Switch>
+            <InfoTip label='Controls whether OTP emails are sent when email delivery is used.' />
+          </Flex>
         </Flex>
       </Section>
 

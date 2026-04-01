@@ -33,24 +33,32 @@ const mapLoad = (r) => ({
   emailSmtpPort: Number.isInteger(r.email_smtp_port) ? r.email_smtp_port : 587,
   emailSmtpUser: r.email_smtp_user || '',
   emailSmtpPassword: r.email_smtp_password || '',
+  emailSmtpPasswordConfigured: Boolean(r.email_smtp_password_configured),
   emailFromAddress: r.email_from_address || '',
   emailFromName: r.email_from_name || '',
+  emailSubject: r.email_subject || 'Your OTP for Vijay Sales',
   emailTemplateEnabled: Boolean(r.email_template_enabled),
   emailTemplateId: r.email_template_id || '',
   emailTemplateString: r.email_template_string || 'Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes.'
 })
 
-const mapSave = (s) => ({
-  email_smtp_host: s.emailSmtpHost,
-  email_smtp_port: s.emailSmtpPort,
-  email_smtp_user: s.emailSmtpUser,
-  email_smtp_password: s.emailSmtpPassword,
-  email_from_address: s.emailFromAddress,
-  email_from_name: s.emailFromName,
-  email_template_enabled: s.emailTemplateEnabled,
-  email_template_id: s.emailTemplateId,
-  email_template_string: s.emailTemplateString
-})
+const mapSave = (s) => {
+  const payload = {
+    email_smtp_host: s.emailSmtpHost,
+    email_smtp_port: s.emailSmtpPort,
+    email_smtp_user: s.emailSmtpUser,
+    email_from_address: s.emailFromAddress,
+    email_from_name: s.emailFromName,
+    email_subject: s.emailSubject,
+    email_template_enabled: s.emailTemplateEnabled,
+    email_template_id: s.emailTemplateId,
+    email_template_string: s.emailTemplateString
+  }
+  if (s.emailSmtpPassword && s.emailSmtpPassword.trim() !== '') {
+    payload.email_smtp_password = s.emailSmtpPassword
+  }
+  return payload
+}
 
 export default function EmailConfigUi ({ ims }) {
   const {
@@ -62,8 +70,10 @@ export default function EmailConfigUi ({ ims }) {
   const [emailSmtpPort, setEmailSmtpPort] = useState(587)
   const [emailSmtpUser, setEmailSmtpUser] = useState('')
   const [emailSmtpPassword, setEmailSmtpPassword] = useState('')
+  const [emailSmtpPasswordConfigured, setEmailSmtpPasswordConfigured] = useState(false)
   const [emailFromAddress, setEmailFromAddress] = useState('')
   const [emailFromName, setEmailFromName] = useState('')
+  const [emailSubject, setEmailSubject] = useState('Your OTP for Vijay Sales')
   const [emailTemplateEnabled, setEmailTemplateEnabled] = useState(false)
   const [emailTemplateId, setEmailTemplateId] = useState('')
   const [emailTemplateString, setEmailTemplateString] = useState('Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes.')
@@ -74,7 +84,7 @@ export default function EmailConfigUi ({ ims }) {
 
   // Primary settings complete when SMTP + sender identity are filled
   const smtpComplete = emailSmtpHost.trim() !== '' && emailSmtpUser.trim() !== '' &&
-    emailSmtpPassword.trim() !== '' && emailFromAddress.trim() !== ''
+    (emailSmtpPassword.trim() !== '' || emailSmtpPasswordConfigured) && emailFromAddress.trim() !== ''
   // Template fields valid when disabled, or when both ID and string are filled
   const templateValid = !emailTemplateEnabled || (emailTemplateId.trim() !== '' && emailTemplateString.trim() !== '')
 
@@ -84,6 +94,7 @@ export default function EmailConfigUi ({ ims }) {
     return emailSmtpHost !== s.emailSmtpHost || emailSmtpPort !== s.emailSmtpPort ||
       emailSmtpUser !== s.emailSmtpUser || emailSmtpPassword !== s.emailSmtpPassword ||
       emailFromAddress !== s.emailFromAddress || emailFromName !== s.emailFromName ||
+      emailSubject !== s.emailSubject ||
       emailTemplateEnabled !== s.emailTemplateEnabled || emailTemplateId !== s.emailTemplateId ||
       emailTemplateString !== s.emailTemplateString
   })()
@@ -99,8 +110,10 @@ export default function EmailConfigUi ({ ims }) {
     setEmailSmtpPort(l.emailSmtpPort)
     setEmailSmtpUser(l.emailSmtpUser)
     setEmailSmtpPassword(l.emailSmtpPassword)
+    setEmailSmtpPasswordConfigured(l.emailSmtpPasswordConfigured)
     setEmailFromAddress(l.emailFromAddress)
     setEmailFromName(l.emailFromName)
+    setEmailSubject(l.emailSubject)
     setEmailTemplateEnabled(l.emailTemplateEnabled)
     setEmailTemplateId(l.emailTemplateId)
     setEmailTemplateString(l.emailTemplateString)
@@ -118,13 +131,16 @@ export default function EmailConfigUi ({ ims }) {
     }
     const ok = await saveConfig({
       emailSmtpHost, emailSmtpPort, emailSmtpUser, emailSmtpPassword,
-      emailFromAddress, emailFromName, emailTemplateEnabled, emailTemplateId, emailTemplateString
+      emailFromAddress, emailFromName, emailSubject,
+      emailTemplateEnabled, emailTemplateId, emailTemplateString
     })
     if (ok) {
       savedRef.current = {
         emailSmtpHost, emailSmtpPort, emailSmtpUser, emailSmtpPassword,
-        emailFromAddress, emailFromName, emailTemplateEnabled, emailTemplateId, emailTemplateString
+        emailFromAddress, emailFromName, emailSubject,
+        emailTemplateEnabled, emailTemplateId, emailTemplateString
       }
+      if (emailSmtpPassword.trim() !== '') setEmailSmtpPasswordConfigured(true)
     }
   }
 
@@ -192,8 +208,8 @@ export default function EmailConfigUi ({ ims }) {
           <Flex alignItems='end' gap='size-100'>
             <TextField label='SMTP Password' value={emailSmtpPassword} onChange={setEmailSmtpPassword}
               width='size-4600' isDisabled={formDisabled} type='password' isRequired
-              validationState={emailTemplateEnabled && !emailSmtpPassword.trim() ? 'invalid' : undefined}
-              placeholder='••••••••' />
+              validationState={emailTemplateEnabled && !(emailSmtpPassword.trim() || emailSmtpPasswordConfigured) ? 'invalid' : undefined}
+              placeholder={emailSmtpPasswordConfigured ? 'Stored (enter to rotate)' : '••••••••'} />
             <InfoTip label='SMTP authentication password or app-specific password.' />
           </Flex>
         </Flex>
@@ -214,6 +230,12 @@ export default function EmailConfigUi ({ ims }) {
               width='size-4600' isDisabled={formDisabled}
               placeholder='My Store' />
             <InfoTip label='Display name shown alongside the from address.' />
+          </Flex>
+          <Flex alignItems='end' gap='size-100'>
+            <TextField label='Email Subject' value={emailSubject} onChange={setEmailSubject}
+              width='size-4600' isDisabled={formDisabled}
+              placeholder='Your OTP for Vijay Sales' />
+            <InfoTip label='Subject line used for OTP emails.' />
           </Flex>
         </Flex>
       </Section>

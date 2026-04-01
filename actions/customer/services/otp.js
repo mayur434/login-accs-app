@@ -164,7 +164,7 @@ async function handleOtp (dbClient, params, operation, logger) {
           // Fail closed: delete OTP so it cannot be used if delivery failed.
           await otpCollection.deleteOne({ otpReferenceId: ref })
           logger.warn('OTP dispatch failed: ' + dispatchErr.message)
-          return { response: serverError('failed to deliver otp notification') }
+          return { response: { statusCode: 502, body: { error: 'failed to deliver otp notification' } } }
         }
       }
 

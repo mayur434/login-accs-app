@@ -16,6 +16,26 @@ function normalizeMobileNumber (mobile) {
   return String(mobile || '').replace(/\D/g, '')
 }
 
+function summarizeProviderResponse (text) {
+  const raw = String(text || '').trim()
+  if (!raw) return 'empty response body'
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object') {
+      const summary = {
+        id: parsed.id || parsed.messageId || parsed.message_id || null,
+        status: parsed.status || parsed.response || parsed.code || null
+      }
+      return JSON.stringify(summary)
+    }
+  } catch {
+    // Non-JSON responses are expected from some providers.
+  }
+
+  return raw.slice(0, 300)
+}
+
 async function sendViaKaleyra (config, mobile, message, logger) {
   ensure(config.sms_api_host, 'missing sms_api_host for Kaleyra')
   ensure(config.sms_endpoint, 'missing sms_endpoint for Kaleyra')
@@ -44,7 +64,7 @@ async function sendViaKaleyra (config, mobile, message, logger) {
     throw new Error(`Kaleyra failed (${res.status}): ${text.slice(0, 400)}`)
   }
 
-  logger.info(`[SMS] Kaleyra success for ${mobile}`)
+  logger.info(`[SMS] Kaleyra success for ${mobile} | ${summarizeProviderResponse(text)}`)
 }
 
 async function sendViaIcs (config, mobile, message, logger) {
@@ -70,7 +90,7 @@ async function sendViaIcs (config, mobile, message, logger) {
     throw new Error(`ICS failed (${res.status}): ${text.slice(0, 400)}`)
   }
 
-  logger.info(`[SMS] ICS fallback success for ${mobile}`)
+  logger.info(`[SMS] ICS fallback success for ${mobile} | ${summarizeProviderResponse(text)}`)
 }
 
 /**

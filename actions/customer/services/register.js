@@ -129,6 +129,8 @@ module.exports = async function register(dbClient, params, logger) {
     const response = await createCommerceCustomerAndToken(params, prepared, logger)
     const customerData = response?.data?.createCustomerWrapper?.customer
     const customerToken = response?.data?.generateCustomerToken?.token || null
+    const firstName = customerData?.firstname || params.firstname || params.firstName || null
+    const lastName = customerData?.lastname || params.lastname || params.lastName || null
 
     const customerId = await resolveCustomerId(
       params,
@@ -145,6 +147,8 @@ module.exports = async function register(dbClient, params, logger) {
       email: prepared.resolvedEmail,
       mobile_number: prepared.normalizedMobile,
       customer_id: customerId,
+      firstname: firstName,
+      lastname: lastName,
       status: 'active',
       updated_at: now
     }
@@ -169,8 +173,8 @@ module.exports = async function register(dbClient, params, logger) {
         customer_token: customerToken,
         customer: {
           customer_id: customerId,
-          firstname: customerData?.firstname,
-          lastname: customerData?.lastname,
+          firstname: firstName,
+          lastname: lastName,
           email: customerData?.email,
           mobile_number: prepared.normalizedMobile || null,
           login_type: prepared.loginType,
