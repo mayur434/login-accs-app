@@ -24,6 +24,15 @@ function validateUpdatePayload (params) {
     sms_api_host: { value: params.sms_api_host, type: 'string' },
     sms_endpoint: { value: params.sms_endpoint, type: 'string' },
     sms_api_key: { value: params.sms_api_key, type: 'string' },
+    sms_sender_id: { value: params.sms_sender_id, type: 'string' },
+    sms_type: { value: params.sms_type, type: 'string' },
+    sms_fallback_enabled: { value: params.sms_fallback_enabled, type: 'boolean' },
+    sms_ics_api_host: { value: params.sms_ics_api_host, type: 'string' },
+    sms_ics_endpoint: { value: params.sms_ics_endpoint, type: 'string' },
+    sms_ics_username: { value: params.sms_ics_username, type: 'string' },
+    sms_ics_password: { value: params.sms_ics_password, type: 'string' },
+    sms_ics_sender: { value: params.sms_ics_sender, type: 'string' },
+    sms_ics_urlshortening: { value: params.sms_ics_urlshortening, type: 'string' },
     sms_template_enabled: { value: params.sms_template_enabled, type: 'boolean' },
     sms_template_id: { value: params.sms_template_id, type: 'string' },
     sms_template_string: { value: params.sms_template_string, type: 'string' },
@@ -34,6 +43,7 @@ function validateUpdatePayload (params) {
     email_smtp_password: { value: params.email_smtp_password, type: 'string' },
     email_from_address: { value: params.email_from_address, type: 'string' },
     email_from_name: { value: params.email_from_name, type: 'string' },
+    email_subject: { value: params.email_subject, type: 'string' },
     email_template_enabled: { value: params.email_template_enabled, type: 'boolean' },
     email_template_id: { value: params.email_template_id, type: 'string' },
     email_template_string: { value: params.email_template_string, type: 'string' }
@@ -85,7 +95,7 @@ async function getDocDbConfig (collection) {
     patchFields.auto_register = config.auto_login
   }
 
-  for (const key of ['otp_in_response', 'auto_register', 'allow_key_info_update', 'sms_template_enabled', 'email_template_enabled']) {
+  for (const key of ['otp_in_response', 'auto_register', 'allow_key_info_update', 'sms_template_enabled', 'email_template_enabled', 'sms_fallback_enabled']) {
     if (typeof config[key] !== 'boolean') {
       patchFields[key] = APP_CONFIG_DEFAULTS[key]
     }

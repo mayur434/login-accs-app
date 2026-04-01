@@ -2,6 +2,13 @@
  * Unit tests for actions/lib/sms.js and actions/lib/email.js
  */
 
+jest.mock('node-fetch', () => jest.fn())
+jest.mock('nodemailer', () => ({
+  createTransport: jest.fn()
+}))
+
+const fetch = require('node-fetch')
+const nodemailer = require('nodemailer')
 const { sendSmsOtp } = require('../../actions/lib/sms')
 const { sendEmailOtp } = require('../../actions/lib/email')
 
@@ -14,6 +21,14 @@ const mockLogger = {
 
 beforeEach(() => {
   jest.clearAllMocks()
+  fetch.mockResolvedValue({
+    ok: true,
+    status: 200,
+    text: jest.fn().mockResolvedValue('ok')
+  })
+  nodemailer.createTransport.mockReturnValue({
+    sendMail: jest.fn().mockResolvedValue({ messageId: 'mock-id' })
+  })
 })
 
 describe('sendSmsOtp', () => {
@@ -25,26 +40,81 @@ describe('sendSmsOtp', () => {
     expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('Template disabled'))
   })
 
-  test('resolves template and logs when enabled', async () => {
+  test('sends through Kaleyra when enabled', async () => {
     await sendSmsOtp(
       {
+        sms_api_host: 'https://api.kaleyra.io',
+        sms_endpoint: '/v1/HX/messages',
+        sms_api_key: 'kaleyra-key',
+        sms_sender_id: 'VIJAYS',
+        sms_type: 'OTP',
         sms_template_enabled: true,
         sms_template_string: 'OTP: {{OTP}}, valid {{VALIDITY}} min'
       },
       '+919876543210', '5678', 5, mockLogger
     )
-    expect(mockLogger.info).toHaveBeenCalledWith(
-      expect.stringContaining('OTP: 5678, valid 5 min')
-    )
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(fetch.mock.calls[0][0]).toContain('api.kaleyra.io')
   })
 
-  test('handles empty template string', async () => {
+  test('uses ICS fallback when Kaleyra fails and fallback is enabled', async () => {
+    fetch
+      .mockResolvedValueOnce({ ok: false, status: 500, text: jest.fn().mockResolvedValue('kaleyra failed') })
+      .mockResolvedValueOnce({ ok: true, status: 200, text: jest.fn().mockResolvedValue('ics ok') })
+
     await sendSmsOtp(
-      { sms_template_enabled: true, sms_template_string: '' },
+      {
+        sms_api_host: 'https://api.kaleyra.io',
+        sms_endpoint: '/v1/HX/messages',
+        sms_api_key: 'kaleyra-key',
+        sms_sender_id: 'VIJAYS',
+        sms_template_enabled: true,
+        sms_template_string: 'OTP: {{OTP}}',
+        sms_fallback_enabled: true,
+        sms_ics_api_host: 'https://sms.sendmsg.in',
+        sms_ics_endpoint: '/smpp',
+        sms_ics_username: 'ics-user',
+        sms_ics_password: 'ics-pass',
+        sms_ics_sender: 'VIJAYS'
+      },
       '+919876543210', '1234', 10, mockLogger
     )
-    // Should not throw
-    expect(mockLogger.info).toHaveBeenCalled()
+
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(fetch.mock.calls[1][0]).toContain('sms.sendmsg.in')
+  })
+
+  test('throws when Kaleyra fails and fallback is disabled', async () => {
+    fetch.mockResolvedValueOnce({ ok: false, status: 500, text: jest.fn().mockResolvedValue('kaleyra failed') })
+
+    await expect(sendSmsOtp(
+      {
+        sms_api_host: 'https://api.kaleyra.io',
+        sms_endpoint: '/v1/HX/messages',
+        sms_api_key: 'kaleyra-key',
+        sms_sender_id: 'VIJAYS',
+        sms_template_enabled: true,
+        sms_template_string: 'OTP: {{OTP}}',
+        sms_fallback_enabled: false
+      },
+      '+919876543210', '1234', 10, mockLogger
+    )).rejects.toThrow('Kaleyra failed')
+  })
+
+  test('handles lowercase {{otp}} placeholder', async () => {
+    await sendSmsOtp(
+      {
+        sms_api_host: 'https://api.kaleyra.io',
+        sms_endpoint: '/v1/HX/messages',
+        sms_api_key: 'kaleyra-key',
+        sms_sender_id: 'VIJAYS',
+        sms_template_enabled: true,
+        sms_template_string: 'code={{otp}}'
+      },
+      '+919876543210', '7777', 10, mockLogger
+    )
+    const requestOptions = fetch.mock.calls[0][1]
+    expect(String(requestOptions.body)).toContain('7777')
   })
 })
 
@@ -57,24 +127,42 @@ describe('sendEmailOtp', () => {
     expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('Template disabled'))
   })
 
-  test('resolves template and logs when enabled', async () => {
+  test('sends SMTP email when enabled', async () => {
     await sendEmailOtp(
       {
+        email_smtp_host: 'smtp.example.com',
+        email_smtp_port: 587,
+        email_smtp_user: 'user',
+        email_smtp_password: 'pass',
+        email_from_address: 'noreply@example.com',
+        email_from_name: 'Store',
         email_template_enabled: true,
-        email_template_string: 'Your code is {{OTP}}, valid for {{VALIDITY}} min'
+        email_template_string: '<b>Your code is {{OTP}}</b>'
       },
       'user@example.com', '9876', 15, mockLogger
     )
-    expect(mockLogger.info).toHaveBeenCalledWith(
-      expect.stringContaining('Your code is 9876, valid for 15 min')
-    )
+
+    expect(nodemailer.createTransport).toHaveBeenCalledTimes(1)
+    const transport = nodemailer.createTransport.mock.results[0].value
+    expect(transport.sendMail).toHaveBeenCalledTimes(1)
   })
 
-  test('handles empty template string', async () => {
+  test('handles lowercase {{otp}} placeholder in email template', async () => {
     await sendEmailOtp(
-      { email_template_enabled: true, email_template_string: '' },
+      {
+        email_smtp_host: 'smtp.example.com',
+        email_smtp_port: 587,
+        email_smtp_user: 'user',
+        email_smtp_password: 'pass',
+        email_from_address: 'noreply@example.com',
+        email_template_enabled: true,
+        email_template_string: '<p>{{otp}}</p>'
+      },
       'test@example.com', '1234', 10, mockLogger
     )
-    expect(mockLogger.info).toHaveBeenCalled()
+
+    const transport = nodemailer.createTransport.mock.results[0].value
+    const sendPayload = transport.sendMail.mock.calls[0][0]
+    expect(sendPayload.html).toContain('1234')
   })
 })

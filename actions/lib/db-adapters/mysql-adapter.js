@@ -69,6 +69,15 @@ const TABLE_SCHEMAS = {
     sms_api_host VARCHAR(500) DEFAULT '',
     sms_endpoint VARCHAR(500) DEFAULT '',
     sms_api_key VARCHAR(500) DEFAULT '',
+    sms_sender_id VARCHAR(100) DEFAULT '',
+    sms_type VARCHAR(50) DEFAULT 'OTP',
+    sms_fallback_enabled TINYINT(1) DEFAULT 0,
+    sms_ics_api_host VARCHAR(500) DEFAULT 'https://sms.sendmsg.in',
+    sms_ics_endpoint VARCHAR(500) DEFAULT '/smpp',
+    sms_ics_username VARCHAR(255) DEFAULT '',
+    sms_ics_password VARCHAR(500) DEFAULT '',
+    sms_ics_sender VARCHAR(100) DEFAULT '',
+    sms_ics_urlshortening VARCHAR(10) DEFAULT '1',
     sms_template_enabled TINYINT(1) DEFAULT 0,
     sms_template_id VARCHAR(255) DEFAULT '',
     sms_template_string TEXT,
@@ -78,6 +87,7 @@ const TABLE_SCHEMAS = {
     email_smtp_password VARCHAR(500) DEFAULT '',
     email_from_address VARCHAR(255) DEFAULT '',
     email_from_name VARCHAR(255) DEFAULT '',
+    email_subject VARCHAR(255) DEFAULT 'Your OTP for Vijay Sales',
     email_template_enabled TINYINT(1) DEFAULT 0,
     email_template_id VARCHAR(255) DEFAULT '',
     email_template_string TEXT,
@@ -189,7 +199,7 @@ function buildWhere (query) {
  */
 const BOOLEAN_COLUMNS = new Set([
   'is_enabled', 'otp_in_response', 'auto_register', 'allow_key_info_update', 'consumed',
-  'sms_template_enabled', 'email_template_enabled'
+  'sms_template_enabled', 'email_template_enabled', 'sms_fallback_enabled'
 ])
 
 function hydrateRow (row) {

@@ -147,17 +147,24 @@ async function handleOtp (dbClient, params, operation, logger) {
 
       // ── Dispatch OTP via SMS / Email when bypass is OFF ───────────
       if (!otpInResponse) {
+        const mobileTarget = params.mobile || params.mobile_number || null
+        const emailTarget = params.email || null
+
         try {
-          const lt = String(params.loginType).toLowerCase()
-          const mobile = params.mobile || params.mobile_number || null
-          if (lt === 'mobile' && mobile) {
-            await sendSmsOtp(appConfig, mobile, otpValue, otpValidityMinutes, logger)
-          }
-          if (lt === 'email' && params.email) {
-            await sendEmailOtp(appConfig, params.email, otpValue, otpValidityMinutes, logger)
+          // Priority: mobile first when both identifiers are present.
+          if (mobileTarget) {
+            await sendSmsOtp(appConfig, mobileTarget, otpValue, otpValidityMinutes, logger)
+          } else if (emailTarget) {
+            await sendEmailOtp(appConfig, emailTarget, otpValue, otpValidityMinutes, logger)
+          } else {
+            await otpCollection.deleteOne({ otpReferenceId: ref })
+            return { response: badRequest("missing parameter(s) 'mobile' or 'email'") }
           }
         } catch (dispatchErr) {
-          logger.warn('OTP dispatch failed (non-critical): ' + dispatchErr.message)
+          // Fail closed: delete OTP so it cannot be used if delivery failed.
+          await otpCollection.deleteOne({ otpReferenceId: ref })
+          logger.warn('OTP dispatch failed: ' + dispatchErr.message)
+          return { response: serverError('failed to deliver otp notification') }
         }
       }
 
