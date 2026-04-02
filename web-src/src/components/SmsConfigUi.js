@@ -200,9 +200,6 @@ export default function SmsConfigUi ({ ims }) {
               <StatusLight variant={smsConfigured ? 'positive' : 'neutral'}>
                 {smsConfigured ? 'Configured' : 'Not Configured'}
               </StatusLight>
-              <StatusLight variant={smsTemplateEnabled ? 'positive' : 'neutral'}>
-                {smsTemplateEnabled ? 'SMS Enabled' : 'SMS Disabled'}
-              </StatusLight>
             </>
           )}
         </Flex>

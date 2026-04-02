@@ -85,8 +85,8 @@ export default function EmailConfigUi ({ ims }) {
   // Primary settings complete when SMTP + sender identity are filled
   const smtpComplete = emailSmtpHost.trim() !== '' && emailSmtpUser.trim() !== '' &&
     (emailSmtpPassword.trim() !== '' || emailSmtpPasswordConfigured) && emailFromAddress.trim() !== ''
-  // Template fields valid when disabled, or when both ID and string are filled
-  const templateValid = !emailTemplateEnabled || (emailTemplateId.trim() !== '' && emailTemplateString.trim() !== '')
+  // Template ID is optional metadata; only the template string is required for runtime sending.
+  const templateValid = !emailTemplateEnabled || emailTemplateString.trim() !== ''
 
   const isDirty = (() => {
     if (!savedRef.current) return false
@@ -126,7 +126,7 @@ export default function EmailConfigUi ({ ims }) {
       return
     }
     if (emailTemplateEnabled && !templateValid) {
-      setValidationError('Template ID and Template String are required when Email template is enabled.')
+      setValidationError('Template String is required when Email template is enabled.')
       return
     }
     const ok = await saveConfig({
@@ -249,10 +249,8 @@ export default function EmailConfigUi ({ ims }) {
           <Flex alignItems='end' gap='size-100'>
             <TextField label='Template ID' value={emailTemplateId} onChange={setEmailTemplateId}
               width='size-4600' isDisabled={formDisabled || !emailTemplateEnabled}
-              isRequired={emailTemplateEnabled}
-              validationState={emailTemplateEnabled && !emailTemplateId.trim() ? 'invalid' : undefined}
               placeholder='tpl_email_otp_001' />
-            <InfoTip label='Unique template identifier from your email provider.' />
+            <InfoTip label='Optional provider or internal reference. Runtime sending uses the template string below.' />
           </Flex>
           <Flex alignItems='end' gap='size-100'>
             <TextArea label='Template String' value={emailTemplateString} onChange={setEmailTemplateString}
