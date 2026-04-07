@@ -220,11 +220,12 @@ Standalone OTP generate/verify with auto-login capability.
 
 #### 3.1 Generate OTP (Mobile)
 
+`loginType` is no longer required on OTP or customer requests. The service infers it from the identifier fields in the payload.
+
 ```bash
 curl -X POST "{{MESH_URL}}/otp" \
   -H "Content-Type: application/json" \
   -d '{
-    "loginType": "mobile",
     "mobile": "9876543210"
   }'
 ```
@@ -252,7 +253,6 @@ curl -X POST "{{MESH_URL}}/otp" \
 curl -X POST "{{MESH_URL}}/otp" \
   -H "Content-Type: application/json" \
   -d '{
-    "loginType": "email",
     "email": "customer@example.com"
   }'
 ```
@@ -264,8 +264,7 @@ curl -X POST "{{MESH_URL}}/otp" \
   -H "Content-Type: application/json" \
   -d '{
     "otpReferenceId": "otp_1711017600000_12345",
-    "otpValue": "4821",
-    "loginType": "mobile"
+    "otpValue": "4821"
   }'
 ```
 
@@ -287,7 +286,6 @@ curl -X POST "{{MESH_URL}}/otp" \
   -d '{
     "otpReferenceId": "otp_1711017600000_12345",
     "otpValue": "4821",
-    "loginType": "mobile",
     "register": true
   }'
 ```
@@ -298,9 +296,7 @@ curl -X POST "{{MESH_URL}}/otp" \
 
 | Status | Error | When |
 |---|---|---|
-| 400 | `missing parameter(s) 'loginType'` | loginType not provided |
-| 400 | `missing parameter(s) 'mobile'` | mobile loginType but no mobile |
-| 400 | `missing parameter(s) 'email'` | email loginType but no email |
+| 400 | `provide at least one identifier: 'email' or 'mobile'` | No identifier was provided for OTP generation |
 | 400 | `invalid otpReferenceId` | Reference ID not found |
 | 400 | `otp expired` | OTP past expiration time |
 | 401 | `invalid otp` | OTP value doesn't match (Levenshtein distance > 1) |

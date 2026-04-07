@@ -31,12 +31,13 @@ cd mesh && npm run get
 
 # 1. OTP Flow (via `otpAction`)
 
+`loginType` is inferred internally from the identifier fields you send. Use `mobile` for mobile OTP and `email` for email OTP; OTP validation only needs `otpReferenceId` and `otpValue`.
+
 ## 1.1 Generate OTP — mobile
 
 ```graphql
 mutation GenerateOtpMobile {
   otpAction(input: {
-    loginType: mobile
     mobile: "9876543210"
   }) {
     otpReferenceId
@@ -50,7 +51,6 @@ mutation GenerateOtpMobile {
 ```graphql
 mutation GenerateOtpEmail {
   otpAction(input: {
-    loginType: email
     email: "john@example.com"
   }) {
     otpReferenceId
@@ -64,7 +64,6 @@ mutation GenerateOtpEmail {
 ```graphql
 mutation GenerateOtpRegister {
   otpAction(input: {
-    loginType: mobile
     mobile: "9876543210"
     firstname: "John"
     lastname: "Doe"
@@ -81,7 +80,6 @@ mutation GenerateOtpRegister {
 ```graphql
 mutation ValidateOtpMobile {
   otpAction(input: {
-    loginType: mobile
     otpReferenceId: "otp_1711017600000_12345"
     otpValue: "4821"
   }) {
