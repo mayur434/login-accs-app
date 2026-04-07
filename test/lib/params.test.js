@@ -49,6 +49,7 @@ describe('params helpers', () => {
       const result = getRequestParams({ __ow_body: body })
       expect(result.operation).toBe('login')
       expect(result.email).toBe('test@x.com')
+      expect(result.loginType).toBe('email')
     })
 
     test('parses JSON body', () => {
@@ -101,6 +102,11 @@ describe('params helpers', () => {
     test('infers loginType as email when only email present', () => {
       const result = normalizeRequestParams({ email: 'test@x.com' })
       expect(result.loginType).toBe('email')
+    })
+
+    test('infers loginType as mobile when both mobile and email are present', () => {
+      const result = normalizeRequestParams({ email: 'test@x.com', mobile: '9876543210' })
+      expect(result.loginType).toBe('mobile')
     })
 
     test('does not overwrite explicit loginType', () => {

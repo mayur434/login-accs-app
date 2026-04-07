@@ -64,7 +64,6 @@
       "OtpRequest": {
         "type": "object",
         "properties": {
-          "loginType": { "type": "string" },
           "email": { "type": "string" },
           "mobile": { "type": "string" },
           "otpReferenceId": { "type": "string" },
@@ -89,7 +88,6 @@
         "type": "object",
         "properties": {
           "operation": { "type": "string" },
-          "loginType": { "type": "string" },
           "email": { "type": "string" },
           "mobile": { "type": "string" },
           "mobile_number": { "type": "string" },

@@ -1,13 +1,17 @@
 const { badRequest, notFound, serverError } = require('../../lib/http')
 const { findOneOrNull, isUniqueConstraintError } = require('../../lib/db')
 const { hasValue } = require('../../lib/params')
-const { normalizeMobile, CUSTOMER_IDENTITY_COLLECTION, parseCustomerIdFromToken, buildLoginType, getSyntheticEmail } = require('../../lib/customer')
+const { normalizeMobile, CUSTOMER_IDENTITY_COLLECTION, parseCustomerIdFromToken, inferLoginTypeFromParams, buildLoginType, getSyntheticEmail } = require('../../lib/customer')
 const { generateCustomerToken, fetchCustomerProfile } = require('../../lib/commerce')
 
 // ── Mobile → email resolution via identity collection ───────────────────
 
 async function resolveLoginEmail(dbClient, params) {
-  const loginType = String(params.loginType || '').toLowerCase()
+  const loginType = inferLoginTypeFromParams(params)
+
+  if (!loginType) {
+    return { error: badRequest("provide at least one identifier: 'email' or 'mobile'") }
+  }
 
   if (loginType !== 'mobile') {
     const email = String(params.email || '').trim().toLowerCase()
@@ -84,7 +88,7 @@ module.exports = async function login(dbClient, params, logger) {
       }
 
       customerResponse = {
-        ...(customer || {}),
+        ...customer,
         firstname: firstName,
         lastname: lastName
       }

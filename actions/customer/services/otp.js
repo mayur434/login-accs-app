@@ -3,7 +3,7 @@ const { badRequest, unauthorized, forbidden, notFound, conflict, serverError } =
 const { getAppConfig, findOneOrNull, APP_CONFIG_DEFAULTS } = require('../../lib/db')
 const { generateOtpValue, createReferenceId, levenshtein } = require('../../lib/otp')
 const { hasValue } = require('../../lib/params')
-const { CUSTOMER_IDENTITY_COLLECTION } = require('../../lib/customer')
+const { CUSTOMER_IDENTITY_COLLECTION, inferLoginTypeFromParams } = require('../../lib/customer')
 const { sendSmsOtp } = require('../../lib/sms')
 const { sendEmailOtp } = require('../../lib/email')
 
@@ -54,7 +54,7 @@ async function checkRegistrationConflict (dbClient, params,logger) {
 
 async function checkLoginExists (dbClient, params) {
   const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
-  const loginType = String(params.loginType || '').toLowerCase()
+  const loginType = inferLoginTypeFromParams(params)
   const activeFilter = { status: 'active' }
 
   if (loginType === 'mobile') {
@@ -75,6 +75,7 @@ async function handleOtp (dbClient, params, operation, logger) {
   try {
     const otpCollection = await dbClient.collection('otps')
     const appConfig = await getAppConfig(dbClient)
+    const loginType = inferLoginTypeFromParams(params)
 
     if (!appConfig.is_enabled) {
       return { response: forbidden('otp module is disabled') }
@@ -84,15 +85,8 @@ async function handleOtp (dbClient, params, operation, logger) {
 
     if (!isVerify) {
       // ── Validate required fields ──────────────────────────────────
-      if (!hasValue(params.loginType)) {
-        return { response: badRequest("missing parameter(s) 'loginType'") }
-      }
-      const lt = String(params.loginType).toLowerCase()
-      if (lt === 'mobile' && !hasValue(params.mobile) && !hasValue(params.mobile_number)) {
-        return { response: badRequest("missing parameter(s) 'mobile'") }
-      }
-      if (lt !== 'mobile' && !hasValue(params.email)) {
-        return { response: badRequest("missing parameter(s) 'email'") }
+      if (!loginType) {
+        return { response: badRequest("provide at least one identifier: 'email' or 'mobile'") }
       }
 
       // ── Identity existence check ──────────────────────────────────
@@ -131,7 +125,7 @@ async function handleOtp (dbClient, params, operation, logger) {
         otpReferenceId: ref,
         otp: otpValue,
         operation,
-        loginType: params.loginType,
+        loginType,
         mobile: params.mobile || params.mobile_number || null,
         email: params.email || null,
         customer_id: params.customer_id || null,

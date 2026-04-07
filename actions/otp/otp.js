@@ -1,11 +1,11 @@
 const { Core } = require('@adobe/aio-sdk')
-const { stringParameters, checkMissingRequestInputs } = require('../utils')
+const { checkMissingRequestInputs } = require('../utils')
 const { errorResponse } = require('../lib/http')
 const { getCollection, closeDb, getAppConfig, findOneOrNull, APP_CONFIG_DEFAULTS } = require('../lib/db')
 const { graphQLRequest } = require('../lib/graphql')
 const { generateOtpValue, createReferenceId, levenshtein } = require('../lib/otp')
 const { getRequestParams } = require('../lib/params')
-const { INTERNAL_CUSTOMER_PASSWORD, CUSTOMER_IDENTITY_COLLECTION, parseCustomerIdFromToken, normalizeMobile, buildLoginType, getSyntheticEmail, getCommerceMobileValue } = require('../lib/customer')
+const { INTERNAL_CUSTOMER_PASSWORD, CUSTOMER_IDENTITY_COLLECTION, parseCustomerIdFromToken, normalizeMobile, inferLoginTypeFromParams, buildLoginType, getSyntheticEmail, getCommerceMobileValue } = require('../lib/customer')
 const { isUniqueConstraintError } = require('../lib/db')
 const { sendSmsOtp } = require('../lib/sms')
 const { sendEmailOtp } = require('../lib/email')
@@ -135,9 +135,9 @@ async function main (params) {
     logger.info('OTP action called')
 
     const inParams = getRequestParams(params)
+    const loginType = inferLoginTypeFromParams(inParams)
     inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers || {}
 
-    const headers = inParams.__ow_headers || {}
     const aioDbToken = await getAioDbToken(inParams)
 
     const dbResult = await getCollection(
@@ -157,22 +157,12 @@ async function main (params) {
 
     if (!isValidate) {
       // ── Generate OTP ──────────────────────────────────────────────
-      const requiredParams = ['loginType']
-      const errorMessage = checkMissingRequestInputs(inParams, requiredParams, [])
-      if (errorMessage) return errorResponse(400, errorMessage, logger)
-
-      if (inParams.loginType === 'mobile') {
-        const missing = checkMissingRequestInputs(inParams, ['mobile'], [])
-        if (missing) return errorResponse(400, missing, logger)
-      } else if (inParams.loginType === 'email') {
-        const missing = checkMissingRequestInputs(inParams, ['email'], [])
-        if (missing) return errorResponse(400, missing, logger)
-      } else {
-        return errorResponse(400, 'invalid loginType', logger)
+      if (!loginType) {
+        return errorResponse(400, "provide at least one identifier: 'email' or 'mobile'", logger)
       }
 
       let emailForLogin = inParams.email
-      if (inParams.loginType === 'mobile') {
+      if (loginType === 'mobile') {
         // First check identity table for existing record with this mobile
         const identityCollection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
         let normalizedMobile = inParams.mobile
@@ -221,7 +211,7 @@ async function main (params) {
       await otpCollection.insertOne({
         otpReferenceId: ref,
         otp: otpValue,
-        loginType: inParams.loginType,
+        loginType,
         mobile: inParams.mobile,
         email: inParams.email,
         createdAt: Date.now(),
@@ -264,7 +254,7 @@ async function main (params) {
     }
 
     // ── Validate OTP ──────────────────────────────────────────────────
-    const missing = checkMissingRequestInputs(inParams, ['otpReferenceId', 'otpValue', 'loginType'], [])
+    const missing = checkMissingRequestInputs(inParams, ['otpReferenceId', 'otpValue'], [])
     if (missing) return errorResponse(400, missing, logger)
 
     const record = await findOneOrNull(otpCollection, { otpReferenceId: inParams.otpReferenceId })
@@ -285,8 +275,10 @@ async function main (params) {
       { $set: { consumed: true, consumedAt: Date.now() } }
     )
 
+    const recordLoginType = record.loginType || inferLoginTypeFromParams(record)
+
     let emailToUse = record.email
-    if (inParams.loginType === 'mobile') {
+    if (recordLoginType === 'mobile') {
       if (!record.mobile) return errorResponse(400, 'mobile not present for this reference', logger)
       // Look up real email from identity table before falling back to pattern email
       const identityCollection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)

@@ -3,7 +3,7 @@ const { stringParameters } = require('../utils')
 const { badRequest, serverError } = require('../lib/http')
 const { getCollection, closeDb, APP_CONFIG_COLLECTION, findOneOrNull } = require('../lib/db')
 const { getRequestParams } = require('../lib/params')
-const { INTERNAL_CUSTOMER_PASSWORD, CUSTOMER_IDENTITY_COLLECTION } = require('../lib/customer')
+const { INTERNAL_CUSTOMER_PASSWORD, CUSTOMER_IDENTITY_COLLECTION, inferLoginTypeFromParams } = require('../lib/customer')
 const { getAioDbToken } = require('../lib/imsHelper')
 const register = require('./services/register')
 const login = require('./services/login')
@@ -13,7 +13,7 @@ const { handleOtp } = require('./services/otp')
 // Helper to check if user exists for login
 async function userExistsForLogin(dbClient, params) {
   const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
-  const loginType = String(params.loginType || '').toLowerCase()
+  const loginType = inferLoginTypeFromParams(params)
   const activeFilter = { status: 'active' }
 
   if (loginType === 'mobile') {
@@ -40,12 +40,12 @@ exports.main = async (params) => {
   try {
     logger.info('customer action called')
     logger.debug(stringParameters(params))
-    const requestParams = getRequestParams(params);
+    const requestParams = getRequestParams(params)
+    requestParams.loginType = inferLoginTypeFromParams(requestParams)
 
     // Generate IMS token for DB
     try {
       requestParams.__ow_headers = params.__ow_headers || requestParams.__ow_headers || {}
-      const headers = requestParams.__ow_headers || {}
       aioDbToken = await getAioDbToken(requestParams)
     } catch (e) {
       logger.warn(`Unable to generate IMS token for DB: ${e.message}`)
@@ -57,10 +57,8 @@ exports.main = async (params) => {
     }
 
     if (operation === 'login') {
-      const hasEmail = !!requestParams.email
-      const hasMobile = !!requestParams.mobile || !!requestParams.mobile_number
-      if (!requestParams.loginType && (hasEmail === hasMobile)) {
-        return badRequest("provide exactly one identifier: 'email' or 'mobile_number'")
+      if (!requestParams.loginType) {
+        return badRequest("provide at least one identifier: 'email' or 'mobile_number'")
       }
     }
 

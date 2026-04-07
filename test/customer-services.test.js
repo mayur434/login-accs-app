@@ -134,8 +134,7 @@ describe('login service', () => {
 
   test('returns 400 when email missing for email login', async () => {
     const result = await login(mockDbClient, {
-      password: 'pass@123',
-      loginType: 'email'
+      password: 'pass@123'
     }, mockLogger)
     expect(result.statusCode).toBe(400)
     expect(result.body.error).toContain('email')
@@ -146,7 +145,6 @@ describe('login service', () => {
 
     const result = await login(mockDbClient, {
       password: 'pass@123',
-      loginType: 'mobile',
       mobile: '9876543210'
     }, mockLogger)
     expect(result.statusCode).toBe(404)
@@ -155,11 +153,10 @@ describe('login service', () => {
 
   test('returns 400 when mobile missing for mobile login', async () => {
     const result = await login(mockDbClient, {
-      password: 'pass@123',
-      loginType: 'mobile'
+      password: 'pass@123'
     }, mockLogger)
     expect(result.statusCode).toBe(400)
-    expect(result.body.error).toContain('mobile')
+    expect(result.body.error).toContain('identifier')
   })
 
   test('successfully logs in with email', async () => {
@@ -185,13 +182,46 @@ describe('login service', () => {
 
     const result = await login(mockDbClient, {
       password: 'pass@123',
-      loginType: 'email',
       email: 'test@x.com',
       GRAPHQL_ENDPOINT: 'https://commerce.example.com/graphql'
     }, mockLogger)
 
     expect(result.statusCode).toBe(200)
     expect(result.body.success).toBe(true)
+  })
+
+  test('prefers mobile login when both mobile and email are present', async () => {
+    setupFindOneReturns({ email: 'resolved@x.com', customer_id: 42, status: 'active' })
+
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue(JSON.stringify({
+        data: { generateCustomerToken: { token: 'customer-jwt' } }
+      }))
+    })
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue(JSON.stringify({
+        data: { customer: { id: 42, firstname: 'John', lastname: 'Doe', email: 'resolved@x.com' } }
+      }))
+    })
+
+    const result = await login(mockDbClient, {
+      password: 'pass@123',
+      email: 'request@x.com',
+      mobile: '9876543210',
+      GRAPHQL_ENDPOINT: 'https://commerce.example.com/graphql'
+    }, mockLogger)
+
+    expect(result.statusCode).toBe(200)
+    expect(fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: expect.stringContaining('resolved@x.com')
+      })
+    )
   })
 })
 

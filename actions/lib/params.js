@@ -2,6 +2,8 @@
  * Shared request-parameter parsing helpers.
  */
 
+const { inferLoginTypeFromParams } = require('./customer')
+
 /**
  * True when value is defined, non-null, and non-empty-string.
  */
@@ -31,7 +33,7 @@ function getRequestParams (params) {
     }
   }
 
-  return { ...params, ...req }
+  return normalizeRequestParams({ ...params, ...req })
 }
 
 /**
@@ -50,10 +52,7 @@ function normalizeRequestParams (req) {
   if (!out.lastName && out.lastname) out.lastName = out.lastname
 
   if (!out.loginType) {
-    const hasEmail = !!out.email
-    const hasMobile = !!out.mobile
-    if (hasEmail && !hasMobile) out.loginType = 'email'
-    if (hasMobile && !hasEmail) out.loginType = 'mobile'
+    out.loginType = inferLoginTypeFromParams(out)
   }
 
   return out

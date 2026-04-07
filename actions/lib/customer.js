@@ -135,6 +135,19 @@ function getCommerceMobileValue (mobileNumber) {
   return digits.length > 10 ? digits.slice(-10) : digits
 }
 
+function hasIdentifierValue (value) {
+  return value !== undefined && value !== null && String(value).trim() !== ''
+}
+
+function inferLoginTypeFromParams (params = {}) {
+  const hasMobile = hasIdentifierValue(params.mobile) || hasIdentifierValue(params.mobile_number)
+  const hasEmail = hasIdentifierValue(params.email)
+
+  if (hasMobile) return 'mobile'
+  if (hasEmail) return 'email'
+  return null
+}
+
 function buildLoginType (hasEmail, hasMobile) {
   if (hasEmail && hasMobile) return 'both'
   if (hasEmail) return 'email'
@@ -159,6 +172,7 @@ module.exports = {
   extractBearerToken,
   getSyntheticEmail,
   getCommerceMobileValue,
+  inferLoginTypeFromParams,
   buildLoginType,
   normalizeEmailInput,
   normalizeMobile
