@@ -7,7 +7,6 @@ const {
   normalizeEmailInput,
   extractCustomerId,
   getCommerceMobileValue,
-  buildLoginType,
   getSyntheticEmail,
   CUSTOMER_IDENTITY_COLLECTION,
   INTERNAL_CUSTOMER_PASSWORD
@@ -153,6 +152,7 @@ module.exports = async function update (dbClient, params, logger) {
     let commerceResult
     try {
       commerceResult = await updateCommerceProfile(params, customerToken, prepared, currentEmail, logger)
+      logger.debug('Commerce update result', commerceResult)
     } catch (commerceError) {
       logger.error(commerceError)
       return serverError(commerceError.message || 'failed to update in Commerce')

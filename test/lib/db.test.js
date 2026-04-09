@@ -9,6 +9,7 @@ const {
   isCollectionNotFoundError,
   isUniqueConstraintError,
   isUnauthorizedDbError,
+  assertModuleEnabled,
   normalizeAppConfig,
   APP_CONFIG_DEFAULTS,
   APP_CONFIG_ID,
@@ -202,6 +203,31 @@ describe('db.js utilities', () => {
       expect(keys).toContain('sms_template_string')
       expect(keys).toContain('email_smtp_host')
       expect(keys).toContain('email_template_string')
+    })
+  })
+
+  describe('assertModuleEnabled', () => {
+    test('does not throw when module is enabled', async () => {
+      const dbClient = {
+        collection: jest.fn().mockResolvedValue({
+          findOne: jest.fn().mockResolvedValue({ _id: 'app_config', is_enabled: true })
+        })
+      }
+
+      await expect(assertModuleEnabled(dbClient)).resolves.toBeDefined()
+    })
+
+    test('throws 403 when module is disabled', async () => {
+      const dbClient = {
+        collection: jest.fn().mockResolvedValue({
+          findOne: jest.fn().mockResolvedValue({ _id: 'app_config', is_enabled: false })
+        })
+      }
+
+      await expect(assertModuleEnabled(dbClient)).rejects.toMatchObject({
+        statusCode: 403,
+        message: 'otp module is disabled'
+      })
     })
   })
 })

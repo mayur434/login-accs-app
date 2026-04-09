@@ -42,12 +42,7 @@ function errorResponse (statusCode, message, logger) {
   if (logger && typeof logger.info === 'function') {
     logger.info(`${statusCode}: ${message}`)
   }
-  return {
-    error: {
-      statusCode,
-      body: { error: message }
-    }
-  }
+  return { statusCode, body: { error: message } }
 }
 
 module.exports = {

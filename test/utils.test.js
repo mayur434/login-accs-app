@@ -12,11 +12,9 @@ const {
 
 describe('utils', () => {
   describe('errorResponse', () => {
-    test('returns error wrapper with statusCode and body', () => {
+    test('returns standard response with statusCode and body', () => {
       const result = errorResponse(400, 'bad input')
-      expect(result.error).toBeDefined()
-      expect(result.error.statusCode).toBe(400)
-      expect(result.error.body.error).toBe('bad input')
+      expect(result).toEqual({ statusCode: 400, body: { error: 'bad input' } })
     })
 
     test('logs via logger.info when provided', () => {

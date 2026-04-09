@@ -15,7 +15,7 @@
 
 const { Core } = require('@adobe/aio-sdk')
 const { errorResponse } = require('../lib/http')
-const { getCollection, closeDb, getAppConfig, findOneOrNull } = require('../lib/db')
+const { getCollection, closeDb, assertModuleEnabled, findOneOrNull } = require('../lib/db')
 const { getRequestParams } = require('../lib/params')
 const { inferLoginTypeFromParams, normalizeMobile, CUSTOMER_IDENTITY_COLLECTION } = require('../lib/customer')
 const { generateOtp } = require('../lib/otpService')
@@ -42,10 +42,7 @@ async function main (params) {
     )
     dbClient = client
 
-    const appConfig = await getAppConfig(dbClient)
-    if (!appConfig.is_enabled) {
-      return errorResponse(403, 'otp module is disabled', logger)
-    }
+    const appConfig = await assertModuleEnabled(dbClient)
 
     // ── Check if user exists in identity table ────────────────────────
     const identityCollection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)

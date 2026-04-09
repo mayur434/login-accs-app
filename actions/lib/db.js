@@ -220,6 +220,17 @@ async function getAppConfig (dbClient) {
   return normalizeAppConfig(config)
 }
 
+/**
+ * Throws a 403 error when the OTP module is disabled in app_config.
+ */
+async function assertModuleEnabled (dbClient) {
+  const appConfig = await getAppConfig(dbClient)
+  if (!appConfig.is_enabled) {
+    throw Object.assign(new Error('otp module is disabled'), { statusCode: 403 })
+  }
+  return appConfig
+}
+
 module.exports = {
   connectDb,
   getCollection,
@@ -230,6 +241,7 @@ module.exports = {
   isUnauthorizedDbError,
   findOneOrNull,
   getAppConfig,
+  assertModuleEnabled,
   normalizeAppConfig,
   APP_CONFIG_ID,
   APP_CONFIG_COLLECTION,

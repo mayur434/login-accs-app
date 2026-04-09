@@ -67,11 +67,9 @@ describe('http response helpers', () => {
   })
 
   describe('errorResponse', () => {
-    test('returns error wrapper with statusCode and message', () => {
+    test('returns standard response with statusCode and message', () => {
       const result = errorResponse(400, 'bad input')
-      expect(result.error).toBeDefined()
-      expect(result.error.statusCode).toBe(400)
-      expect(result.error.body.error).toBe('bad input')
+      expect(result).toEqual({ statusCode: 400, body: { error: 'bad input' } })
     })
 
     test('logs when logger provided', () => {

@@ -11,7 +11,7 @@
 
 const { Core } = require('@adobe/aio-sdk')
 const { errorResponse } = require('../lib/http')
-const { getCollection, closeDb, getAppConfig, findOneOrNull, isUniqueConstraintError } = require('../lib/db')
+const { getCollection, closeDb, assertModuleEnabled, findOneOrNull, isUniqueConstraintError } = require('../lib/db')
 const { graphQLRequest } = require('../lib/graphql')
 const { getRequestParams } = require('../lib/params')
 const {
@@ -19,13 +19,13 @@ const {
   CUSTOMER_IDENTITY_COLLECTION,
   parseCustomerIdFromToken,
   normalizeMobile,
-  inferLoginTypeFromParams,
   buildLoginType,
   getSyntheticEmail,
   getCommerceMobileValue
 } = require('../lib/customer')
 const { validateOtp } = require('../lib/otpService')
 const { getAioDbToken } = require('../lib/imsHelper')
+const { fetchCustomerProfile } = require('../lib/commerce')
 
 // ── Commerce helpers ────────────────────────────────────────────────────
 
@@ -60,8 +60,42 @@ async function createUser (email, mobile, opts, params, logger) {
     } catch (_) { /* normalization failed, skip mobile attr */ }
   }
 
-  const mutation = `mutation createCustomerV2($input: CustomerCreateInput!){ createCustomerV2(input: $input){ customer{ firstname lastname email } } }`
+  const mutation = `mutation createCustomerV2($input: CustomerCreateInput!){ createCustomerV2(input: $input){ customer{ id firstname lastname email } } }`
   return graphQLRequest(params, mutation, { input }, logger)
+}
+
+function extractCreateCustomerErrorMessage (err) {
+  const message = String(err?.message || '').toLowerCase()
+  if (message.includes('already exists')) return 'customer already exists in Commerce'
+  if (message.includes('is invalid')) return 'invalid customer details for Commerce registration'
+  return err?.message || 'customer creation failed in Commerce'
+}
+
+function toCustomerResponse (profile, record, fallbackEmail, createdCustomer = null) {
+  let customerId = null
+  const profileOrCreateId = profile?.id ?? createdCustomer?.id
+  if (profileOrCreateId !== undefined && profileOrCreateId !== null && profileOrCreateId !== '') {
+    const parsed = Number(profileOrCreateId)
+    customerId = Number.isNaN(parsed) ? profileOrCreateId : parsed
+  }
+
+  let normalizedMobile = null
+  if (record?.mobile) {
+    try { normalizedMobile = normalizeMobile(record.mobile) } catch (_) { normalizedMobile = record.mobile }
+  }
+  const email = profile?.email || createdCustomer?.email || fallbackEmail || null
+  const firstName = profile?.firstname || createdCustomer?.firstname || record?.firstname || null
+  const lastName = profile?.lastname || createdCustomer?.lastname || record?.lastname || null
+  const loginType = buildLoginType(!!email, !!normalizedMobile)
+
+  return {
+    customer_id: customerId,
+    firstname: firstName,
+    lastname: lastName,
+    email,
+    mobile_number: normalizedMobile,
+    login_type: loginType
+  }
 }
 
 async function upsertIdentity (dbClient, record, token, logger) {
@@ -124,6 +158,52 @@ async function upsertIdentity (dbClient, record, token, logger) {
   }
 }
 
+async function upsertIdentityStrict (dbClient, record, token, logger, profile, fallbackEmail, createdCustomer = null) {
+  const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
+
+  let customerId = null
+  const profileOrCreateId = profile?.id ?? createdCustomer?.id
+  if (profileOrCreateId !== undefined && profileOrCreateId !== null && profileOrCreateId !== '') {
+    const parsed = Number(profileOrCreateId)
+    customerId = Number.isNaN(parsed) ? null : parsed
+  }
+  if (!customerId) {
+    customerId = parseCustomerIdFromToken(token)
+  }
+  if (!customerId) {
+    throw Object.assign(new Error('could not resolve customer id for local DB persistence'), { statusCode: 500 })
+  }
+
+  let normalizedMobile = null
+  if (record.mobile) {
+    try { normalizedMobile = normalizeMobile(record.mobile) } catch (_) { normalizedMobile = record.mobile }
+  }
+
+  const existing = await findOneOrNull(collection, { customer_id: customerId })
+
+  const email = profile?.email || createdCustomer?.email || fallbackEmail || existing?.email || null
+  const loginType = buildLoginType(!!email, !!normalizedMobile)
+  const now = new Date()
+
+  const doc = {
+    email,
+    mobile_number: normalizedMobile,
+    customer_id: customerId,
+    firstname: profile?.firstname || createdCustomer?.firstname || record.firstname || existing?.firstname || null,
+    lastname: profile?.lastname || createdCustomer?.lastname || record.lastname || existing?.lastname || null,
+    status: 'active',
+    updated_at: now
+  }
+
+  await collection.updateOne(
+    { customer_id: customerId },
+    { $set: doc, $setOnInsert: { login_type: loginType, created_at: now } },
+    { upsert: true }
+  )
+
+  logger.info(`Identity strictly upserted for customer_id=${customerId}, email=${email}`)
+}
+
 // ── Resolve Commerce email from identifier ──────────────────────────────
 
 async function resolveEmail (dbClient, record, logger) {
@@ -162,6 +242,8 @@ async function main (params) {
     )
     dbClient = client
 
+    await assertModuleEnabled(dbClient)
+
     // ── Validate OTP ──────────────────────────────────────────────────
     const record = await validateOtp(dbClient, inParams.otpReferenceId, inParams.otpValue, logger)
     logger.info(`OTP validated. flowType=${record.flowType}, loginType=${record.loginType}`)
@@ -179,18 +261,45 @@ async function main (params) {
     }
 
     // ── flowType: register ──────────────────────────────────────────
-    // Try login first — user might already exist in Commerce
-    let token = await tryLogin(emailToUse, inParams, logger)
-    if (!token) {
-      logger.info('User not in Commerce, creating...')
-      await createUser(emailToUse, record.mobile, record, inParams, logger)
-      token = await tryLogin(emailToUse, inParams, logger)
+    logger.info('Register flow: creating customer in Commerce...')
+    let createdCustomer = null
+    try {
+      const createResp = await createUser(emailToUse, record.mobile, record, inParams, logger)
+      createdCustomer = createResp?.data?.createCustomerV2?.customer || null
+    } catch (createErr) {
+      const msg = extractCreateCustomerErrorMessage(createErr)
+      logger.error('Commerce customer creation failed: ' + msg)
+      return errorResponse(500, `registration failed: ${msg}`, logger)
     }
+
+    const token = await tryLogin(emailToUse, inParams, logger)
     if (!token) {
-      return errorResponse(500, 'unable to obtain token after user creation', logger)
+      return errorResponse(500, 'registration failed: customer created but token generation failed', logger)
     }
-    await upsertIdentity(dbClient, record, token, logger)
-    return { statusCode: 200, body: { success: true, customer_token: token, message: 'registration successful' } }
+
+    let profile = null
+    try {
+      profile = await fetchCustomerProfile(inParams, token, logger)
+    } catch (profileErr) {
+      logger.warn('Could not fetch customer profile after registration: ' + profileErr.message)
+    }
+
+    try {
+      await upsertIdentityStrict(dbClient, record, token, logger, profile, emailToUse, createdCustomer)
+    } catch (dbErr) {
+      logger.error('Local DB persistence failed after Commerce registration: ' + dbErr.message)
+      return errorResponse(500, `registration failed: could not store user in local DB (${dbErr.message})`, logger)
+    }
+
+    return {
+      statusCode: 200,
+      body: {
+        success: true,
+        customer_token: token,
+        message: 'registration successful',
+        customer: toCustomerResponse(profile, record, emailToUse, createdCustomer)
+      }
+    }
   } catch (err) {
     const code = err.statusCode || 500
     return errorResponse(code, err.message || 'server error', logger)

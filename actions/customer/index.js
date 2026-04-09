@@ -1,7 +1,7 @@
 const { Core } = require('@adobe/aio-sdk')
 const { stringParameters } = require('../utils')
-const { badRequest, serverError } = require('../lib/http')
-const { getCollection, closeDb, APP_CONFIG_COLLECTION, findOneOrNull } = require('../lib/db')
+const { badRequest } = require('../lib/http')
+const { getCollection, closeDb, APP_CONFIG_COLLECTION, findOneOrNull, assertModuleEnabled } = require('../lib/db')
 const { getRequestParams } = require('../lib/params')
 const { CUSTOMER_IDENTITY_COLLECTION, inferLoginTypeFromParams, normalizeMobile } = require('../lib/customer')
 const { getAioDbToken } = require('../lib/imsHelper')
@@ -62,6 +62,8 @@ exports.main = async (params) => {
       APP_CONFIG_COLLECTION
     )
     dbClient = connectedClient
+
+    await assertModuleEnabled(dbClient)
 
     switch (operation) {
       case 'register': {
