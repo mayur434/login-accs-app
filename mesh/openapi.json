@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Login Module API",
-    "version": "2.0.0"
+    "version": "3.0.0"
   },
   "servers": [
     {
@@ -10,15 +10,15 @@
     }
   ],
   "paths": {
-    "/otp": {
+    "/generate-otp": {
       "post": {
-        "operationId": "otpAction",
-        "summary": "Generate or validate OTP",
+        "operationId": "generateOtpAction",
+        "summary": "Generate OTP for login or auto-register",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/OtpRequest" }
+              "schema": { "$ref": "#/components/schemas/GenerateOtpRequest" }
             }
           }
         },
@@ -27,7 +27,31 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/OtpResponse" }
+                "schema": { "$ref": "#/components/schemas/GenerateOtpResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/validate-otp": {
+      "post": {
+        "operationId": "validateOtpAction",
+        "summary": "Validate OTP and complete login or registration",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ValidateOtpRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidateOtpResponse" }
               }
             }
           }
@@ -37,7 +61,7 @@
     "/customer": {
       "post": {
         "operationId": "customerAction",
-        "summary": "Customer register, login, or update",
+        "summary": "Customer registration (generate OTP) or update details",
         "requestBody": {
           "required": true,
           "content": {
@@ -61,24 +85,32 @@
   },
   "components": {
     "schemas": {
-      "OtpRequest": {
+      "GenerateOtpRequest": {
         "type": "object",
         "properties": {
           "email": { "type": "string" },
           "mobile": { "type": "string" },
-          "otpReferenceId": { "type": "string" },
-          "otpValue": { "type": "string" },
           "firstname": { "type": "string" },
-          "lastname": { "type": "string" },
-          "register": { "type": "boolean" },
-          "customer_id": { "type": "string" }
+          "lastname": { "type": "string" }
         }
       },
-      "OtpResponse": {
+      "GenerateOtpResponse": {
         "type": "object",
         "properties": {
           "otpReferenceId": { "type": "string" },
-          "otpValue": { "type": "string" },
+          "otpValue": { "type": "string" }
+        }
+      },
+      "ValidateOtpRequest": {
+        "type": "object",
+        "properties": {
+          "otpReferenceId": { "type": "string" },
+          "otpValue": { "type": "string" }
+        }
+      },
+      "ValidateOtpResponse": {
+        "type": "object",
+        "properties": {
           "success": { "type": "boolean" },
           "customer_token": { "type": "string" },
           "message": { "type": "string" }
@@ -91,9 +123,6 @@
           "email": { "type": "string" },
           "mobile": { "type": "string" },
           "mobile_number": { "type": "string" },
-          "password": { "type": "string" },
-          "otpReferenceId": { "type": "string" },
-          "otpValue": { "type": "string" },
           "firstname": { "type": "string" },
           "lastname": { "type": "string" },
           "customer_token": { "type": "string" },
@@ -106,10 +135,10 @@
         "properties": {
           "success": { "type": "boolean" },
           "customer_token": { "type": "string" },
-          "customerToken": { "type": "string" },
           "message": { "type": "string" },
           "otpReferenceId": { "type": "string" },
           "otpValue": { "type": "string" },
+          "error": { "type": "string" },
           "customer": { "$ref": "#/components/schemas/Customer" }
         }
       },

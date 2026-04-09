@@ -3,35 +3,37 @@ const { stringParameters } = require('../utils')
 const { badRequest, serverError } = require('../lib/http')
 const { getCollection, closeDb, APP_CONFIG_COLLECTION, findOneOrNull } = require('../lib/db')
 const { getRequestParams } = require('../lib/params')
-const { INTERNAL_CUSTOMER_PASSWORD, CUSTOMER_IDENTITY_COLLECTION, inferLoginTypeFromParams } = require('../lib/customer')
+const { CUSTOMER_IDENTITY_COLLECTION, inferLoginTypeFromParams, normalizeMobile } = require('../lib/customer')
 const { getAioDbToken } = require('../lib/imsHelper')
-const register = require('./services/register')
-const login = require('./services/login')
+const { hasValue } = require('../lib/params')
+const { generateOtp } = require('../lib/otpService')
 const update = require('./services/update')
-const { handleOtp } = require('./services/otp')
 
-// Helper to check if user exists for login
-async function userExistsForLogin(dbClient, params) {
+// ── Registration conflict checks ────────────────────────────────────────
+
+async function checkRegistrationConflict (dbClient, params, logger) {
   const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
-  const loginType = inferLoginTypeFromParams(params)
-  const activeFilter = { status: 'active' }
+  const email = hasValue(params.email) ? String(params.email).trim().toLowerCase() : null
+  const mobile = hasValue(params.mobile) ? String(params.mobile).trim()
+    : (hasValue(params.mobile_number) ? String(params.mobile_number).trim() : null)
 
-  if (loginType === 'mobile') {
-    const mobile = params.mobile || params.mobile_number
-    if (!mobile) return false
-    try {
-      const { normalizeMobile } = require('../utils')
-      const normalizedMobile = normalizeMobile(mobile)
-      return !!(await findOneOrNull(collection, { mobile_number: normalizedMobile, ...activeFilter }))
-    } catch { 
-      return false 
+  if (email) {
+    const existing = await findOneOrNull(collection, { email })
+    if (existing) return 'email already exists'
+  }
+  if (mobile) {
+    let normalizedMobile = mobile
+    try { normalizedMobile = normalizeMobile(mobile) } catch (_) { /* keep raw */ }
+    const candidates = [...new Set([mobile, normalizedMobile].filter(Boolean))]
+    for (const m of candidates) {
+      const existing = await findOneOrNull(collection, { mobile_number: m, status: 'active' })
+      if (existing) return 'mobile already exists'
     }
   }
-
-  const email = params.email
-  if (!email) return false
-  return !!(await findOneOrNull(collection, { email: String(email).toLowerCase(), ...activeFilter }))
+  return null
 }
+
+// ── Main action ─────────────────────────────────────────────────────────
 
 exports.main = async (params) => {
   const logger = Core.Logger('customer', { level: params.LOG_LEVEL || 'info' })
@@ -43,7 +45,6 @@ exports.main = async (params) => {
     const requestParams = getRequestParams(params)
     requestParams.loginType = inferLoginTypeFromParams(requestParams)
 
-    // Generate IMS token for DB
     try {
       requestParams.__ow_headers = params.__ow_headers || requestParams.__ow_headers || {}
       aioDbToken = await getAioDbToken(requestParams)
@@ -51,74 +52,56 @@ exports.main = async (params) => {
       logger.warn(`Unable to generate IMS token for DB: ${e.message}`)
     }
 
-    let operation = String(requestParams.operation || '').trim()
+    const operation = String(requestParams.operation || '').trim()
     if (!operation) {
       return badRequest("missing parameter(s) 'operation'")
     }
 
-    if (operation === 'login') {
-      if (!requestParams.loginType) {
-        return badRequest("provide at least one identifier: 'email' or 'mobile_number'")
-      }
-    }
-
-    if (operation === 'register') {
-      const isOtpValidation = requestParams.otpReferenceId && requestParams.otpValue
-      if (!isOtpValidation && !requestParams.email && !requestParams.mobile && !requestParams.mobile_number) {
-        return badRequest("provide at least one identifier: 'email' or 'mobile_number'")
-      }
-    }
-
-    logger.debug(`access_token: ${aioDbToken }`)
-
-    // Single DB connection for the entire request lifecycle
     const { dbClient: connectedClient } = await getCollection(
       { ...requestParams, AIO_DB_TOKEN: aioDbToken },
       APP_CONFIG_COLLECTION
     )
     dbClient = connectedClient
 
-    // OTP gate for register/login
-    if (['register', 'login'].includes(operation)) {
-      logger.info('Before handleOtp: about to check OTP and uniqueness for register/login')
-      const otp = await handleOtp(dbClient, requestParams, operation, logger)
-      logger.info('After handleOtp: OTP handler returned', otp)
-      if (otp.response) return otp.response
-
-      // Hydrate missing identity from OTP record
-      const rec = otp.record || {}
-      for (const key of ['loginType', 'email', 'mobile', 'customer_id', 'firstname', 'firstName', 'lastname', 'lastName']) {
-        if (!requestParams[key] && rec[key]) requestParams[key] = rec[key]
-      }
-      if (!requestParams.mobile_number && rec.mobile) requestParams.mobile_number = rec.mobile
-
-      requestParams.password = INTERNAL_CUSTOMER_PASSWORD
-
-      // Auto-register logic: if OTP verified for login but user doesn't exist,
-      // switch to register flow. (auto_register was already checked during OTP generation)
-      if (operation === 'login' && otp.verified) {
-        const userExists = await userExistsForLogin(dbClient, requestParams)
-        if (!userExists) {
-          logger.info('Login: user does not exist after OTP verification, switching to register flow')
-          operation = 'register'
-        }
-      }
-    }
-
     switch (operation) {
-      case 'register':
-        return await register(dbClient, requestParams, logger)
-      case 'login':
-        return await login(dbClient, requestParams, logger)
+      case 'register': {
+        // ── Customer Registration: generate OTP with flowType 'register' ──
+        const loginType = requestParams.loginType
+        if (!loginType) {
+          return badRequest("provide at least one identifier: 'email' or 'mobile'")
+        }
+
+        // Check for duplicate email/mobile before generating OTP
+        const conflict = await checkRegistrationConflict(dbClient, requestParams, logger)
+        if (conflict) {
+          return { statusCode: 409, body: { error: conflict } }
+        }
+
+        const result = await generateOtp(dbClient, {
+          flowType: 'register',
+          loginType,
+          mobile: requestParams.mobile || requestParams.mobile_number || null,
+          email: requestParams.email || null,
+          firstname: requestParams.firstname || requestParams.firstName || null,
+          lastname: requestParams.lastname || requestParams.lastName || null,
+          customer_id: requestParams.customer_id || null
+        }, logger)
+
+        return { statusCode: 200, body: result }
+      }
+
       case 'updateCustomerDetails':
         return await update(dbClient, requestParams, logger)
+
       default:
-        return badRequest(`invalid operation: ${operation}`)
+        return badRequest(`invalid operation: '${operation}'. Use 'register' or 'updateCustomerDetails'.`)
     }
-  } catch (error) {
-    logger.error(error)
-    return serverError()
+  } catch (err) {
+    const code = err.statusCode || 500
+    if (code >= 500) logger.error(err)
+    return { statusCode: code, body: { error: err.message || 'server error' } }
   } finally {
     await closeDb(dbClient, logger)
   }
 }
+

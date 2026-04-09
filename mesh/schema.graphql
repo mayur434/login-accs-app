@@ -7,7 +7,8 @@
 # The mesh exposes these operations from the LoginModule source:
 #
 #   Mutations:
-#     otpAction(input: OtpRequest_Input!): OtpResponse
+#     generateOtpAction(input: GenerateOtpRequest_Input!): GenerateOtpResponse
+#     validateOtpAction(input: ValidateOtpRequest_Input!): ValidateOtpResponse
 #     customerAction(input: CustomerRequest_Input!): CustomerResponse
 #     updateConfig(input: ConfigUpdateRequest_Input!): AppConfig
 #     initIdentity: InitIdentityResponse
@@ -19,28 +20,30 @@
 # These are combined with the full Commerce GraphQL schema at the mesh endpoint.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ── OTP Action ───────────────────────────────────────────────────────────────
-# Generate OTP (mobile):
+# ── Generate OTP (Login flow) ────────────────────────────────────────────────
+# For existing users → flowType=login. For new users with auto_register → flowType=register.
+#
+# By mobile:
 #   mutation {
-#     otpAction(input: { loginType: mobile, mobile: "9876543210" }) {
+#     generateOtpAction(input: { mobile: "9876543210" }) {
 #       otpReferenceId
 #       otpValue
 #     }
 #   }
 #
-# Generate OTP (email):
+# By email:
 #   mutation {
-#     otpAction(input: { loginType: email, email: "john@example.com" }) {
+#     generateOtpAction(input: { email: "john@example.com" }) {
 #       otpReferenceId
 #       otpValue
 #     }
 #   }
-#
-# Validate OTP:
+
+# ── Validate OTP (Common for login & register) ──────────────────────────────
+# Returns customer_token. Handles both login and register based on stored flowType.
 #   mutation {
-#     otpAction(input: {
-#       loginType: mobile,
-#       otpReferenceId: "ref-id",
+#     validateOtpAction(input: {
+#       otpReferenceId: "otp_xxxx",
 #       otpValue: "1234"
 #     }) {
 #       success
@@ -49,12 +52,10 @@
 #     }
 #   }
 
-# ── Customer Action ──────────────────────────────────────────────────────────
-# Register (step 1 — triggers OTP):
+# ── Customer Registration (Step 1 — generates OTP with flowType=register) ───
 #   mutation {
 #     customerAction(input: {
-#       operation: register,
-#       loginType: mobile,
+#       operation: "register",
 #       mobile: "9876543210",
 #       firstname: "John",
 #       lastname: "Doe"
@@ -64,48 +65,14 @@
 #     }
 #   }
 #
-# Register (step 2 — validate OTP):
+# Then validate with validateOtpAction above.
+
+# ── Update Customer Details ──────────────────────────────────────────────────
 #   mutation {
 #     customerAction(input: {
-#       operation: register,
-#       otpReferenceId: "ref-id",
-#       otpValue: "1234",
-#       password: "MyP@ss123"
-#     }) {
-#       success
-#       customer_token
-#       customer { customer_id firstname lastname email mobile_number login_type }
-#     }
-#   }
-#
-# Login (step 1 — triggers OTP):
-#   mutation {
-#     customerAction(input: { operation: login, loginType: mobile, mobile: "9876543210" }) {
-#       otpReferenceId
-#       otpValue
-#     }
-#   }
-#
-# Login (step 2 — validate OTP):
-#   mutation {
-#     customerAction(input: {
-#       operation: login,
-#       otpReferenceId: "ref-id",
-#       otpValue: "1234",
-#       password: "MyP@ss123"
-#     }) {
-#       success
-#       customerToken
-#       customer { id firstname lastname email }
-#     }
-#   }
-#
-# Update Customer Details:
-#   mutation {
-#     customerAction(input: {
-#       operation: updateCustomerDetails,
+#       operation: "updateCustomerDetails",
 #       customer_token: "jwt-token",
-#       customer_id: 42,
+#       customer_id: "42",
 #       mobile_number: "8765432109"
 #     }) {
 #       success
