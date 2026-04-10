@@ -57,10 +57,10 @@ All customer-facing operations go through the API Mesh gateway:
 
 | Use Case | Mesh Operation | Payload |
 |---|---|---|
-| Register customer | `POST /otp` → `POST /customer` | `operation: register` |
-| Login customer | `POST /otp` → `POST /customer` | `operation: login` |
+| Register customer | `POST /customer` | `operation: register` |
+| Login customer | `POST /generate-otp` → `POST /validate-otp` | Identifier + OTP |
 | Update profile | `POST /customer` | `operation: updateCustomerDetails` |
-| Standalone OTP | `POST /otp` | Generate or validate |
+| Standalone OTP | `POST /generate-otp` and `POST /validate-otp` | Generate or validate |
 
 **Mesh URL:** `https://<mesh-id>.runtime.adobe.io/<api-path>`
 
@@ -173,9 +173,10 @@ actions/
   lib/            # Shared libraries (http, db, graphql, commerce, otp, params, customer, sms, email, template)
     db-adapters/  # Database backend adapters (DocDB, MySQL)
   config/         # Module config CRUD — Admin UI SDK only
-  customer/       # Customer router (register/login/update) — via API Mesh
-    services/     # Service handlers (otp, login, register, update)
-  otp/            # Standalone OTP generate/verify — via API Mesh
+  customer/       # Customer router (register/update) — via API Mesh
+    services/     # Service handlers (register, update)
+  generate-otp/   # OTP generation endpoint — via API Mesh
+  validate-otp/   # OTP validation endpoint — via API Mesh
   registration/   # Extension menu registration — Admin UI SDK
   init-identity/  # DB index initialization (used by setup-db)
 mesh/             # API Mesh config (self-contained package)
@@ -186,7 +187,6 @@ mesh/             # API Mesh config (self-contained package)
 web-src/          # React + Spectrum Admin UI (Commerce Admin extension)
 scripts/          # Setup and dev scripts
 test/             # Unit tests
-e2e/              # End-to-end tests
 ```
 
 ## Documents

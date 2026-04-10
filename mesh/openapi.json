@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Login Module API",
-    "version": "3.0.0"
+    "version": "3.1.0"
   },
   "servers": [
     {
@@ -30,6 +30,38 @@
                 "schema": { "$ref": "#/components/schemas/GenerateOtpResponse" }
               }
             }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Module disabled",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
           }
         }
       }
@@ -52,6 +84,46 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ValidateOtpResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid OTP",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Module disabled",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           }
@@ -78,6 +150,38 @@
                 "schema": { "$ref": "#/components/schemas/CustomerResponse" }
               }
             }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Module disabled",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
           }
         }
       }
@@ -85,13 +189,22 @@
   },
   "components": {
     "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" }
+        }
+      },
       "GenerateOtpRequest": {
         "type": "object",
         "properties": {
           "email": { "type": "string" },
           "mobile": { "type": "string" },
+          "mobile_number": { "type": "string" },
           "firstname": { "type": "string" },
-          "lastname": { "type": "string" }
+          "firstName": { "type": "string" },
+          "lastname": { "type": "string" },
+          "lastName": { "type": "string" }
         }
       },
       "GenerateOtpResponse": {
@@ -113,18 +226,24 @@
         "properties": {
           "success": { "type": "boolean" },
           "customer_token": { "type": "string" },
-          "message": { "type": "string" }
+          "message": { "type": "string" },
+          "customer": { "$ref": "#/components/schemas/Customer" }
         }
       },
       "CustomerRequest": {
         "type": "object",
         "properties": {
-          "operation": { "type": "string" },
+          "operation": {
+            "type": "string",
+            "enum": ["register", "updateCustomerDetails"]
+          },
           "email": { "type": "string" },
           "mobile": { "type": "string" },
           "mobile_number": { "type": "string" },
           "firstname": { "type": "string" },
+          "firstName": { "type": "string" },
           "lastname": { "type": "string" },
+          "lastName": { "type": "string" },
           "customer_token": { "type": "string" },
           "customer_id": { "type": "string" },
           "new_email": { "type": "string" }
@@ -145,7 +264,12 @@
       "Customer": {
         "type": "object",
         "properties": {
-          "customer_id": { "type": "string" },
+          "customer_id": {
+            "oneOf": [
+              { "type": "integer" },
+              { "type": "string" }
+            ]
+          },
           "id": { "type": "string" },
           "firstname": { "type": "string" },
           "lastname": { "type": "string" },

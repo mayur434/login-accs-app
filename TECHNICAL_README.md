@@ -5,7 +5,7 @@
 This project is an Adobe App Builder extension with two distinct access layers:
 
 1. **Admin UI SDK** — A React + Spectrum UI running inside Adobe Commerce Admin that calls the `config` action directly using IMS auth from the host context.
-2. **API Mesh** — A gateway that proxies storefront/mobile requests to the `otp` and `customer` actions. These actions have `require-adobe-auth: false` — the mesh URL is the only published endpoint, acting as the security boundary. Frontend consumers never handle IMS credentials.
+2. **API Mesh** — A gateway that proxies storefront/mobile requests to the `generate-otp`, `validate-otp`, and `customer` actions. These actions have `require-adobe-auth: false` — the mesh URL is the only published endpoint, acting as the security boundary. Frontend consumers never handle IMS credentials.
 
 ### Core Modules
 
@@ -22,11 +22,10 @@ This project is an Adobe App Builder extension with two distinct access layers:
 **API Mesh (frontend consumption):**
 
 - **Customer action** (router): `actions/customer/index.js`
-  - `actions/customer/services/otp.js` — OTP generate/verify gate
-  - `actions/customer/services/login.js` — customer login (email or mobile)
   - `actions/customer/services/register.js` — customer registration with Commerce sync
   - `actions/customer/services/update.js` — customer profile update (email, mobile, name) with rollback
-- **Standalone OTP action**: `actions/otp/otp.js`
+- **Generate OTP action**: `actions/generate-otp/index.js`
+- **Validate OTP action**: `actions/validate-otp/index.js`
 
 **Shared libraries** (`actions/lib/`):
 
@@ -92,14 +91,15 @@ Storefronts, mobile apps, and websites consume the Login Module through Adobe AP
 - **Exposes** clean REST endpoints defined by a single OpenAPI spec (`mesh/openapi.json`)
 - **Coexists** with the Commerce GraphQL source for unified gateway access
 
-The `otp` and `customer` actions have `require-adobe-auth: false` — no IMS or S2S tokens are needed.
+The `generate-otp`, `validate-otp`, and `customer` actions have `require-adobe-auth: false` — no IMS or S2S tokens are needed.
 
 Actions proxied through the mesh:
 
 | Action | Endpoint | Operations |
 |---|---|---|
-| `otp` | `POST /otp` | Generate OTP, validate OTP |
-| `customer` | `POST /customer` | Register, login, update profile |
+| `generate-otp` | `POST /generate-otp` | Generate OTP for login or auto-register flow |
+| `validate-otp` | `POST /validate-otp` | Validate OTP and complete login/registration |
+| `customer` | `POST /customer` | Register, update profile |
 
 ### Runtime Details
 
@@ -119,7 +119,7 @@ Actions proxied through the mesh:
 ### Mesh Auth (S2S)
 
 Actions self-generate IMS tokens from environment credentials when no authorization header is present.
-This means the mesh does **not** need to inject S2S tokens — the `otp` and `customer` actions handle
+This means the mesh does **not** need to inject S2S tokens — the `generate-otp`, `validate-otp`, and `customer` actions handle
 their own DocDB authentication internally.
 
 If you need to pass explicit auth headers through the mesh, add `operationHeaders` to the
@@ -173,11 +173,13 @@ All mesh secrets are stored in `mesh/.env.mesh` (git-ignored) and passed to `aio
 |---|---|---|---|
 | Admin UI SDK → `config` | IMS token from Commerce Admin host context | Adobe Commerce (automatic) | Admin users |
 | Admin UI SDK → `registration` | IMS token from Commerce Admin host context | Adobe Commerce (automatic) | Admin users |
-| API Mesh → `otp` | None (`require-adobe-auth: false`) | Mesh is the security boundary | Storefronts, mobile apps |
+| API Mesh → `generate-otp` | None (`require-adobe-auth: false`) | Mesh is the security boundary | Storefronts, mobile apps |
+| API Mesh → `validate-otp` | None (`require-adobe-auth: false`) | Mesh is the security boundary | Storefronts, mobile apps |
 | API Mesh → `customer` | None (`require-adobe-auth: false`) | Mesh is the security boundary | Storefronts, mobile apps |
 
-- `config` and `registration` are protected with `require-adobe-auth: true` in `ext.config.yaml`.
-- `otp` and `customer` have `require-adobe-auth: false` — the API Mesh acts as the security boundary. Direct action URLs are not published.
+- `registration` is protected with `require-adobe-auth: true` in `ext.config.yaml`.
+- `config`, `generate-otp`, `validate-otp`, and `customer` have `require-adobe-auth: false`.
+- The API Mesh remains the intended frontend security boundary, and direct action URLs are not published to storefront consumers.
 - Storefronts and mobile apps **never** need to pass IMS tokens — they call the mesh URL directly.
 - Admin UI users **never** need to manually obtain tokens — Commerce Admin host context provides them.
 
@@ -224,10 +226,9 @@ Collections / Tables:
 
 ### API Mesh (Frontend)
 
-- `POST /otp` (generate) — create OTP reference.
-- `POST /otp` (validate) — verify OTP and issue token.
+- `POST /generate-otp` — create OTP reference for login/auto-register flows.
+- `POST /validate-otp` — verify OTP and complete login/registration.
 - `POST /customer` `{operation: 'register'}` — register a new customer (OTP-gated).
-- `POST /customer` `{operation: 'login'}` — login an existing customer (OTP-gated).
 - `POST /customer` `{operation: 'updateCustomerDetails'}` — update customer profile.
 
 ## Post-Deploy Hook
