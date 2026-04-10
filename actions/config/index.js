@@ -7,6 +7,7 @@ const {
   getCollection, closeDb, normalizeAppConfig, findOneOrNull,
   APP_CONFIG_ID, APP_CONFIG_COLLECTION, APP_CONFIG_DEFAULTS
 } = require('../lib/db')
+const { actionStart, actionEnd } = require('../lib/logger')
 
 // ── Validation ──────────────────────────────────────────────────────────
 
@@ -134,24 +135,26 @@ async function getDocDbConfig (collection) {
 async function main (params) {
   const logger = Core.Logger('app_config', { level: params.LOG_LEVEL || 'info' })
   let dbClient
+  const method = ((params.__ow_method || (params.__ow_headers || {})['x-http-method-override'] || 'GET') + '').toUpperCase()
+  const traceId = actionStart(logger, 'app_config', { method })
 
   try {
-    logger.info('app_config action called')
     logger.debug(stringParameters(params))
     const inParams = getRequestParams(params)
     inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers || {}
-    const headers = inParams.__ow_headers || {}
     const aioDbToken = await getAioDbToken(inParams)
 
-    const method = ((params.__ow_method || headers['x-http-method-override'] || 'GET') + '').toUpperCase()
     const { dbClient: connectedClient, collection } = await getCollection(
       { ...inParams, AIO_DB_TOKEN: aioDbToken },
-      APP_CONFIG_COLLECTION
+      APP_CONFIG_COLLECTION,
+      { logger, traceId }
     )
     dbClient = connectedClient
 
     if (method === 'GET') {
-      return success(sanitizeConfigForResponse(await getDocDbConfig(collection)))
+      const result = success(sanitizeConfigForResponse(await getDocDbConfig(collection)))
+      actionEnd(logger, traceId, 'app_config', { statusCode: 200, method })
+      return result
     }
 
     if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
@@ -165,17 +168,22 @@ async function main (params) {
       )
 
       const updatedConfig = await findOneOrNull(collection, { _id: APP_CONFIG_ID })
-      return success(sanitizeConfigForResponse(normalizeAppConfig(updatedConfig)))
+      const result = success(sanitizeConfigForResponse(normalizeAppConfig(updatedConfig)))
+      actionEnd(logger, traceId, 'app_config', { statusCode: 200, method })
+      return result
     }
 
     if (method === 'DELETE') {
       await collection.deleteOne({ _id: APP_CONFIG_ID })
+      actionEnd(logger, traceId, 'app_config', { statusCode: 200, method })
       return success({ success: true, message: 'app_config deleted' })
     }
 
+    actionEnd(logger, traceId, 'app_config', { statusCode: 405, method })
     return methodNotAllowed(`method ${method} not allowed`)
   } catch (error) {
     logger.error(error)
+    actionEnd(logger, traceId, 'app_config', { statusCode: 500, error: error.message })
     return serverError()
   } finally {
     await closeDb(dbClient, logger)
