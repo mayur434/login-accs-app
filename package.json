@@ -36,6 +36,7 @@
     "lint": "eslint --ignore-pattern web-src --no-error-on-unmatched-pattern test src actions",
     "lint:fix": "npm run lint -- --fix",
     "setup-db": "node scripts/setup-db.js",
+    "seed-users": "node scripts/seed-users.js",
     "dev": "node scripts/dev-setup.js"
   },
   "engines": {
