@@ -257,7 +257,23 @@ async function main (params) {
         return errorResponse(404, 'user not found in Commerce', logger)
       }
       await upsertIdentity(dbClient, record, token, logger)
-      return { statusCode: 200, body: { success: true, customer_token: token, message: 'login successful' } }
+
+      let loginProfile = null
+      try {
+        loginProfile = await fetchCustomerProfile(inParams, token, logger)
+      } catch (profileErr) {
+        logger.warn('Could not fetch customer profile after login: ' + profileErr.message)
+      }
+
+      return {
+        statusCode: 200,
+        body: {
+          success: true,
+          customer_token: token,
+          message: 'login successful',
+          customer: toCustomerResponse(loginProfile, record, emailToUse)
+        }
+      }
     }
 
     // ── flowType: register ──────────────────────────────────────────
