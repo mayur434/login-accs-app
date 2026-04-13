@@ -26,15 +26,36 @@ function getPreparedInput (params) {
     const hasMobile = !!mobileInput
     const normalizedMobile = hasMobile ? normalizeMobile(mobileInput) : null
 
-    const emailInput = hasValue(params.new_email) ? params.new_email : (hasValue(params.email) ? params.email : null)
+    let emailInput = null
+    if (hasValue(params.new_email)) emailInput = params.new_email
+    else if (hasValue(params.email)) emailInput = params.email
     const hasEmail = !!emailInput
     const resolvedEmail = hasEmail ? normalizeEmailInput(emailInput) : null
 
-    if (!hasMobile && !hasEmail) {
-      return { error: badRequest("provide at least one field: 'mobile_number' or 'new_email'") }
+    let firstNameInput = null
+    if (hasValue(params.firstname)) firstNameInput = String(params.firstname).trim()
+    const hasFirstName = !!firstNameInput
+
+    let lastNameInput = null
+    if (hasValue(params.lastname)) lastNameInput = String(params.lastname).trim()
+    const hasLastName = !!lastNameInput
+
+    if (!hasMobile && !hasEmail && !hasFirstName && !hasLastName) {
+      return { error: badRequest("provide at least one field: 'mobile_number', 'new_email', 'firstname', or 'lastname'") }
     }
 
-    return { prepared: { hasMobile, hasEmail, normalizedMobile, resolvedEmail } }
+    return {
+      prepared: {
+        hasMobile,
+        hasEmail,
+        hasFirstName,
+        hasLastName,
+        normalizedMobile,
+        resolvedEmail,
+        firstName: firstNameInput,
+        lastName: lastNameInput
+      }
+    }
   } catch (e) {
     return { error: badRequest(e.message || 'invalid input') }
   }
@@ -72,15 +93,19 @@ async function updateCommerceProfile (params, customerToken, prepared, currentEm
   let profileResult = null
   let emailResult = null
 
-  // 1. Mobile update FIRST — does NOT invalidate token
-  if (prepared.hasMobile) {
-    const input = {
-      custom_attributes: [{ attribute_code: 'mobile_number', value: getCommerceMobileValue(prepared.normalizedMobile) }]
+  // 1. Profile update FIRST — does NOT invalidate token
+  if (prepared.hasMobile || prepared.hasFirstName || prepared.hasLastName) {
+    const input = {}
+    if (prepared.hasMobile) {
+      input.custom_attributes = [{ attribute_code: 'mobile_number', value: getCommerceMobileValue(prepared.normalizedMobile) }]
     }
+    if (prepared.hasFirstName) input.firstname = prepared.firstName
+    if (prepared.hasLastName) input.lastname = prepared.lastName
+
     const mutation = `
       mutation updateCustomerV2($input: CustomerUpdateInput!) {
         updateCustomerV2(input: $input) {
-          customer { id email custom_attributes { code ...on AttributeValue { value } } }
+          customer { id firstname lastname email custom_attributes { code ...on AttributeValue { value } } }
         }
       }
     `
@@ -117,6 +142,61 @@ async function updateCommerceProfile (params, customerToken, prepared, currentEm
   }
 }
 
+function buildDbUpdatePayload (prepared, currentEmail) {
+  const dbUpdate = {}
+  if (prepared.hasMobile) dbUpdate.mobile_number = prepared.normalizedMobile
+  if (prepared.hasEmail) {
+    dbUpdate.email = prepared.resolvedEmail
+  } else if (prepared.hasMobile && isPatternEmail(currentEmail)) {
+    dbUpdate.email = getSyntheticEmail(prepared.normalizedMobile)
+  }
+  if (prepared.hasFirstName) dbUpdate.firstname = prepared.firstName
+  if (prepared.hasLastName) dbUpdate.lastname = prepared.lastName
+  dbUpdate.updated_at = new Date()
+  return dbUpdate
+}
+
+function buildUpdatedCustomerResponse (customerId, customerRecord, prepared, dbUpdate, currentEmail) {
+  const nextEmail = dbUpdate.email || currentEmail
+  const nextMobile = prepared.hasMobile ? prepared.normalizedMobile : (customerRecord.mobile_number || null)
+  const nextFirstName = prepared.hasFirstName ? prepared.firstName : (customerRecord.firstname || null)
+  const nextLastName = prepared.hasLastName ? prepared.lastName : (customerRecord.lastname || null)
+
+  return {
+    customer_id: customerId,
+    mobile_number: nextMobile,
+    email: nextEmail,
+    firstname: nextFirstName,
+    lastname: nextLastName,
+    login_type: customerRecord.login_type || null,
+    status: customerRecord.status || 'active'
+  }
+}
+
+async function applyIdentityUpdate (collection, customerId, dbUpdate) {
+  try {
+    await collection.updateOne(
+      { customer_id: customerId },
+      { $set: dbUpdate }
+    )
+  } catch (updateError) {
+    if (isUniqueConstraintError(updateError)) return conflict('email or mobile number already exists')
+    throw updateError
+  }
+  return null
+}
+
+async function runCommerceUpdate (params, customerToken, prepared, currentEmail, logger) {
+  try {
+    const commerceResult = await updateCommerceProfile(params, customerToken, prepared, currentEmail, logger)
+    logger.debug('Commerce update result', commerceResult)
+    return null
+  } catch (commerceError) {
+    logger.error(commerceError)
+    return serverError(commerceError.message || 'failed to update in Commerce')
+  }
+}
+
 // ── Exported handler ────────────────────────────────────────────────────
 
 module.exports = async function update (dbClient, params, logger) {
@@ -129,7 +209,7 @@ module.exports = async function update (dbClient, params, logger) {
     const customerToken = params.customer_token || params.customerToken || params.token
     if (!customerToken) return badRequest('customer_token is required')
 
-    // 3. Parse input — only email and mobile
+    // 3. Parse input — email/mobile/name fields
     const { error, prepared } = getPreparedInput(params)
     if (error) return error
 
@@ -149,49 +229,21 @@ module.exports = async function update (dbClient, params, logger) {
     if (conflictError) return conflictError
 
     // 7. Update Commerce — mobile FIRST, email LAST (email change revokes token)
-    let commerceResult
-    try {
-      commerceResult = await updateCommerceProfile(params, customerToken, prepared, currentEmail, logger)
-      logger.debug('Commerce update result', commerceResult)
-    } catch (commerceError) {
-      logger.error(commerceError)
-      return serverError(commerceError.message || 'failed to update in Commerce')
-    }
+    const commerceError = await runCommerceUpdate(params, customerToken, prepared, currentEmail, logger)
+    if (commerceError) return commerceError
 
     // 8. Commerce succeeded → update App Builder DB (DocDB / MySQL)
-    const dbUpdate = {}
-    if (prepared.hasMobile) dbUpdate.mobile_number = prepared.normalizedMobile
-    if (prepared.hasEmail) {
-      dbUpdate.email = prepared.resolvedEmail
-    } else if (prepared.hasMobile && isPatternEmail(currentEmail)) {
-      dbUpdate.email = getSyntheticEmail(prepared.normalizedMobile)
-    }
+    const dbUpdate = buildDbUpdatePayload(prepared, currentEmail)
+    const dbConflict = await applyIdentityUpdate(collection, customerId, dbUpdate)
+    if (dbConflict) return dbConflict
 
-    const nextEmail = dbUpdate.email || currentEmail
-    const nextMobile = prepared.hasMobile ? prepared.normalizedMobile : (customerRecord.mobile_number || null)
-    dbUpdate.updated_at = new Date()
-
-    try {
-      await collection.updateOne(
-        { customer_id: customerId },
-        { $set: dbUpdate }
-      )
-    } catch (updateError) {
-      if (isUniqueConstraintError(updateError)) return conflict('email or mobile number already exists')
-      throw updateError
-    }
+    const updatedCustomer = buildUpdatedCustomerResponse(customerId, customerRecord, prepared, dbUpdate, currentEmail)
 
     return {
       statusCode: 200,
       body: {
         success: true,
-        customer: {
-          customer_id: customerId,
-          mobile_number: nextMobile,
-          email: nextEmail,
-          login_type: customerRecord.login_type || null,
-          status: customerRecord.status || 'active'
-        }
+        customer: updatedCustomer
       }
     }
   } catch (error) {

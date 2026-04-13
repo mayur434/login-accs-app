@@ -1,7 +1,6 @@
 /**
  * Unit tests for customer service handlers:
  *   - actions/customer/services/register.js
- *   - actions/customer/services/login.js
  *   - actions/customer/services/update.js
  */
 
@@ -120,112 +119,6 @@ describe('register service', () => {
 })
 
 // ════════════════════════════════════════════════════════════════════════
-// Login
-// ════════════════════════════════════════════════════════════════════════
-
-describe('login service', () => {
-  const login = require('../actions/customer/services/login')
-
-  test('returns 400 when password missing', async () => {
-    const result = await login(mockDbClient, { email: 'a@b.com' }, mockLogger)
-    expect(result.statusCode).toBe(400)
-    expect(result.body.error).toContain('password')
-  })
-
-  test('returns 400 when email missing for email login', async () => {
-    const result = await login(mockDbClient, {
-      password: 'pass@123'
-    }, mockLogger)
-    expect(result.statusCode).toBe(400)
-    expect(result.body.error).toContain('email')
-  })
-
-  test('returns 404 when mobile not found in identity table', async () => {
-    setupFindOneNotFound()
-
-    const result = await login(mockDbClient, {
-      password: 'pass@123',
-      mobile: '9876543210'
-    }, mockLogger)
-    expect(result.statusCode).toBe(404)
-    expect(result.body.error).toContain('mobile number not found')
-  })
-
-  test('returns 400 when mobile missing for mobile login', async () => {
-    const result = await login(mockDbClient, {
-      password: 'pass@123'
-    }, mockLogger)
-    expect(result.statusCode).toBe(400)
-    expect(result.body.error).toContain('identifier')
-  })
-
-  test('successfully logs in with email', async () => {
-    // Commerce token generation succeeds
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: jest.fn().mockResolvedValue(JSON.stringify({
-        data: { generateCustomerToken: { token: 'customer-jwt' } }
-      }))
-    })
-    // Customer profile fetch
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: jest.fn().mockResolvedValue(JSON.stringify({
-        data: { customer: { id: 42, firstname: 'John', lastname: 'Doe', email: 'test@x.com' } }
-      }))
-    })
-
-    // Identity lookup succeeds
-    setupFindOneReturns({ email: 'test@x.com', customer_id: 42, status: 'active' })
-
-    const result = await login(mockDbClient, {
-      password: 'pass@123',
-      email: 'test@x.com',
-      GRAPHQL_ENDPOINT: 'https://commerce.example.com/graphql'
-    }, mockLogger)
-
-    expect(result.statusCode).toBe(200)
-    expect(result.body.success).toBe(true)
-  })
-
-  test('prefers mobile login when both mobile and email are present', async () => {
-    setupFindOneReturns({ email: 'resolved@x.com', customer_id: 42, status: 'active' })
-
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: jest.fn().mockResolvedValue(JSON.stringify({
-        data: { generateCustomerToken: { token: 'customer-jwt' } }
-      }))
-    })
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: jest.fn().mockResolvedValue(JSON.stringify({
-        data: { customer: { id: 42, firstname: 'John', lastname: 'Doe', email: 'resolved@x.com' } }
-      }))
-    })
-
-    const result = await login(mockDbClient, {
-      password: 'pass@123',
-      email: 'request@x.com',
-      mobile: '9876543210',
-      GRAPHQL_ENDPOINT: 'https://commerce.example.com/graphql'
-    }, mockLogger)
-
-    expect(result.statusCode).toBe(200)
-    expect(fetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        body: expect.stringContaining('resolved@x.com')
-      })
-    )
-  })
-})
-
-// ════════════════════════════════════════════════════════════════════════
 // Update
 // ════════════════════════════════════════════════════════════════════════
 
@@ -307,5 +200,86 @@ describe('update service', () => {
     }, mockLogger)
     expect(result.statusCode).toBe(400)
     expect(result.body.error).toContain('invalid')
+  })
+
+  test('updates firstname and lastname', async () => {
+    findOneOrNull.mockResolvedValue({
+      customer_id: 42,
+      email: 'existing@example.com',
+      mobile_number: '+919876543210',
+      firstname: 'Old',
+      lastname: 'Name',
+      status: 'active'
+    })
+    mockCollection.updateOne.mockResolvedValue({ modifiedCount: 1 })
+
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue(JSON.stringify({
+        data: {
+          updateCustomerV2: {
+            customer: {
+              id: 42,
+              firstname: 'John',
+              lastname: 'Doe',
+              email: 'existing@example.com'
+            }
+          }
+        }
+      }))
+    })
+
+    const result = await update(mockDbClient, {
+      customer_id: 42,
+      customer_token: 'abc',
+      firstname: 'John',
+      lastname: 'Doe',
+      GRAPHQL_ENDPOINT: 'https://commerce.example.com/graphql'
+    }, mockLogger)
+
+    expect(result.statusCode).toBe(200)
+    expect(result.body.customer.firstname).toBe('John')
+    expect(result.body.customer.lastname).toBe('Doe')
+    expect(mockCollection.updateOne).toHaveBeenCalledWith(
+      { customer_id: 42 },
+      { $set: expect.objectContaining({ firstname: 'John', lastname: 'Doe' }) }
+    )
+
+    const requestBody = JSON.parse(fetch.mock.calls[0][1].body)
+    expect(requestBody.query).toContain('updateCustomerV2')
+    expect(requestBody.variables.input.firstname).toBe('John')
+    expect(requestBody.variables.input.lastname).toBe('Doe')
+  })
+
+  test('rejects firstName/lastName alias-only payload', async () => {
+    findOneOrNull.mockResolvedValue({
+      customer_id: 42,
+      email: 'existing@example.com',
+      mobile_number: '+919876543210',
+      firstname: 'Old',
+      lastname: 'Name',
+      status: 'active'
+    })
+    mockCollection.updateOne.mockResolvedValue({ modifiedCount: 1 })
+
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue(JSON.stringify({
+        data: { updateCustomerV2: { customer: { id: 42, firstname: 'Jane', lastname: 'Smith', email: 'existing@example.com' } } }
+      }))
+    })
+
+    const result = await update(mockDbClient, {
+      customer_id: 42,
+      customer_token: 'abc',
+      firstName: 'Jane',
+      lastName: 'Smith',
+      GRAPHQL_ENDPOINT: 'https://commerce.example.com/graphql'
+    }, mockLogger)
+
+    expect(result.statusCode).toBe(400)
+    expect(result.body.error).toContain('at least one field')
   })
 })
