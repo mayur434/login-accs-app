@@ -7,7 +7,7 @@ const {
   getCollection, closeDb, normalizeAppConfig, findOneOrNull,
   APP_CONFIG_ID, APP_CONFIG_COLLECTION, APP_CONFIG_DEFAULTS
 } = require('../lib/db')
-const { actionStart, actionEnd } = require('../lib/logger')
+const { generateTraceId, actionStart, actionEnd } = require('../lib/logger')
 
 // ── Validation ──────────────────────────────────────────────────────────
 
@@ -135,8 +135,8 @@ async function getDocDbConfig (collection) {
 async function main (params) {
   const logger = Core.Logger('app_config', { level: params.LOG_LEVEL || 'info' })
   let dbClient
+  const traceId = generateTraceId()
   const method = ((params.__ow_method || (params.__ow_headers || {})['x-http-method-override'] || 'GET') + '').toUpperCase()
-  const traceId = actionStart(logger, 'app_config', { method })
 
   try {
     logger.debug(stringParameters(params))
@@ -147,13 +147,15 @@ async function main (params) {
     const { dbClient: connectedClient, collection } = await getCollection(
       { ...inParams, AIO_DB_TOKEN: aioDbToken },
       APP_CONFIG_COLLECTION,
-      { logger, traceId }
+      { traceId }
     )
     dbClient = connectedClient
+    const rawDb = dbClient._rawDbClient || dbClient
+    actionStart(rawDb, traceId, 'app_config', { method })
 
     if (method === 'GET') {
       const result = success(sanitizeConfigForResponse(await getDocDbConfig(collection)))
-      actionEnd(logger, traceId, 'app_config', { statusCode: 200, method })
+      actionEnd(rawDb, traceId, 'app_config', { statusCode: 200, method })
       return result
     }
 
@@ -169,21 +171,22 @@ async function main (params) {
 
       const updatedConfig = await findOneOrNull(collection, { _id: APP_CONFIG_ID })
       const result = success(sanitizeConfigForResponse(normalizeAppConfig(updatedConfig)))
-      actionEnd(logger, traceId, 'app_config', { statusCode: 200, method })
+      actionEnd(rawDb, traceId, 'app_config', { statusCode: 200, method })
       return result
     }
 
     if (method === 'DELETE') {
       await collection.deleteOne({ _id: APP_CONFIG_ID })
-      actionEnd(logger, traceId, 'app_config', { statusCode: 200, method })
+      actionEnd(rawDb, traceId, 'app_config', { statusCode: 200, method })
       return success({ success: true, message: 'app_config deleted' })
     }
 
-    actionEnd(logger, traceId, 'app_config', { statusCode: 405, method })
+    actionEnd(rawDb, traceId, 'app_config', { statusCode: 405, method })
     return methodNotAllowed(`method ${method} not allowed`)
   } catch (error) {
     logger.error(error)
-    actionEnd(logger, traceId, 'app_config', { statusCode: 500, error: error.message })
+    const rawDb = dbClient?._rawDbClient || dbClient
+    if (rawDb && traceId) actionEnd(rawDb, traceId, 'app_config', { statusCode: 500, error: error.message })
     return serverError()
   } finally {
     await closeDb(dbClient, logger)

@@ -26,7 +26,7 @@ const {
 const { validateOtp } = require('../lib/otpService')
 const { getAioDbToken } = require('../lib/imsHelper')
 const { fetchCustomerProfile } = require('../lib/commerce')
-const { actionStart, actionEnd } = require('../lib/logger')
+const { generateTraceId, actionStart, actionEnd } = require('../lib/logger')
 
 // ── Commerce helpers ────────────────────────────────────────────────────
 
@@ -226,7 +226,7 @@ async function resolveEmail (dbClient, record, logger) {
 async function main (params) {
   const logger = Core.Logger('validateOtp', { level: params.LOG_LEVEL || 'info' })
   let dbClient
-  const traceId = actionStart(logger, 'validateOtp')
+  const traceId = generateTraceId()
 
   try {
     const inParams = getRequestParams(params)
@@ -240,9 +240,11 @@ async function main (params) {
     const { dbClient: client } = await getCollection(
       { ...inParams, AIO_DB_TOKEN: aioDbToken },
       'otps',
-      { logger, traceId }
+      { traceId }
     )
     dbClient = client
+    const rawDb = dbClient._rawDbClient || dbClient
+    actionStart(rawDb, traceId, 'validateOtp')
 
     await assertModuleEnabled(dbClient)
 
@@ -267,7 +269,7 @@ async function main (params) {
         logger.warn('Could not fetch customer profile after login: ' + profileErr.message)
       }
 
-      actionEnd(logger, traceId, 'validateOtp', { statusCode: 200, flowType: 'login' });
+      actionEnd(rawDb, traceId, 'validateOtp', { statusCode: 200, flowType: 'login' });
       return {
         statusCode: 200,
         body: {
@@ -310,7 +312,7 @@ async function main (params) {
       return errorResponse(500, `registration failed: could not store user in local DB (${dbErr.message})`, logger)
     }
 
-    actionEnd(logger, traceId, 'validateOtp', { statusCode: 200, flowType: 'register' })
+    actionEnd(rawDb, traceId, 'validateOtp', { statusCode: 200, flowType: 'register' })
     return {
       statusCode: 200,
       body: {
@@ -322,7 +324,8 @@ async function main (params) {
     }
   } catch (err) {
     const code = err.statusCode || 500
-    actionEnd(logger, traceId, 'validateOtp', { statusCode: code, error: err.message })
+    const rawDb = dbClient?._rawDbClient || dbClient
+    if (rawDb && traceId) actionEnd(rawDb, traceId, 'validateOtp', { statusCode: code, error: err.message })
     return errorResponse(code, err.message || 'server error', logger)
   } finally {
     await closeDb(dbClient, logger)

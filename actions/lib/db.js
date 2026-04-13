@@ -15,9 +15,10 @@ const APP_CONFIG_COLLECTION = 'app_config'
 /**
  * Wrap a raw collection handle so every DB operation is logged with
  * start/end timestamps and a unique traceId.
+ * Logging goes into the query_performance_logger table via rawDbClient.
  */
-function wrapCollectionWithLogging (rawCollection, collectionName, logger, parentTraceId) {
-  if (!logger || !parentTraceId) return rawCollection
+function wrapCollectionWithLogging (rawCollection, collectionName, rawDbClient, parentTraceId) {
+  if (!rawDbClient || !parentTraceId) return rawCollection
 
   function wrap (opName) {
     return async function (...args) {
@@ -28,13 +29,13 @@ function wrapCollectionWithLogging (rawCollection, collectionName, logger, paren
       if (opName === 'deleteOne') details.filter = args[0]
       if (opName === 'createIndex') { details.fields = args[0]; details.options = args[1] }
 
-      const dbTraceId = dbStart(logger, parentTraceId, opName, collectionName, details)
+      const dbTraceId = dbStart(rawDbClient, parentTraceId, opName, collectionName, details)
       try {
         const result = await rawCollection[opName](...args)
-        dbEnd(logger, dbTraceId, parentTraceId, opName, collectionName, { success: true })
+        dbEnd(rawDbClient, dbTraceId, parentTraceId, opName, collectionName, { success: true })
         return result
       } catch (err) {
-        dbEnd(logger, dbTraceId, parentTraceId, opName, collectionName, { success: false, error: err.message })
+        dbEnd(rawDbClient, dbTraceId, parentTraceId, opName, collectionName, { success: false, error: err.message })
         throw err
       }
     }
@@ -52,16 +53,18 @@ function wrapCollectionWithLogging (rawCollection, collectionName, logger, paren
 
 /**
  * Wrap a dbClient so that every collection() call returns a logged collection.
+ * rawDbClient is kept unwrapped so logger inserts don't trigger recursive logging.
  */
-function wrapDbClientWithLogging (dbClient, logger, parentTraceId) {
-  if (!logger || !parentTraceId) return dbClient
+function wrapDbClientWithLogging (dbClient, rawDbClient, parentTraceId) {
+  if (!rawDbClient || !parentTraceId) return dbClient
 
   const origCollection = dbClient.collection.bind(dbClient)
   return {
     ...dbClient,
+    _rawDbClient: rawDbClient,
     collection: (name) => {
       const raw = origCollection(name)
-      return wrapCollectionWithLogging(raw, name, logger, parentTraceId)
+      return wrapCollectionWithLogging(raw, name, rawDbClient, parentTraceId)
     },
     close: dbClient.close ? dbClient.close.bind(dbClient) : () => {}
   }
@@ -75,14 +78,14 @@ function wrapDbClientWithLogging (dbClient, logger, parentTraceId) {
  *
  * @param {object} params
  * @param {object} [opts]              – optional logging context
- * @param {object} [opts.logger]       – Core.Logger instance
  * @param {string} [opts.traceId]      – action-level traceId for correlation
  */
 async function connectDb (params, opts = {}) {
   const adapter = getAdapter(params)
-  let { dbClient } = await adapter.connect(params)
-  if (opts.logger && opts.traceId) {
-    dbClient = wrapDbClientWithLogging(dbClient, opts.logger, opts.traceId)
+  const { dbClient } = await adapter.connect(params)
+  if (opts.traceId) {
+    const wrapped = wrapDbClientWithLogging(dbClient, dbClient, opts.traceId)
+    return { dbClient: wrapped }
   }
   return { dbClient }
 }
@@ -93,7 +96,6 @@ async function connectDb (params, opts = {}) {
  * @param {object} params
  * @param {string} collectionName
  * @param {object} [opts]              – optional logging context
- * @param {object} [opts.logger]       – Core.Logger instance
  * @param {string} [opts.traceId]      – action-level traceId for correlation
  */
 async function getCollection (params, collectionName, opts = {}) {

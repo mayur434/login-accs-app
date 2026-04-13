@@ -3,7 +3,7 @@ const { stringParameters } = require('../utils')
 const { serverError } = require('../lib/http')
 const { getCollection, closeDb } = require('../lib/db')
 const { CUSTOMER_IDENTITY_COLLECTION } = require('../lib/customer')
-const { actionStart, actionEnd } = require('../lib/logger')
+const { generateTraceId, actionStart, actionEnd } = require('../lib/logger')
 
 const UNIQUE_INDEXES = [
   { field: 'mobile_number', name: 'uniq_mobile_number' },
@@ -26,17 +26,19 @@ async function ensureIndexes (collection) {
 async function main (params) {
   const logger = Core.Logger('init-identity', { level: params.LOG_LEVEL || 'info' })
   let dbClient
-  const traceId = actionStart(logger, 'init-identity')
+  const traceId = generateTraceId()
 
   try {
     logger.debug(stringParameters(params))
 
-    const { dbClient: connectedClient, collection } = await getCollection(params, CUSTOMER_IDENTITY_COLLECTION, { logger, traceId })
+    const { dbClient: connectedClient, collection } = await getCollection(params, CUSTOMER_IDENTITY_COLLECTION, { traceId })
     dbClient = connectedClient
+    const rawDb = dbClient._rawDbClient || dbClient
+    actionStart(rawDb, traceId, 'init-identity')
 
     const indexes = await ensureIndexes(collection)
 
-    actionEnd(logger, traceId, 'init-identity', { statusCode: 200 })
+    actionEnd(rawDb, traceId, 'init-identity', { statusCode: 200 })
     return {
       statusCode: 200,
       body: {
@@ -47,7 +49,8 @@ async function main (params) {
     }
   } catch (error) {
     logger.error(error)
-    actionEnd(logger, traceId, 'init-identity', { statusCode: 500, error: error.message })
+    const rawDb = dbClient?._rawDbClient || dbClient
+    if (rawDb && traceId) actionEnd(rawDb, traceId, 'init-identity', { statusCode: 500, error: error.message })
     return serverError('failed to initialize customer_mobile_identity collection')
   } finally {
     await closeDb(dbClient, logger)

@@ -128,6 +128,26 @@ const TABLE_SCHEMAS = {
     UNIQUE KEY uniq_email (email),
     UNIQUE KEY uniq_mobile_number (mobile_number),
     UNIQUE KEY uniq_customer_id (customer_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+  query_performance_logger: `CREATE TABLE IF NOT EXISTS query_performance_logger (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    trace_id VARCHAR(36) NOT NULL,
+    parent_trace_id VARCHAR(36) DEFAULT NULL,
+    phase VARCHAR(20) NOT NULL,
+    action_name VARCHAR(100) DEFAULT NULL,
+    operation VARCHAR(50) DEFAULT NULL,
+    collection_name VARCHAR(100) DEFAULT NULL,
+    status_code INT DEFAULT NULL,
+    success TINYINT(1) DEFAULT NULL,
+    error_message TEXT DEFAULT NULL,
+    details JSON DEFAULT NULL,
+    timestamp DATETIME(3) NOT NULL,
+    created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3),
+    INDEX idx_trace_id (trace_id),
+    INDEX idx_parent_trace_id (parent_trace_id),
+    INDEX idx_phase (phase),
+    INDEX idx_timestamp (timestamp)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
 }
 
