@@ -143,6 +143,7 @@ function inferLoginTypeFromParams (params = {}) {
   const hasMobile = hasIdentifierValue(params.mobile) || hasIdentifierValue(params.mobile_number)
   const hasEmail = hasIdentifierValue(params.email)
 
+  if (hasEmail && hasMobile) return 'both'
   if (hasMobile) return 'mobile'
   if (hasEmail) return 'email'
   return null
@@ -157,7 +158,8 @@ function buildLoginType (hasEmail, hasMobile) {
 
 function normalizeEmailInput (email) {
   const normalized = String(email || '').trim().toLowerCase()
-  if (!normalized) throw new Error('invalid email')
+  const basicEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!normalized || !basicEmailPattern.test(normalized)) throw new Error('invalid email')
   return normalized
 }
 

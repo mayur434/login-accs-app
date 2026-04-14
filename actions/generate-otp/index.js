@@ -16,8 +16,8 @@
 const { Core } = require('@adobe/aio-sdk')
 const { errorResponse } = require('../lib/http')
 const { getCollection, closeDb, assertModuleEnabled, findOneOrNull } = require('../lib/db')
-const { getRequestParams } = require('../lib/params')
-const { inferLoginTypeFromParams, normalizeMobile, CUSTOMER_IDENTITY_COLLECTION } = require('../lib/customer')
+const { getRequestParams, hasValue } = require('../lib/params')
+const { inferLoginTypeFromParams, normalizeMobile, normalizeEmailInput, CUSTOMER_IDENTITY_COLLECTION } = require('../lib/customer')
 const { generateOtp } = require('../lib/otpService')
 const { getAioDbToken } = require('../lib/imsHelper')
 
@@ -35,6 +35,25 @@ async function main (params) {
       return errorResponse(400, "provide at least one identifier: 'email' or 'mobile'", logger)
     }
 
+    if (hasValue(inParams.mobile) || hasValue(inParams.mobile_number)) {
+      const rawMobile = hasValue(inParams.mobile) ? inParams.mobile : inParams.mobile_number
+      try {
+        const normalizedMobile = normalizeMobile(rawMobile)
+        inParams.mobile = normalizedMobile
+        inParams.mobile_number = normalizedMobile
+      } catch (e) {
+        return errorResponse(400, e.message || 'invalid indian mobile number', logger)
+      }
+    }
+
+    if (hasValue(inParams.email)) {
+      try {
+        inParams.email = normalizeEmailInput(inParams.email)
+      } catch (e) {
+        return errorResponse(400, e.message || 'invalid email', logger)
+      }
+    }
+
     const aioDbToken = await getAioDbToken(inParams)
     const { dbClient: client } = await getCollection(
       { ...inParams, AIO_DB_TOKEN: aioDbToken },
@@ -48,12 +67,11 @@ async function main (params) {
     const identityCollection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
     let userExists = false
 
-    if (loginType === 'mobile') {
-      let normalizedMobile = inParams.mobile
-      try { normalizedMobile = normalizeMobile(inParams.mobile) } catch (_) { /* keep raw */ }
-      const identity = await findOneOrNull(identityCollection, { mobile_number: normalizedMobile, status: 'active' })
+    if (loginType === 'mobile' || loginType === 'both') {
+      const identity = await findOneOrNull(identityCollection, { mobile_number: inParams.mobile, status: 'active' })
       userExists = !!identity
-    } else {
+    }
+    if (!userExists && (loginType === 'email' || loginType === 'both')) {
       const email = String(inParams.email).trim().toLowerCase()
       const identity = await findOneOrNull(identityCollection, { email, status: 'active' })
       userExists = !!identity

@@ -3,7 +3,7 @@ const { stringParameters } = require('../utils')
 const { badRequest } = require('../lib/http')
 const { getCollection, closeDb, APP_CONFIG_COLLECTION, findOneOrNull, assertModuleEnabled } = require('../lib/db')
 const { getRequestParams } = require('../lib/params')
-const { CUSTOMER_IDENTITY_COLLECTION, inferLoginTypeFromParams, normalizeMobile } = require('../lib/customer')
+const { CUSTOMER_IDENTITY_COLLECTION, inferLoginTypeFromParams, normalizeMobile, normalizeEmailInput } = require('../lib/customer')
 const { getAioDbToken } = require('../lib/imsHelper')
 const { hasValue } = require('../lib/params')
 const { generateOtp } = require('../lib/otpService')
@@ -71,6 +71,25 @@ exports.main = async (params) => {
         const loginType = requestParams.loginType
         if (!loginType) {
           return badRequest("provide at least one identifier: 'email' or 'mobile'")
+        }
+
+        if (hasValue(requestParams.mobile) || hasValue(requestParams.mobile_number)) {
+          const rawMobile = hasValue(requestParams.mobile) ? requestParams.mobile : requestParams.mobile_number
+          try {
+            const normalizedMobile = normalizeMobile(rawMobile)
+            requestParams.mobile = normalizedMobile
+            requestParams.mobile_number = normalizedMobile
+          } catch (e) {
+            return badRequest(e.message || 'invalid indian mobile number')
+          }
+        }
+
+        if (hasValue(requestParams.email)) {
+          try {
+            requestParams.email = normalizeEmailInput(requestParams.email)
+          } catch (e) {
+            return badRequest(e.message || 'invalid email')
+          }
         }
 
         // Check for duplicate email/mobile before generating OTP

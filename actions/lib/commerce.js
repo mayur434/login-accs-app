@@ -20,9 +20,31 @@ async function generateCustomerToken (params, email, password, logger) {
 }
 
 async function fetchCustomerProfile (params, customerToken, logger) {
-  const query = `query { customer { id firstname lastname email } }`
-  const payload = await commerceGraphQLRequest(params, query, {}, logger, customerToken)
-  return payload?.data?.customer || null
+  const queryWithAttributes = `
+    query {
+      customer {
+        id
+        firstname
+        lastname
+        email
+        custom_attributes {
+          attribute_code
+          value
+        }
+      }
+    }
+  `
+
+  try {
+    const payload = await commerceGraphQLRequest(params, queryWithAttributes, {}, logger, customerToken)
+    return payload?.data?.customer || null
+  } catch (err) {
+    // Some Commerce versions may not expose custom_attributes in customer query.
+    logger?.debug && logger.debug('customer custom_attributes query failed, retrying basic profile: ' + err.message)
+    const basicQuery = `query { customer { id firstname lastname email } }`
+    const payload = await commerceGraphQLRequest(params, basicQuery, {}, logger, customerToken)
+    return payload?.data?.customer || null
+  }
 }
 
 module.exports = { generateCustomerToken, fetchCustomerProfile }

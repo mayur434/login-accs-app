@@ -19,7 +19,6 @@ const {
   CUSTOMER_IDENTITY_COLLECTION,
   parseCustomerIdFromToken,
   normalizeMobile,
-  buildLoginType,
   getSyntheticEmail,
   getCommerceMobileValue
 } = require('../lib/customer')
@@ -71,7 +70,30 @@ function extractCreateCustomerErrorMessage (err) {
   return err?.message || 'customer creation failed in Commerce'
 }
 
-function toCustomerResponse (profile, record, fallbackEmail, createdCustomer = null) {
+function resolvePrimaryLoginType (email, normalizedMobile) {
+  if (email && normalizedMobile) return 'both'
+  if (normalizedMobile) return 'mobile'
+  if (email) return 'email'
+  return null
+}
+
+function resolveNormalizedMobile (value) {
+  if (!value) return null
+  try {
+    return normalizeMobile(value)
+  } catch (_) {
+    return value
+  }
+}
+
+function extractProfileMobile (profile) {
+  const attrs = profile?.custom_attributes
+  if (!Array.isArray(attrs)) return null
+  const mobileAttr = attrs.find(a => String(a?.attribute_code || '').trim() === 'mobile_number')
+  return mobileAttr?.value ? resolveNormalizedMobile(mobileAttr.value) : null
+}
+
+function toCustomerResponse (profile, record, fallbackEmail, createdCustomer = null, persistedIdentity = null) {
   let customerId = null
   const profileOrCreateId = profile?.id ?? createdCustomer?.id
   if (profileOrCreateId !== undefined && profileOrCreateId !== null && profileOrCreateId !== '') {
@@ -79,14 +101,15 @@ function toCustomerResponse (profile, record, fallbackEmail, createdCustomer = n
     customerId = Number.isNaN(parsed) ? profileOrCreateId : parsed
   }
 
-  let normalizedMobile = null
-  if (record?.mobile) {
-    try { normalizedMobile = normalizeMobile(record.mobile) } catch (_) { normalizedMobile = record.mobile }
-  }
+  const normalizedMobile =
+    resolveNormalizedMobile(record?.mobile) ||
+    extractProfileMobile(profile) ||
+    resolveNormalizedMobile(persistedIdentity?.mobile_number) ||
+    null
   const email = profile?.email || createdCustomer?.email || fallbackEmail || null
   const firstName = profile?.firstname || createdCustomer?.firstname || record?.firstname || null
   const lastName = profile?.lastname || createdCustomer?.lastname || record?.lastname || null
-  const loginType = buildLoginType(!!email, !!normalizedMobile)
+  const loginType = resolvePrimaryLoginType(email, normalizedMobile)
 
   return {
     customer_id: customerId,
@@ -107,12 +130,10 @@ async function upsertIdentity (dbClient, record, token, logger) {
       return
     }
 
-    let normalizedMobile = null
-    if (record.mobile) {
-      try { normalizedMobile = normalizeMobile(record.mobile) } catch (_) { normalizedMobile = record.mobile }
-    }
+    const inputMobile = resolveNormalizedMobile(record.mobile)
 
     const existing = await findOneOrNull(collection, { customer_id: customerId })
+    const normalizedMobile = inputMobile || resolveNormalizedMobile(existing?.mobile_number)
 
     // Determine email: NEVER overwrite a real email with a pattern email
     let email
@@ -124,7 +145,7 @@ async function upsertIdentity (dbClient, record, token, logger) {
       email = normalizedMobile ? getSyntheticEmail(normalizedMobile) : (existing?.email || null)
     }
 
-    const loginType = buildLoginType(!!email, !!normalizedMobile)
+    const loginType = resolvePrimaryLoginType(email, normalizedMobile)
     const now = new Date()
 
     const doc = {
@@ -151,10 +172,12 @@ async function upsertIdentity (dbClient, record, token, logger) {
       }
     }
     logger.info(`Identity upserted for customer_id=${customerId}, email=${email}`)
+    return doc
   } catch (e) {
     if (!isUniqueConstraintError(e)) {
       logger.warn('identity upsert failed (non-critical): ' + e.message)
     }
+    return null
   }
 }
 
@@ -174,15 +197,13 @@ async function upsertIdentityStrict (dbClient, record, token, logger, profile, f
     throw Object.assign(new Error('could not resolve customer id for local DB persistence'), { statusCode: 500 })
   }
 
-  let normalizedMobile = null
-  if (record.mobile) {
-    try { normalizedMobile = normalizeMobile(record.mobile) } catch (_) { normalizedMobile = record.mobile }
-  }
+  const inputMobile = resolveNormalizedMobile(record.mobile)
 
   const existing = await findOneOrNull(collection, { customer_id: customerId })
+  const normalizedMobile = inputMobile || resolveNormalizedMobile(existing?.mobile_number)
 
   const email = profile?.email || createdCustomer?.email || fallbackEmail || existing?.email || null
-  const loginType = buildLoginType(!!email, !!normalizedMobile)
+  const loginType = resolvePrimaryLoginType(email, normalizedMobile)
   const now = new Date()
 
   const doc = {
@@ -256,7 +277,7 @@ async function main (params) {
       if (!token) {
         return errorResponse(404, 'user not found in Commerce', logger)
       }
-      await upsertIdentity(dbClient, record, token, logger)
+      const persistedIdentity = await upsertIdentity(dbClient, record, token, logger)
 
       let loginProfile = null
       try {
@@ -271,7 +292,7 @@ async function main (params) {
           success: true,
           customer_token: token,
           message: 'login successful',
-          customer: toCustomerResponse(loginProfile, record, emailToUse)
+          customer: toCustomerResponse(loginProfile, record, emailToUse, null, persistedIdentity)
         }
       }
     }
