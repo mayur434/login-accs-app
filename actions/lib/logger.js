@@ -152,7 +152,7 @@ function sanitizeDetails (details) {
       out[key] = value
     }
   }
-  return Object.keys(out).length ? out : null
+  return Object.keys(out).length ? JSON.stringify(out) : null
 }
 
 module.exports = {
