@@ -109,7 +109,10 @@ function toCustomerResponse (profile, record, fallbackEmail, createdCustomer = n
   const email = profile?.email || createdCustomer?.email || fallbackEmail || null
   const firstName = profile?.firstname || createdCustomer?.firstname || record?.firstname || null
   const lastName = profile?.lastname || createdCustomer?.lastname || record?.lastname || null
-  const loginType = resolvePrimaryLoginType(email, normalizedMobile)
+  const loginType =
+    persistedIdentity?.login_type ||
+    record?.loginType ||
+    resolvePrimaryLoginType(email, normalizedMobile)
 
   return {
     customer_id: customerId,
@@ -145,13 +148,14 @@ async function upsertIdentity (dbClient, record, token, logger) {
       email = normalizedMobile ? getSyntheticEmail(normalizedMobile) : (existing?.email || null)
     }
 
-    const loginType = resolvePrimaryLoginType(email, normalizedMobile)
+    const loginType = existing?.login_type || record?.loginType || null
     const now = new Date()
 
     const doc = {
       email,
       mobile_number: normalizedMobile,
       customer_id: customerId,
+      login_type: loginType,
       firstname: record.firstname || existing?.firstname || null,
       lastname: record.lastname || existing?.lastname || null,
       status: 'active',
@@ -159,13 +163,15 @@ async function upsertIdentity (dbClient, record, token, logger) {
     }
 
     if (existing) {
-      await collection.updateOne({ customer_id: customerId }, { $set: doc })
+      const { login_type, ...updateDoc } = doc
+      await collection.updateOne({ customer_id: customerId }, { $set: updateDoc })
     } else {
       try {
-        await collection.insertOne({ ...doc, login_type: loginType, created_at: now })
+        await collection.insertOne({ ...doc, created_at: now })
       } catch (insertErr) {
         if (isUniqueConstraintError(insertErr)) {
-          await collection.updateOne({ customer_id: customerId }, { $set: doc })
+          const { login_type, ...updateDoc } = doc
+          await collection.updateOne({ customer_id: customerId }, { $set: updateDoc })
         } else {
           throw insertErr
         }
@@ -203,7 +209,7 @@ async function upsertIdentityStrict (dbClient, record, token, logger, profile, f
   const normalizedMobile = inputMobile || resolveNormalizedMobile(existing?.mobile_number)
 
   const email = profile?.email || createdCustomer?.email || fallbackEmail || existing?.email || null
-  const loginType = resolvePrimaryLoginType(email, normalizedMobile)
+  const loginType = existing?.login_type || record?.loginType || null
   const now = new Date()
 
   const doc = {

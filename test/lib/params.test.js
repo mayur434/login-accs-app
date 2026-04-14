@@ -104,9 +104,9 @@ describe('params helpers', () => {
       expect(result.loginType).toBe('email')
     })
 
-    test('infers loginType as mobile when both mobile and email are present', () => {
+    test('infers loginType as both when both mobile and email are present', () => {
       const result = normalizeRequestParams({ email: 'test@x.com', mobile: '9876543210' })
-      expect(result.loginType).toBe('mobile')
+      expect(result.loginType).toBe('both')
     })
 
     test('does not overwrite explicit loginType', () => {
