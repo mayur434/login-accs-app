@@ -37,6 +37,7 @@
     "lint:fix": "npm run lint -- --fix",
     "setup-db": "node scripts/setup-db.js",
     "seed-users": "node scripts/seed-users.js",
+    "find-user": "node scripts/find-user.js",
     "dev": "node scripts/dev-setup.js"
   },
   "engines": {
