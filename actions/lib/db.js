@@ -7,26 +7,99 @@
  */
 
 const { getAdapter } = require('./db-adapters')
+const { dbStart, dbEnd } = require('./logger')
 
 const APP_CONFIG_ID = 'app_config'
 const APP_CONFIG_COLLECTION = 'app_config'
+
+/**
+ * Wrap a raw collection handle so every DB operation is logged with
+ * start/end timestamps and a unique traceId.
+ * Logging goes into the query_performance_logger table via rawDbClient.
+ */
+function wrapCollectionWithLogging (rawCollection, collectionName, rawDbClient, parentTraceId) {
+  if (!rawDbClient || !parentTraceId) return rawCollection
+
+  function wrap (opName) {
+    return async function (...args) {
+      const details = {}
+      if (opName === 'findOne') details.query = args[0]
+      if (opName === 'insertOne') details.document = Object.keys(args[0] || {})
+      if (opName === 'updateOne') { details.filter = args[0]; details.update = args[1] ? Object.keys(args[1]) : undefined; details.options = args[2] }
+      if (opName === 'deleteOne') details.filter = args[0]
+      if (opName === 'createIndex') { details.fields = args[0]; details.options = args[1] }
+
+      const dbTraceId = dbStart(rawDbClient, parentTraceId, opName, collectionName, details)
+      try {
+        const result = await rawCollection[opName](...args)
+        dbEnd(rawDbClient, dbTraceId, parentTraceId, opName, collectionName, { success: true })
+        return result
+      } catch (err) {
+        dbEnd(rawDbClient, dbTraceId, parentTraceId, opName, collectionName, { success: false, error: err.message })
+        throw err
+      }
+    }
+  }
+
+  return {
+    findOne: wrap('findOne'),
+    insertOne: wrap('insertOne'),
+    updateOne: wrap('updateOne'),
+    deleteOne: wrap('deleteOne'),
+    createIndex: rawCollection.createIndex ? wrap('createIndex') : undefined,
+    getIndexes: rawCollection.getIndexes ? rawCollection.getIndexes.bind(rawCollection) : undefined
+  }
+}
+
+/**
+ * Wrap a dbClient so that every collection() call returns a logged collection.
+ * rawDbClient is kept unwrapped so logger inserts don't trigger recursive logging.
+ */
+function wrapDbClientWithLogging (dbClient, rawDbClient, parentTraceId) {
+  if (!rawDbClient || !parentTraceId) return dbClient
+
+  const origCollection = dbClient.collection.bind(dbClient)
+  return {
+    ...dbClient,
+    _rawDbClient: rawDbClient,
+    collection: (name) => {
+      const raw = origCollection(name)
+      return wrapCollectionWithLogging(raw, name, rawDbClient, parentTraceId)
+    },
+    close: dbClient.close ? dbClient.close.bind(dbClient) : () => {}
+  }
+}
 
 /**
  * Opens a DB connection and returns { dbClient }.
  * Callers must close dbClient when done.
  *
  * The adapter is chosen by DB_TYPE env var ('docdb' | 'mysql').
+ *
+ * @param {object} params
+ * @param {object} [opts]              – optional logging context
+ * @param {string} [opts.traceId]      – action-level traceId for correlation
  */
-async function connectDb (params) {
+async function connectDb (params, opts = {}) {
   const adapter = getAdapter(params)
-  return adapter.connect(params)
+  const { dbClient } = await adapter.connect(params)
+  if (opts.traceId) {
+    const wrapped = wrapDbClientWithLogging(dbClient, dbClient, opts.traceId)
+    return { dbClient: wrapped }
+  }
+  return { dbClient }
 }
 
 /**
  * Convenience: open connection + get one collection.
+ *
+ * @param {object} params
+ * @param {string} collectionName
+ * @param {object} [opts]              – optional logging context
+ * @param {string} [opts.traceId]      – action-level traceId for correlation
  */
-async function getCollection (params, collectionName) {
-  const { dbClient } = await connectDb(params)
+async function getCollection (params, collectionName, opts = {}) {
+  const { dbClient } = await connectDb(params, opts)
   const collection = await dbClient.collection(collectionName)
   return { dbClient, collection }
 }
@@ -235,6 +308,8 @@ module.exports = {
   connectDb,
   getCollection,
   closeDb,
+  wrapCollectionWithLogging,
+  wrapDbClientWithLogging,
   isDocumentNotFoundError,
   isCollectionNotFoundError,
   isUniqueConstraintError,

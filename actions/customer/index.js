@@ -8,6 +8,7 @@ const { getAioDbToken } = require('../lib/imsHelper')
 const { hasValue } = require('../lib/params')
 const { generateOtp } = require('../lib/otpService')
 const update = require('./services/update')
+const { generateTraceId, actionStart, actionEnd } = require('../lib/logger')
 
 // ── Registration conflict checks ────────────────────────────────────────
 
@@ -38,9 +39,9 @@ async function checkRegistrationConflict (dbClient, params, logger) {
 exports.main = async (params) => {
   const logger = Core.Logger('customer', { level: params.LOG_LEVEL || 'info' })
   let dbClient, aioDbToken
+  const traceId = generateTraceId()
 
   try {
-    logger.info('customer action called')
     logger.debug(stringParameters(params))
     const requestParams = getRequestParams(params)
     requestParams.loginType = inferLoginTypeFromParams(requestParams)
@@ -59,9 +60,12 @@ exports.main = async (params) => {
 
     const { dbClient: connectedClient } = await getCollection(
       { ...requestParams, AIO_DB_TOKEN: aioDbToken },
-      APP_CONFIG_COLLECTION
+      APP_CONFIG_COLLECTION,
+      { traceId }
     )
     dbClient = connectedClient
+    const rawDb = dbClient._rawDbClient || dbClient
+    actionStart(rawDb, traceId, 'customer')
 
     await assertModuleEnabled(dbClient)
 
@@ -108,18 +112,25 @@ exports.main = async (params) => {
           customer_id: requestParams.customer_id || null
         }, logger)
 
+        actionEnd(rawDb, traceId, 'customer', { statusCode: 200, operation: 'register' })
         return { statusCode: 200, body: result }
       }
 
-      case 'updateCustomerDetails':
-        return await update(dbClient, requestParams, logger)
+      case 'updateCustomerDetails': {
+        const result = await update(dbClient, requestParams, logger)
+        actionEnd(rawDb, traceId, 'customer', { statusCode: result.statusCode, operation: 'updateCustomerDetails' })
+        return result
+      }
 
       default:
+        actionEnd(rawDb, traceId, 'customer', { statusCode: 400, operation })
         return badRequest(`invalid operation: '${operation}'. Use 'register' or 'updateCustomerDetails'.`)
     }
   } catch (err) {
     const code = err.statusCode || 500
     if (code >= 500) logger.error(err)
+    const rawDb = dbClient?._rawDbClient || dbClient
+    if (rawDb && traceId) actionEnd(rawDb, traceId, 'customer', { statusCode: code, error: err.message })
     return { statusCode: code, body: { error: err.message || 'server error' } }
   } finally {
     await closeDb(dbClient, logger)

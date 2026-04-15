@@ -25,6 +25,7 @@ const {
 const { validateOtp } = require('../lib/otpService')
 const { getAioDbToken } = require('../lib/imsHelper')
 const { fetchCustomerProfile } = require('../lib/commerce')
+const { generateTraceId, actionStart, actionEnd } = require('../lib/logger')
 
 // ── Commerce helpers ────────────────────────────────────────────────────
 
@@ -252,9 +253,9 @@ async function resolveEmail (dbClient, record, logger) {
 async function main (params) {
   const logger = Core.Logger('validateOtp', { level: params.LOG_LEVEL || 'info' })
   let dbClient
+  const traceId = generateTraceId()
 
   try {
-    logger.info('validateOtpAction called')
     const inParams = getRequestParams(params)
     inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers || {}
 
@@ -265,9 +266,12 @@ async function main (params) {
     const aioDbToken = await getAioDbToken(inParams)
     const { dbClient: client } = await getCollection(
       { ...inParams, AIO_DB_TOKEN: aioDbToken },
-      'otps'
+      'otps',
+      { traceId }
     )
     dbClient = client
+    const rawDb = dbClient._rawDbClient || dbClient
+    actionStart(rawDb, traceId, 'validateOtp')
 
     await assertModuleEnabled(dbClient)
 
@@ -292,6 +296,7 @@ async function main (params) {
         logger.warn('Could not fetch customer profile after login: ' + profileErr.message)
       }
 
+      actionEnd(rawDb, traceId, 'validateOtp', { statusCode: 200, flowType: 'login' });
       return {
         statusCode: 200,
         body: {
@@ -334,6 +339,7 @@ async function main (params) {
       return errorResponse(500, `registration failed: could not store user in local DB (${dbErr.message})`, logger)
     }
 
+    actionEnd(rawDb, traceId, 'validateOtp', { statusCode: 200, flowType: 'register' })
     return {
       statusCode: 200,
       body: {
@@ -345,6 +351,8 @@ async function main (params) {
     }
   } catch (err) {
     const code = err.statusCode || 500
+    const rawDb = dbClient?._rawDbClient || dbClient
+    if (rawDb && traceId) actionEnd(rawDb, traceId, 'validateOtp', { statusCode: code, error: err.message })
     return errorResponse(code, err.message || 'server error', logger)
   } finally {
     await closeDb(dbClient, logger)

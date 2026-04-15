@@ -20,13 +20,14 @@ const { getRequestParams, hasValue } = require('../lib/params')
 const { inferLoginTypeFromParams, normalizeMobile, normalizeEmailInput, CUSTOMER_IDENTITY_COLLECTION } = require('../lib/customer')
 const { generateOtp } = require('../lib/otpService')
 const { getAioDbToken } = require('../lib/imsHelper')
+const { generateTraceId, actionStart, actionEnd } = require('../lib/logger')
 
 async function main (params) {
   const logger = Core.Logger('generateOtp', { level: params.LOG_LEVEL || 'info' })
   let dbClient
+  const traceId = generateTraceId()
 
   try {
-    logger.info('generateOtpAction called')
     const inParams = getRequestParams(params)
     const loginType = inferLoginTypeFromParams(inParams)
     inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers || {}
@@ -57,9 +58,12 @@ async function main (params) {
     const aioDbToken = await getAioDbToken(inParams)
     const { dbClient: client } = await getCollection(
       { ...inParams, AIO_DB_TOKEN: aioDbToken },
-      'otps'
+      'otps',
+      { traceId }
     )
     dbClient = client
+    const rawDb = dbClient._rawDbClient || dbClient
+    actionStart(rawDb, traceId, 'generateOtp')
 
     const appConfig = await assertModuleEnabled(dbClient)
 
@@ -101,9 +105,12 @@ async function main (params) {
       lastname: inParams.lastname || inParams.lastName || null
     }, logger)
 
+    actionEnd(rawDb, traceId, 'generateOtp', { statusCode: 200, flowType })
     return { statusCode: 200, body: result }
   } catch (err) {
     const code = err.statusCode || 500
+    const rawDb = dbClient?._rawDbClient || dbClient
+    if (rawDb && traceId) actionEnd(rawDb, traceId, 'generateOtp', { statusCode: code, error: err.message })
     return errorResponse(code, err.message || 'server error', logger)
   } finally {
     await closeDb(dbClient, logger)

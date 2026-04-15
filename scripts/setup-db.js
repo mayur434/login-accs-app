@@ -153,13 +153,14 @@ const OTP_COLLECTION = 'otps'
  *   uniq_customer_id    { customer_id: 1 }
  */
 const IDENTITY_COLLECTION = 'customer_mobile_identity'
+const LOGGER_COLLECTION = 'query_performance_logger'
 const IDENTITY_INDEXES = [
   { field: 'mobile_number', name: 'uniq_mobile_number' },
   { field: 'email', name: 'uniq_email' },
   { field: 'customer_id', name: 'uniq_customer_id' }
 ]
 
-const ALL_COLLECTIONS = [APP_CONFIG_COLLECTION, OTP_COLLECTION, IDENTITY_COLLECTION]
+const ALL_COLLECTIONS = [APP_CONFIG_COLLECTION, OTP_COLLECTION, IDENTITY_COLLECTION, LOGGER_COLLECTION]
 
 // ---------------------------------------------------------------------------
 // MySQL column migration map — add missing columns to existing tables
