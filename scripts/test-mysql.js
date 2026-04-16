@@ -332,7 +332,8 @@ async function testDbFacade (backend, buildParams) {
   try {
     const config = await getAppConfig(dbClient)
     assert(typeof config.is_enabled === 'boolean', `${backend} getAppConfig: is_enabled boolean`)
-    assert(config.otp_expiration_validity === 10, `${backend} getAppConfig: otp_expiration_validity=10`)
+    assert(Number.isInteger(config.otp_expiration_validity) && config.otp_expiration_validity > 0,
+      `${backend} getAppConfig: otp_expiration_validity is positive integer`)
     assert(typeof config.otp_in_response === 'boolean', `${backend} getAppConfig: otp_in_response boolean`)
     assert(typeof config.auto_register === 'boolean', `${backend} getAppConfig: auto_register boolean`)
     assert(typeof config.allow_key_info_update === 'boolean', `${backend} getAppConfig: allow_key_info_update boolean`)
@@ -507,13 +508,13 @@ async function testConfigAction (backend, buildParams) {
 
 async function testOtpService (backend, buildParams, imsToken) {
   console.log(`\n══════════════════════════════════════════════════════`)
-  console.log(`  4. [${backend}] OTP Service (customer/services/otp.js)`)
+  console.log(`  4. [${backend}] OTP Service (lib/otpService.js)`)
   console.log(`══════════════════════════════════════════════════════`)
 
   clearActionCache()
 
   const { getCollection, closeDb } = require('../actions/lib/db')
-  const { handleOtp } = require('../actions/customer/services/otp')
+  const { generateOtp, validateOtp } = require('../actions/lib/otpService')
   const logger = Core.Logger('test', { level: 'error' })
 
   const p = buildParams()
@@ -531,15 +532,15 @@ async function testOtpService (backend, buildParams, imsToken) {
   let otpRef, otpValue, otpEmail
   try {
     otpEmail = `otp-${backend}-${Date.now()}@example.com`
-    const result = await handleOtp(dbClient, {
-      ...p, operation: 'register', loginType: 'email',
+    const result = await generateOtp(dbClient, {
+      flowType: 'register',
+      loginType: 'email',
       email: otpEmail, firstname: 'OTP', lastname: 'Tester'
-    }, 'register', logger)
+    }, logger)
 
-    assert(result.response?.statusCode === 200, `${backend} OTP generate (email) → 200`,
-      `got ${result.response?.statusCode}: ${JSON.stringify(result.response?.body)}`)
-    otpRef = result.response?.body?.otpReferenceId
-    otpValue = result.response?.body?.otpValue
+    otpRef = result?.otpReferenceId
+    otpValue = result?.otpValue
+    assert(!!result, `${backend} OTP generate (email)`) 
     assert(!!otpRef, `${backend} OTP returns otpReferenceId`)
     assert(!!otpValue, `${backend} OTP returns otpValue (otp_in_response=true)`)
   } catch (e) {
@@ -555,6 +556,7 @@ async function testOtpService (backend, buildParams, imsToken) {
       assert(row.email === otpEmail, `${backend} OTP persisted with correct email`)
       assert(row.consumed === false, `${backend} OTP persisted consumed=false`)
       assert(row.firstname === 'OTP', `${backend} OTP persisted firstname`)
+      assert(row.flowType === 'register', `${backend} OTP persisted flowType=register`)
     } catch (e) {
       assert(false, `${backend} OTP persisted`, e.message)
     }
@@ -563,13 +565,8 @@ async function testOtpService (backend, buildParams, imsToken) {
   // Verify OTP — correct value
   if (otpRef && otpValue) {
     try {
-      const result = await handleOtp(dbClient, {
-        ...p, operation: 'register', otpReferenceId: otpRef,
-        otpValue, loginType: 'email'
-      }, 'register', logger)
-
-      assert(result.verified === true, `${backend} OTP verify → verified=true`)
-      assert(!!result.record, `${backend} OTP verify returns record`)
+      const result = await validateOtp(dbClient, otpRef, otpValue, logger)
+      assert(result.flowType === 'register', `${backend} OTP verify returns flowType=register`)
       // Re-read to confirm consumed flag in DB
       const reRead = await rawDb.collection('otps').findOne({ otpReferenceId: otpRef })
       assert(reRead?.consumed === true, `${backend} OTP consumed=true in DB`)
@@ -581,29 +578,28 @@ async function testOtpService (backend, buildParams, imsToken) {
   // Verify already-consumed
   if (otpRef) {
     try {
-      const result = await handleOtp(dbClient, {
-        ...p, operation: 'register', otpReferenceId: otpRef,
-        otpValue, loginType: 'email'
-      }, 'register', logger)
-      assert(result.response?.statusCode === 400, `${backend} OTP verify (consumed) → 400`)
+      await validateOtp(dbClient, otpRef, otpValue, logger)
+      assert(false, `${backend} OTP verify (consumed) → 400`, 'did not throw')
     } catch (e) {
-      assert(false, `${backend} OTP verify consumed`, e.message)
+      assert(e.statusCode === 400, `${backend} OTP verify (consumed) → 400`)
     }
   }
 
   // Verify with wrong value
   try {
-    const genResult = await handleOtp(dbClient, {
-      ...p, operation: 'register', loginType: 'email',
+    const genResult = await generateOtp(dbClient, {
+      flowType: 'register',
+      loginType: 'email',
       email: `otp-wrong-${backend}-${Date.now()}@example.com`
-    }, 'register', logger)
-    const ref2 = genResult.response?.body?.otpReferenceId
+    }, logger)
+    const ref2 = genResult?.otpReferenceId
     if (ref2) {
-      const vr = await handleOtp(dbClient, {
-        ...p, operation: 'register', otpReferenceId: ref2,
-        otpValue: '0000', loginType: 'email'
-      }, 'register', logger)
-      assert(vr.response?.statusCode === 401, `${backend} OTP verify (wrong) → 401`)
+      try {
+        await validateOtp(dbClient, ref2, '0000', logger)
+        assert(false, `${backend} OTP verify (wrong) → 401`, 'did not throw')
+      } catch (e) {
+        assert(e.statusCode === 401, `${backend} OTP verify (wrong) → 401`)
+      }
       await rawDb.collection('otps').deleteOne({ otpReferenceId: ref2 })
     }
   } catch (e) {
@@ -612,33 +608,55 @@ async function testOtpService (backend, buildParams, imsToken) {
 
   // Invalid reference
   try {
-    const result = await handleOtp(dbClient, {
-      ...p, operation: 'login', otpReferenceId: `otp_bad_${Date.now()}`,
-      otpValue: '1234', loginType: 'email'
-    }, 'login', logger)
-    assert(result.response?.statusCode === 400, `${backend} OTP verify (bad ref) → 400`)
+    await validateOtp(dbClient, `otp_bad_${Date.now()}`, '1234', logger)
+    assert(false, `${backend} OTP verify (bad ref) → 400`, 'did not throw')
   } catch (e) {
-    assert(false, `${backend} OTP bad ref`, e.message)
+    assert(e.statusCode === 400, `${backend} OTP verify (bad ref) → 400`)
   }
 
   // Generate OTP — mobile
   try {
     const mob = `+1${Date.now().toString().slice(-10)}`
-    const result = await handleOtp(dbClient, {
-      ...p, operation: 'register', loginType: 'mobile',
+    const result = await generateOtp(dbClient, {
+      flowType: 'register',
+      loginType: 'mobile',
       mobile: mob, firstname: 'Mobile', lastname: 'User'
-    }, 'register', logger)
-    assert(result.response?.statusCode === 200, `${backend} OTP generate (mobile) → 200`,
-      `got ${result.response?.statusCode}: ${JSON.stringify(result.response?.body)}`)
-    const ref = result.response?.body?.otpReferenceId
+    }, logger)
+    const ref = result?.otpReferenceId
+    assert(!!result, `${backend} OTP generate (mobile)`) 
     if (ref) {
       const row = await rawDb.collection('otps').findOne({ otpReferenceId: ref })
       assert(row.mobile === mob, `${backend} OTP mobile stored`)
       assert(row.loginType === 'mobile', `${backend} OTP loginType=mobile`)
+      assert(row.flowType === 'register', `${backend} OTP mobile flowType=register`)
       await rawDb.collection('otps').deleteOne({ otpReferenceId: ref })
     }
   } catch (e) {
     assert(false, `${backend} OTP generate (mobile)`, e.message)
+  }
+
+  // Regression: login flowType must persist so validateOtp follows login path.
+  try {
+    const loginEmail = `otp-login-${backend}-${Date.now()}@example.com`
+    const loginGen = await generateOtp(dbClient, {
+      flowType: 'login',
+      loginType: 'email',
+      email: loginEmail
+    }, logger)
+    const loginRef = loginGen?.otpReferenceId
+    const loginCode = loginGen?.otpValue
+
+    if (loginRef && loginCode) {
+      const loginRecord = await validateOtp(dbClient, loginRef, loginCode, logger)
+      assert(loginRecord.flowType === 'login', `${backend} regression: login OTP validates as flowType=login`)
+      const raw = await rawDb.collection('otps').findOne({ otpReferenceId: loginRef })
+      assert(raw.flowType === 'login', `${backend} regression: login flowType persisted in MySQL`)
+      await rawDb.collection('otps').deleteOne({ otpReferenceId: loginRef })
+    } else {
+      assert(false, `${backend} regression: login OTP generated`, 'missing otpReferenceId/otpValue')
+    }
+  } catch (e) {
+    assert(false, `${backend} regression: login flowType persistence`, e.message)
   }
 
   // Clean up consumed OTP

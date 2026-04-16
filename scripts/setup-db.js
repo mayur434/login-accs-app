@@ -193,6 +193,9 @@ const MYSQL_EXPECTED_COLUMNS = {
     email_template_enabled: 'TINYINT(1) DEFAULT 0',
     email_template_id: "VARCHAR(255) DEFAULT ''",
     email_template_string: 'TEXT'
+  },
+  otps: {
+    flowType: 'VARCHAR(50) DEFAULT NULL'
   }
 }
 

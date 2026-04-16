@@ -40,6 +40,9 @@ async function connect (params) {
   const conn = await pool.getConnection()
   conn.release()
 
+  // Keep legacy environments compatible by adding critical columns when missing.
+  await migrateCriticalColumns(pool)
+
   const dbClient = {
     _pool: pool,
     collection: (name) => createCollectionHandle(pool, name),
@@ -49,6 +52,24 @@ async function connect (params) {
   }
 
   return { dbClient }
+}
+
+async function migrateCriticalColumns (pool) {
+  await ensureColumn(pool, 'otps', 'flowType', "VARCHAR(50) DEFAULT NULL AFTER `operation`")
+}
+
+async function ensureColumn (pool, table, column, definition) {
+  try {
+    const [rows] = await pool.execute(
+      'SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1',
+      [table, column]
+    )
+    if (Array.isArray(rows) && rows.length > 0) return
+    await pool.execute(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`)
+  } catch (err) {
+    // Ignore only when table is missing; table creation is handled separately.
+    if (err?.code !== 'ER_NO_SUCH_TABLE' && err?.errno !== 1146) throw err
+  }
 }
 
 // ── Table definitions ───────────────────────────────────────────────────
@@ -98,6 +119,7 @@ const TABLE_SCHEMAS = {
     otpReferenceId VARCHAR(255) PRIMARY KEY,
     otp VARCHAR(10),
     operation VARCHAR(50),
+    flowType VARCHAR(50),
     loginType VARCHAR(50),
     mobile VARCHAR(50),
     email VARCHAR(255),
