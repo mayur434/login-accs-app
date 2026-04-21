@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 import {
   ActionButton, Button, Divider, Flex, Heading, Link,
   NumberField, ProgressCircle, StatusLight, Switch, Text,
-  Tooltip, TooltipTrigger, View, Well
+  TextField, Tooltip, TooltipTrigger, View, Well
 } from '@adobe/react-spectrum'
 import Info from '@spectrum-icons/workflow/Info'
 import Refresh from '@spectrum-icons/workflow/Refresh'
@@ -38,23 +38,34 @@ const mapLoad = (r) => ({
   autoLogin: Boolean(r.auto_login),
   allowKeyInfoUpdate: Boolean(r.allow_key_info_update),
   otpValidity: Number.isInteger(r.otp_expiration_validity) ? r.otp_expiration_validity : 5,
-  // OTP value should be hidden by default unless explicitly enabled for dev.
   otpBypass: typeof r.otp_in_response === 'boolean' ? r.otp_in_response : false,
   smsTemplateEnabled: Boolean(r.sms_template_enabled),
   smsFallbackEnabled: Boolean(r.sms_fallback_enabled),
-  emailTemplateEnabled: Boolean(r.email_template_enabled)
+  emailTemplateEnabled: Boolean(r.email_template_enabled),
+  googleSsoEnabled: Boolean(r.google_sso_enabled),
+  googleClientId: r.google_client_id || '',
+  googleClientSecret: r.google_client_secret || '',
+  googleClientSecretConfigured: Boolean(r.google_client_secret_configured)
 })
 
-const mapSave = (s) => ({
-  is_enabled: s.isEnabled,
-  auto_login: s.autoLogin,
-  allow_key_info_update: s.allowKeyInfoUpdate,
-  otp_expiration_validity: s.otpValidity,
-  otp_in_response: s.otpBypass,
-  sms_template_enabled: s.smsTemplateEnabled,
-  sms_fallback_enabled: s.smsFallbackEnabled,
-  email_template_enabled: s.emailTemplateEnabled
-})
+const mapSave = (s) => {
+  const payload = {
+    is_enabled: s.isEnabled,
+    auto_login: s.autoLogin,
+    allow_key_info_update: s.allowKeyInfoUpdate,
+    otp_expiration_validity: s.otpValidity,
+    otp_in_response: s.otpBypass,
+    sms_template_enabled: s.smsTemplateEnabled,
+    sms_fallback_enabled: s.smsFallbackEnabled,
+    email_template_enabled: s.emailTemplateEnabled,
+    google_sso_enabled: s.googleSsoEnabled,
+    google_client_id: s.googleClientId
+  }
+  if (s.googleClientSecret && s.googleClientSecret.trim() !== '') {
+    payload.google_client_secret = s.googleClientSecret
+  }
+  return payload
+}
 
 /* ── Component ────────────────────────────────────────────── */
 
@@ -73,6 +84,10 @@ const AdminUi = (props) => {
   const [smsTemplateEnabled, setSmsTemplateEnabled] = useState(false)
   const [smsFallbackEnabled, setSmsFallbackEnabled] = useState(false)
   const [emailTemplateEnabled, setEmailTemplateEnabled] = useState(false)
+  const [googleSsoEnabled, setGoogleSsoEnabled] = useState(false)
+  const [googleClientId, setGoogleClientId] = useState('')
+  const [googleClientSecret, setGoogleClientSecret] = useState('')
+  const [googleClientSecretConfigured, setGoogleClientSecretConfigured] = useState(false)
 
   const formDisabled = isLoading || isSaving
 
@@ -85,7 +100,10 @@ const AdminUi = (props) => {
       allowKeyInfoUpdate !== s.allowKeyInfoUpdate ||
       smsTemplateEnabled !== s.smsTemplateEnabled ||
       smsFallbackEnabled !== s.smsFallbackEnabled ||
-      emailTemplateEnabled !== s.emailTemplateEnabled
+      emailTemplateEnabled !== s.emailTemplateEnabled ||
+      googleSsoEnabled !== s.googleSsoEnabled ||
+      googleClientId !== s.googleClientId ||
+      googleClientSecret !== s.googleClientSecret
   })()
 
   // ── Load on mount ──
@@ -104,6 +122,10 @@ const AdminUi = (props) => {
     setSmsTemplateEnabled(l.smsTemplateEnabled)
     setSmsFallbackEnabled(l.smsFallbackEnabled)
     setEmailTemplateEnabled(l.emailTemplateEnabled)
+    setGoogleSsoEnabled(l.googleSsoEnabled)
+    setGoogleClientId(l.googleClientId)
+    setGoogleClientSecret(l.googleClientSecret)
+    setGoogleClientSecretConfigured(l.googleClientSecretConfigured)
   }
 
   async function handleSave () {
@@ -115,7 +137,10 @@ const AdminUi = (props) => {
       allowKeyInfoUpdate,
       smsTemplateEnabled,
       smsFallbackEnabled,
-      emailTemplateEnabled
+      emailTemplateEnabled,
+      googleSsoEnabled,
+      googleClientId,
+      googleClientSecret
     })
     if (ok) {
       savedRef.current = {
@@ -126,7 +151,10 @@ const AdminUi = (props) => {
         allowKeyInfoUpdate,
         smsTemplateEnabled,
         smsFallbackEnabled,
-        emailTemplateEnabled
+        emailTemplateEnabled,
+        googleSsoEnabled,
+        googleClientId,
+        googleClientSecret
       }
     }
   }
@@ -244,6 +272,32 @@ const AdminUi = (props) => {
             </Switch>
             <InfoTip label='Controls whether OTP emails are sent when email delivery is used.' />
           </Flex>
+        </Flex>
+      </Section>
+
+      {/* ───── Single Sign On - SSO ───── */}
+      <Section title='Single Sign On - SSO' description='SSO configuration for the Login App'>
+        <Flex direction='column' gap='size-150'>
+          <Flex alignItems='center' gap='size-100'>
+            <Switch isSelected={googleSsoEnabled} isDisabled={formDisabled || !isEnabled} onChange={onToggle(setGoogleSsoEnabled)}>
+              Enable Google SSO
+            </Switch>
+            <InfoTip label='Allow customers to sign in using their Google account.' />
+          </Flex>
+          {googleSsoEnabled && (
+            <Flex direction='column' gap='size-150'>
+              <TextField label='Google Client ID' value={googleClientId} onChange={setGoogleClientId}
+                isDisabled={formDisabled} width='100%'
+                description='Get this from Google Cloud Console (OAuth 2.0 Client ID)' />
+              <TextField label='Google Client Secret' type='password' value={googleClientSecret} onChange={setGoogleClientSecret}
+                isDisabled={formDisabled} width='100%'
+                description={googleClientSecretConfigured ? '✓ Configured' : 'Get this from Google Cloud Console (OAuth 2.0 Client Secret)'}
+                placeholder={googleClientSecretConfigured ? '••••••••' : 'Paste here only if updating'} />
+              <Text UNSAFE_style={{ color: 'var(--spectrum-global-color-gray-600)', fontSize: 12 }}>
+                <Link><a href='https://console.cloud.google.com' target='_blank' rel='noopener noreferrer'>Google Cloud Console</a></Link> → APIs & Services → Credentials
+              </Text>
+            </Flex>
+          )}
         </Flex>
       </Section>
 

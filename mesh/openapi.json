@@ -130,6 +130,62 @@
         }
       }
     },
+    "/google-sso": {
+      "post": {
+        "operationId": "googleSsoAction",
+        "summary": "Google SSO sign-in (exchange Google ID token for Commerce token)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/GoogleSsoRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GoogleSsoResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid Google token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found in Commerce",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/customer": {
       "post": {
         "operationId": "customerAction",
@@ -264,19 +320,34 @@
       "Customer": {
         "type": "object",
         "properties": {
-          "customer_id": {
-            "oneOf": [
-              { "type": "integer" },
-              { "type": "string" }
-            ]
-          },
+          "customer_id": { "type": "string" },
           "id": { "type": "string" },
           "firstname": { "type": "string" },
           "lastname": { "type": "string" },
           "email": { "type": "string" },
           "mobile_number": { "type": "string" },
           "login_type": { "type": "string" },
+          "login_provider": { "type": "string" },
           "status": { "type": "string" }
+        }
+      },
+      "GoogleSsoRequest": {
+        "type": "object",
+        "required": ["google_token"],
+        "properties": {
+          "google_token": {
+            "type": "string",
+            "description": "Google ID token (JWT) from Google Sign-In"
+          }
+        }
+      },
+      "GoogleSsoResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "customer_token": { "type": "string" },
+          "message": { "type": "string" },
+          "customer": { "$ref": "#/components/schemas/Customer" }
         }
       }
     }

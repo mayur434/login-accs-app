@@ -56,6 +56,12 @@ async function connect (params) {
 
 async function migrateCriticalColumns (pool) {
   await ensureColumn(pool, 'otps', 'flowType', "VARCHAR(50) DEFAULT NULL AFTER `operation`")
+  await ensureColumn(pool, 'customer_mobile_identity', 'google_sub', 'VARCHAR(255) DEFAULT NULL')
+  await ensureColumn(pool, 'customer_mobile_identity', 'login_provider', 'VARCHAR(50) DEFAULT NULL')
+  // Add index on google_sub if it doesn't exist (best-effort)
+  try {
+    await pool.execute('CREATE INDEX idx_google_sub ON `customer_mobile_identity` (`google_sub`)')
+  } catch (_) { /* index may already exist */ }
 }
 
 async function ensureColumn (pool, table, column, definition) {
@@ -147,9 +153,12 @@ const TABLE_SCHEMAS = {
     resolvedEmail VARCHAR(255),
     created_at DATETIME,
     updated_at DATETIME,
+    google_sub VARCHAR(255) DEFAULT NULL,
+    login_provider VARCHAR(50) DEFAULT NULL,
     UNIQUE KEY uniq_email (email),
     UNIQUE KEY uniq_mobile_number (mobile_number),
-    UNIQUE KEY uniq_customer_id (customer_id)
+    UNIQUE KEY uniq_customer_id (customer_id),
+    INDEX idx_google_sub (google_sub)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
   query_performance_logger: `CREATE TABLE IF NOT EXISTS query_performance_logger (
