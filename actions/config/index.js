@@ -47,7 +47,11 @@ function validateUpdatePayload (params) {
     email_subject: { value: params.email_subject, type: 'string' },
     email_template_enabled: { value: params.email_template_enabled, type: 'boolean' },
     email_template_id: { value: params.email_template_id, type: 'string' },
-    email_template_string: { value: params.email_template_string, type: 'string' }
+    email_template_string: { value: params.email_template_string, type: 'string' },
+    // Google SSO
+    google_sso_enabled: { value: params.google_sso_enabled, type: 'boolean' },
+    google_client_id: { value: params.google_client_id, type: 'string' },
+    google_client_secret: { value: params.google_client_secret, type: 'string' }
   }
 
   const provided = {}
@@ -91,10 +95,12 @@ function sanitizeConfigForResponse (config) {
   out.sms_api_key_configured = !!out.sms_api_key
   out.sms_ics_password_configured = !!out.sms_ics_password
   out.email_smtp_password_configured = !!out.email_smtp_password
+  out.google_client_secret_configured = !!out.google_client_secret
 
   out.sms_api_key = ''
   out.sms_ics_password = ''
   out.email_smtp_password = ''
+  out.google_client_secret = ''
 
   return out
 }
@@ -112,8 +118,14 @@ async function getDocDbConfig (collection) {
     patchFields.auto_register = config.auto_login
   }
 
-  for (const key of ['otp_in_response', 'auto_register', 'allow_key_info_update', 'sms_template_enabled', 'email_template_enabled', 'sms_fallback_enabled']) {
+  for (const key of ['otp_in_response', 'auto_register', 'allow_key_info_update', 'sms_template_enabled', 'email_template_enabled', 'sms_fallback_enabled', 'google_sso_enabled']) {
     if (typeof config[key] !== 'boolean') {
+      patchFields[key] = APP_CONFIG_DEFAULTS[key]
+    }
+  }
+
+  for (const key of ['google_client_id', 'google_client_secret']) {
+    if (typeof config[key] !== 'string') {
       patchFields[key] = APP_CONFIG_DEFAULTS[key]
     }
   }
