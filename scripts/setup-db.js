@@ -105,6 +105,10 @@ const APP_CONFIG_SEED = {
   email_template_enabled: false,
   email_template_id: '',
   email_template_string: 'Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes.',
+  // Google SSO
+  google_sso_enabled: false,
+  google_client_id: '',
+  google_client_secret: '',
   updatedAt: Date.now()
 }
 
@@ -192,7 +196,14 @@ const MYSQL_EXPECTED_COLUMNS = {
     email_subject: "VARCHAR(255) DEFAULT 'Your OTP for Vijay Sales'",
     email_template_enabled: 'TINYINT(1) DEFAULT 0',
     email_template_id: "VARCHAR(255) DEFAULT ''",
-    email_template_string: 'TEXT'
+    email_template_string: 'TEXT',
+    // Google SSO
+    google_sso_enabled: 'TINYINT(1) DEFAULT 0',
+    google_client_id: "VARCHAR(500) DEFAULT ''",
+    google_client_secret: "VARCHAR(500) DEFAULT ''"
+  },
+  otps: {
+    flowType: 'VARCHAR(50) DEFAULT NULL'
   }
 }
 

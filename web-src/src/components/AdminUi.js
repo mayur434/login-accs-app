@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 import {
   ActionButton, Button, Divider, Flex, Heading, Link,
   NumberField, ProgressCircle, StatusLight, Switch, Text,
-  Tooltip, TooltipTrigger, View, Well
+  TextField, Tooltip, TooltipTrigger, View, Well
 } from '@adobe/react-spectrum'
 import Info from '@spectrum-icons/workflow/Info'
 import Refresh from '@spectrum-icons/workflow/Refresh'
@@ -42,19 +42,33 @@ const mapLoad = (r) => ({
   otpBypass: typeof r.otp_in_response === 'boolean' ? r.otp_in_response : false,
   smsTemplateEnabled: Boolean(r.sms_template_enabled),
   smsFallbackEnabled: Boolean(r.sms_fallback_enabled),
-  emailTemplateEnabled: Boolean(r.email_template_enabled)
+  emailTemplateEnabled: Boolean(r.email_template_enabled),
+  // Google SSO
+  googleSsoEnabled: Boolean(r.google_sso_enabled),
+  googleClientId: typeof r.google_client_id === 'string' ? r.google_client_id : '',
+  googleClientSecretConfigured: Boolean(r.google_client_secret_configured)
 })
 
-const mapSave = (s) => ({
-  is_enabled: s.isEnabled,
-  auto_login: s.autoLogin,
-  allow_key_info_update: s.allowKeyInfoUpdate,
-  otp_expiration_validity: s.otpValidity,
-  otp_in_response: s.otpBypass,
-  sms_template_enabled: s.smsTemplateEnabled,
-  sms_fallback_enabled: s.smsFallbackEnabled,
-  email_template_enabled: s.emailTemplateEnabled
-})
+const mapSave = (s) => {
+  const payload = {
+    is_enabled: s.isEnabled,
+    auto_login: s.autoLogin,
+    allow_key_info_update: s.allowKeyInfoUpdate,
+    otp_expiration_validity: s.otpValidity,
+    otp_in_response: s.otpBypass,
+    sms_template_enabled: s.smsTemplateEnabled,
+    sms_fallback_enabled: s.smsFallbackEnabled,
+    email_template_enabled: s.emailTemplateEnabled,
+    // Google SSO
+    google_sso_enabled: s.googleSsoEnabled,
+    google_client_id: s.googleClientId
+  }
+  // Only send secret if it was changed (non-empty string entered by user)
+  if (s.googleClientSecretInput && s.googleClientSecretInput.trim()) {
+    payload.google_client_secret = s.googleClientSecretInput.trim()
+  }
+  return payload
+}
 
 /* ── Component ────────────────────────────────────────────── */
 
@@ -73,6 +87,11 @@ const AdminUi = (props) => {
   const [smsTemplateEnabled, setSmsTemplateEnabled] = useState(false)
   const [smsFallbackEnabled, setSmsFallbackEnabled] = useState(false)
   const [emailTemplateEnabled, setEmailTemplateEnabled] = useState(false)
+  // Google SSO
+  const [googleSsoEnabled, setGoogleSsoEnabled] = useState(false)
+  const [googleClientId, setGoogleClientId] = useState('')
+  const [googleClientSecretInput, setGoogleClientSecretInput] = useState('')
+  const [googleClientSecretConfigured, setGoogleClientSecretConfigured] = useState(false)
 
   const formDisabled = isLoading || isSaving
 
@@ -85,7 +104,10 @@ const AdminUi = (props) => {
       allowKeyInfoUpdate !== s.allowKeyInfoUpdate ||
       smsTemplateEnabled !== s.smsTemplateEnabled ||
       smsFallbackEnabled !== s.smsFallbackEnabled ||
-      emailTemplateEnabled !== s.emailTemplateEnabled
+      emailTemplateEnabled !== s.emailTemplateEnabled ||
+      googleSsoEnabled !== s.googleSsoEnabled ||
+      googleClientId !== s.googleClientId ||
+      googleClientSecretInput !== ''
   })()
 
   // ── Load on mount ──
@@ -104,6 +126,11 @@ const AdminUi = (props) => {
     setSmsTemplateEnabled(l.smsTemplateEnabled)
     setSmsFallbackEnabled(l.smsFallbackEnabled)
     setEmailTemplateEnabled(l.emailTemplateEnabled)
+    // Google SSO
+    setGoogleSsoEnabled(l.googleSsoEnabled)
+    setGoogleClientId(l.googleClientId)
+    setGoogleClientSecretConfigured(l.googleClientSecretConfigured)
+    setGoogleClientSecretInput('')
   }
 
   async function handleSave () {
@@ -115,9 +142,14 @@ const AdminUi = (props) => {
       allowKeyInfoUpdate,
       smsTemplateEnabled,
       smsFallbackEnabled,
-      emailTemplateEnabled
+      emailTemplateEnabled,
+      googleSsoEnabled,
+      googleClientId,
+      googleClientSecretInput
     })
     if (ok) {
+      if (googleClientSecretInput.trim()) setGoogleClientSecretConfigured(true)
+      setGoogleClientSecretInput('')
       savedRef.current = {
         isEnabled,
         autoLogin,
@@ -126,7 +158,9 @@ const AdminUi = (props) => {
         allowKeyInfoUpdate,
         smsTemplateEnabled,
         smsFallbackEnabled,
-        emailTemplateEnabled
+        emailTemplateEnabled,
+        googleSsoEnabled,
+        googleClientId
       }
     }
   }
@@ -244,6 +278,45 @@ const AdminUi = (props) => {
             </Switch>
             <InfoTip label='Controls whether OTP emails are sent when email delivery is used.' />
           </Flex>
+        </Flex>
+      </Section>
+
+      {/* ───── Google SSO ───── */}
+      <Section title='Google SSO' description='Enable single sign-on via Google OAuth 2.0.'>
+        <Flex direction='column' gap='size-150'>
+          <Flex alignItems='center' gap='size-100'>
+            <Switch isSelected={googleSsoEnabled} isDisabled={formDisabled || !isEnabled} onChange={onToggle(setGoogleSsoEnabled)}>
+              Enable Google SSO
+            </Switch>
+            <InfoTip label='Allow customers to sign in or register using their Google account.' />
+          </Flex>
+          {googleSsoEnabled && (
+            <Flex direction='column' gap='size-150' marginStart='size-300'>
+              <TextField
+                label='Google Client ID'
+                value={googleClientId}
+                onChange={setGoogleClientId}
+                isDisabled={formDisabled}
+                width='size-5000'
+                description='OAuth 2.0 Client ID from Google Cloud Console.'
+              />
+              <TextField
+                label='Google Client Secret'
+                type='password'
+                value={googleClientSecretInput}
+                onChange={setGoogleClientSecretInput}
+                isDisabled={formDisabled}
+                width='size-5000'
+                placeholder={googleClientSecretConfigured ? '••••••••  (already saved — enter to replace)' : 'Enter client secret'}
+                description='Leave blank to keep the existing saved secret.'
+              />
+              {googleClientSecretConfigured && (
+                <Text UNSAFE_style={{ fontSize: 12, color: 'var(--spectrum-global-color-green-600)' }}>
+                  ✓ Client secret is saved
+                </Text>
+              )}
+            </Flex>
+          )}
         </Flex>
       </Section>
 

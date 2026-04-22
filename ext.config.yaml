@@ -119,3 +119,29 @@ runtimeManifest:
             require-adobe-auth: true
             include-ims-credentials: true
             final: true
+        google-sso:
+          function: actions/google-sso/index.js
+          web: 'yes'
+          runtime: nodejs:22
+          inputs:
+            LOG_LEVEL: debug
+            GOOGLE_CLIENT_ID: $GOOGLE_CLIENT_ID
+            GRAPHQL_ENDPOINT: $GRAPHQL_ENDPOINT
+            DB_TYPE: $DB_TYPE
+            MYSQL_HOST: $MYSQL_HOST
+            MYSQL_PORT: $MYSQL_PORT
+            MYSQL_USER: $MYSQL_USER
+            MYSQL_PASSWORD: $MYSQL_PASSWORD
+            MYSQL_DATABASE: $MYSQL_DATABASE
+            IMS_OAUTH_S2S_CLIENT_ID: $IMS_OAUTH_S2S_CLIENT_ID
+            IMS_OAUTH_S2S_CLIENT_SECRET: $IMS_OAUTH_S2S_CLIENT_SECRET
+            IMS_OAUTH_S2S_ORG_ID: $IMS_OAUTH_S2S_ORG_ID
+            IMS_OAUTH_S2S_SCOPES: $IMS_OAUTH_S2S_SCOPES
+            MAGENTO_ENVIRONMENT_ID: $MAGENTO_ENVIRONMENT_ID
+            MAGENTO_STORE_CODE: $MAGENTO_STORE_CODE
+            MAGENTO_STORE_VIEW_CODE: $MAGENTO_STORE_VIEW_CODE
+            MAGENTO_WEBSITE_CODE: $MAGENTO_WEBSITE_CODE
+          annotations:
+            require-adobe-auth: false
+            include-ims-credentials: true
+            final: false

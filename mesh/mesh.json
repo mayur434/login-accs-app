@@ -38,6 +38,7 @@
           "OPTIONS"
         ],
         "origin": [
+          "http://localhost",
           "http://localhost:3000",
           "https://feature-otplogin--storefront-otp-project-private--moin-mohd17.aem.page"
         ]
