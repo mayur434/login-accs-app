@@ -118,8 +118,10 @@ async function getDocDbConfig (collection) {
     patchFields.auto_register = config.auto_login
   }
 
-  for (const key of ['otp_in_response', 'auto_register', 'allow_key_info_update', 'sms_template_enabled', 'email_template_enabled', 'sms_fallback_enabled']) {
-    if (typeof config[key] !== 'boolean') {
+  for (const key of ['otp_in_response', 'auto_register', 'allow_key_info_update', 'sms_template_enabled', 'email_template_enabled', 'sms_fallback_enabled', 'google_sso_enabled']) {
+    // Only patch if the field is truly missing (undefined/null). MySQL returns
+    // TINYINT(1) as 0/1 which are valid stored values — do not overwrite them.
+    if (config[key] === undefined || config[key] === null) {
       patchFields[key] = APP_CONFIG_DEFAULTS[key]
     }
   }

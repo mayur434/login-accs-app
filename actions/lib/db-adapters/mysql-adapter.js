@@ -33,7 +33,14 @@ async function connect (params) {
     waitForConnections: true,
     connectionLimit: 5,
     // Ensure Date objects are not converted – we store timestamps as bigint/numbers
-    dateStrings: true
+    dateStrings: true,
+    // Cast TINYINT(1) columns to JS booleans so bool() helper in db.js works correctly
+    typeCast: function (field, next) {
+      if (field.type === 'TINY' && field.length === 1) {
+        return field.string() === '1'
+      }
+      return next()
+    }
   })
 
   // Verify connectivity
@@ -58,6 +65,9 @@ async function migrateCriticalColumns (pool) {
   await ensureColumn(pool, 'otps', 'flowType', "VARCHAR(50) DEFAULT NULL AFTER `operation`")
   await ensureColumn(pool, 'customer_mobile_identity', 'google_sub', 'VARCHAR(255) DEFAULT NULL')
   await ensureColumn(pool, 'customer_mobile_identity', 'login_provider', 'VARCHAR(50) DEFAULT NULL')
+  await ensureColumn(pool, 'app_config', 'google_sso_enabled', 'TINYINT(1) DEFAULT 1')
+  await ensureColumn(pool, 'app_config', 'google_client_id', "VARCHAR(500) DEFAULT ''")
+  await ensureColumn(pool, 'app_config', 'google_client_secret', "VARCHAR(500) DEFAULT ''")
   // Add index on google_sub if it doesn't exist (best-effort)
   try {
     await pool.execute('CREATE INDEX idx_google_sub ON `customer_mobile_identity` (`google_sub`)')
@@ -118,6 +128,9 @@ const TABLE_SCHEMAS = {
     email_template_enabled TINYINT(1) DEFAULT 0,
     email_template_id VARCHAR(255) DEFAULT '',
     email_template_string TEXT,
+    google_sso_enabled TINYINT(1) DEFAULT 1,
+    google_client_id VARCHAR(500) DEFAULT '',
+    google_client_secret VARCHAR(500) DEFAULT '',
     updatedAt BIGINT DEFAULT 0
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
@@ -250,7 +263,7 @@ function buildWhere (query) {
  */
 const BOOLEAN_COLUMNS = new Set([
   'is_enabled', 'otp_in_response', 'auto_register', 'allow_key_info_update', 'consumed',
-  'sms_template_enabled', 'email_template_enabled', 'sms_fallback_enabled'
+  'sms_template_enabled', 'email_template_enabled', 'sms_fallback_enabled', 'google_sso_enabled'
 ])
 
 function hydrateRow (row) {

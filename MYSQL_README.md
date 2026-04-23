@@ -121,6 +121,34 @@ CREATE TABLE IF NOT EXISTS app_config (
   otp_in_response TINYINT(1) DEFAULT 0,
   auto_register TINYINT(1) DEFAULT 0,
   allow_key_info_update TINYINT(1) DEFAULT 0,
+  sms_api_host VARCHAR(500) DEFAULT '',
+  sms_endpoint VARCHAR(500) DEFAULT '',
+  sms_api_key VARCHAR(500) DEFAULT '',
+  sms_sender_id VARCHAR(100) DEFAULT '',
+  sms_type VARCHAR(50) DEFAULT 'OTP',
+  sms_fallback_enabled TINYINT(1) DEFAULT 0,
+  sms_ics_api_host VARCHAR(500) DEFAULT 'https://sms.sendmsg.in',
+  sms_ics_endpoint VARCHAR(500) DEFAULT '/smpp',
+  sms_ics_username VARCHAR(255) DEFAULT '',
+  sms_ics_password VARCHAR(500) DEFAULT '',
+  sms_ics_sender VARCHAR(100) DEFAULT '',
+  sms_ics_urlshortening VARCHAR(10) DEFAULT '1',
+  sms_template_enabled TINYINT(1) DEFAULT 0,
+  sms_template_id VARCHAR(255) DEFAULT '',
+  sms_template_string TEXT,
+  email_smtp_host VARCHAR(500) DEFAULT '',
+  email_smtp_port INT DEFAULT 587,
+  email_smtp_user VARCHAR(255) DEFAULT '',
+  email_smtp_password VARCHAR(500) DEFAULT '',
+  email_from_address VARCHAR(255) DEFAULT '',
+  email_from_name VARCHAR(255) DEFAULT '',
+  email_subject VARCHAR(255) DEFAULT 'Your OTP for Vijay Sales',
+  email_template_enabled TINYINT(1) DEFAULT 0,
+  email_template_id VARCHAR(255) DEFAULT '',
+  email_template_string TEXT,
+  google_sso_enabled TINYINT(1) DEFAULT 1,
+  google_client_id VARCHAR(500) DEFAULT '',
+  google_client_secret VARCHAR(500) DEFAULT '',
   updatedAt BIGINT DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
@@ -206,6 +234,7 @@ MySQL stores booleans as `TINYINT(1)`. The adapter:
 
 - **On write:** converts `true`/`false` to `1`/`0` via `toSqlValue()`
 - **On read:** converts `0`/`1` back to `false`/`true` via `hydrateRow()` for known boolean columns: `is_enabled`, `otp_in_response`, `auto_register`, `allow_key_info_update`, `consumed`
+- **On read:** converts `0`/`1` back to `false`/`true` via `hydrateRow()` for known boolean columns such as `is_enabled`, `otp_in_response`, `auto_register`, `allow_key_info_update`, `sms_template_enabled`, `email_template_enabled`, `sms_fallback_enabled`, `google_sso_enabled`, `consumed`
 
 ---
 

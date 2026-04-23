@@ -7,7 +7,7 @@
           "graphql": {
             "endpoint": "{env.GRAPHQL_ENDPOINT}",
             "operationHeaders": {
-              "Authorization": "{context.headers.Authorization}"
+              "Authorization": "{context.headers.authorization}"
             }
           }
         }

@@ -211,7 +211,11 @@ const APP_CONFIG_DEFAULTS = {
   email_subject: 'Your OTP for Vijay Sales',
   email_template_enabled: false,
   email_template_id: '',
-  email_template_string: 'Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes.'
+  email_template_string: 'Your OTP is {{OTP}}. Valid for {{VALIDITY}} minutes.',
+  // Google SSO
+  google_sso_enabled: true,
+  google_client_id: '',
+  google_client_secret: ''
 }
 
 function normalizeAppConfig (config) {
@@ -256,7 +260,11 @@ function normalizeAppConfig (config) {
     email_subject: str('email_subject'),
     email_template_enabled: bool('email_template_enabled'),
     email_template_id: str('email_template_id'),
-    email_template_string: str('email_template_string')
+    email_template_string: str('email_template_string'),
+    // Google SSO
+    google_sso_enabled: bool('google_sso_enabled'),
+    google_client_id: str('google_client_id'),
+    google_client_secret: str('google_client_secret')
   }
 }
 

@@ -26,7 +26,7 @@ describe('db.js utilities', () => {
       expect(APP_CONFIG_COLLECTION).toBe('app_config')
     })
 
-    test('APP_CONFIG_DEFAULTS has all 20 fields', () => {
+    test('APP_CONFIG_DEFAULTS has Google SSO fields', () => {
       const keys = Object.keys(APP_CONFIG_DEFAULTS)
       expect(keys).toContain('is_enabled')
       expect(keys).toContain('otp_expiration_validity')
@@ -48,6 +48,9 @@ describe('db.js utilities', () => {
       expect(keys).toContain('email_template_enabled')
       expect(keys).toContain('email_template_id')
       expect(keys).toContain('email_template_string')
+      expect(keys).toContain('google_sso_enabled')
+      expect(keys).toContain('google_client_id')
+      expect(keys).toContain('google_client_secret')
     })
   })
 

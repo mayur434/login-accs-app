@@ -674,9 +674,13 @@ Singleton document (`_id: 'app_config'`) holding module settings. Managed via Ad
 | `email_smtp_password` | string | SMTP auth password |
 | `email_from_address` | string | Sender email address |
 | `email_from_name` | string | Sender display name |
+| `email_subject` | string | Email subject line |
 | `email_template_enabled` | boolean | Enable email template dispatch |
 | `email_template_id` | string | Email provider template ID |
 | `email_template_string` | string | Email template (`{{OTP}}`, `{{VALIDITY}}`, `{{EMAIL}}`) |
+| `google_sso_enabled` | boolean | Enable Google SSO login |
+| `google_client_id` | string | Google OAuth client ID |
+| `google_client_secret` | string | Google OAuth client secret |
 | `updatedAt` | number | Last update timestamp |
 
 ### `otps`

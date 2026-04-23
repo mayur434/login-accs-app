@@ -175,6 +175,20 @@ describe('config action', () => {
       const updateCall = mockCollection.updateOne.mock.calls[0]
       expect(updateCall[1].$set.auto_register).toBe(true)
     })
+
+    test('accepts Google SSO fields', async () => {
+      mockCollection.findOne.mockResolvedValue({ _id: 'app_config' })
+      findOneOrNull.mockResolvedValue({ _id: 'app_config' })
+
+      const result = await main({
+        ...baseParams,
+        __ow_method: 'POST',
+        google_sso_enabled: true,
+        google_client_id: 'client-id.apps.googleusercontent.com',
+        google_client_secret: 'secret'
+      })
+      expect(result.statusCode).toBe(200)
+    })
   })
 
   describe('DELETE', () => {

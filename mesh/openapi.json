@@ -186,6 +186,30 @@
         }
       }
     },
+    "/config": {
+      "get": {
+        "operationId": "getAppConfig",
+        "summary": "Get public application configuration (SSO flags, module status)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AppConfigPublic" }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/customer": {
       "post": {
         "operationId": "customerAction",
@@ -348,6 +372,15 @@
           "customer_token": { "type": "string" },
           "message": { "type": "string" },
           "customer": { "$ref": "#/components/schemas/Customer" }
+        }
+      },
+      "AppConfigPublic": {
+        "type": "object",
+        "description": "Public-safe subset of app_config (no secrets)",
+        "properties": {
+          "is_enabled": { "type": "boolean" },
+          "google_sso_enabled": { "type": "boolean" },
+          "google_client_id": { "type": "string" }
         }
       }
     }
