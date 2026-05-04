@@ -40,7 +40,7 @@ async function main (params) {
     if (hasValue(inParams.mobile) || hasValue(inParams.mobile_number)) {
       const rawMobile = hasValue(inParams.mobile) ? inParams.mobile : inParams.mobile_number
       try {
-        const normalizedMobile = normalizeMobile(rawMobile)
+        const normalizedMobile = rawMobile
         inParams.mobile = normalizedMobile
         inParams.mobile_number = normalizedMobile
       } catch (e) {
