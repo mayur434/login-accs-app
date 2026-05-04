@@ -11,13 +11,11 @@
 
 const { Core } = require('@adobe/aio-sdk')
 const { errorResponse } = require('../lib/http')
-const { getCollection, closeDb, assertModuleEnabled, findOneOrNull, isUniqueConstraintError } = require('../lib/db')
+const { getCollection, closeDb, assertModuleEnabled } = require('../lib/db')
 const { graphQLRequest } = require('../lib/graphql')
 const { getRequestParams } = require('../lib/params')
 const {
   INTERNAL_CUSTOMER_PASSWORD,
-  CUSTOMER_IDENTITY_COLLECTION,
-  parseCustomerIdFromToken,
   normalizeMobile,
   getSyntheticEmail,
   getCommerceMobileValue
@@ -35,7 +33,7 @@ async function tryLogin (email, params, logger) {
     const resp = await graphQLRequest(params, mutation, { email }, logger)
     if (resp?.data?.generateCustomerToken?.token) return resp.data.generateCustomerToken.token
   } catch (e) {
-    logger.debug && logger.debug('generateCustomerToken failed: ' + e.message)
+    logger.debug?.('generateCustomerToken failed: ' + e.message)
   }
   return null
 }
@@ -55,9 +53,11 @@ async function createUser (email, mobile, opts, params, logger) {
     try {
       const mobileValue = getCommerceMobileValue(normalizeMobile(mobile))
       if (mobileValue) {
-        input.custom_attributes = [{ attribute_code: 'mobile_number', value: mobileValue }]
+        input.vs_mobile_number = mobileValue;
       }
-    } catch (_) { /* normalization failed, skip mobile attr */ }
+    } catch (err) {
+      logger.debug?.('Skipping mobile attribute after normalization failure: ' + err.message)
+    }
   }
 
   const mutation = `mutation createCustomerV2($input: CustomerCreateInput!){ createCustomerV2(input: $input){ customer{ id firstname lastname email } } }`
@@ -82,7 +82,7 @@ function resolveNormalizedMobile (value) {
   if (!value) return null
   try {
     return normalizeMobile(value)
-  } catch (_) {
+  } catch {
     return value
   }
 }
@@ -94,7 +94,7 @@ function extractProfileMobile (profile) {
   return mobileAttr?.value ? resolveNormalizedMobile(mobileAttr.value) : null
 }
 
-function toCustomerResponse (profile, record, fallbackEmail, createdCustomer = null, persistedIdentity = null) {
+function toCustomerResponse (profile, record, fallbackEmail, createdCustomer = null) {
   let customerId = null
   const profileOrCreateId = profile?.id ?? createdCustomer?.id
   if (profileOrCreateId !== undefined && profileOrCreateId !== null && profileOrCreateId !== '') {
@@ -105,13 +105,11 @@ function toCustomerResponse (profile, record, fallbackEmail, createdCustomer = n
   const normalizedMobile =
     resolveNormalizedMobile(record?.mobile) ||
     extractProfileMobile(profile) ||
-    resolveNormalizedMobile(persistedIdentity?.mobile_number) ||
     null
   const email = profile?.email || createdCustomer?.email || fallbackEmail || null
   const firstName = profile?.firstname || createdCustomer?.firstname || record?.firstname || null
   const lastName = profile?.lastname || createdCustomer?.lastname || record?.lastname || null
   const loginType =
-    persistedIdentity?.login_type ||
     record?.loginType ||
     resolvePrimaryLoginType(email, normalizedMobile)
 
@@ -125,124 +123,19 @@ function toCustomerResponse (profile, record, fallbackEmail, createdCustomer = n
   }
 }
 
-async function upsertIdentity (dbClient, record, token, logger) {
-  try {
-    const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
-    const customerId = parseCustomerIdFromToken(token)
-    if (!customerId) {
-      logger.warn('upsertIdentity: could not parse customer_id from token — skipping')
-      return
-    }
-
-    const inputMobile = resolveNormalizedMobile(record.mobile)
-
-    const existing = await findOneOrNull(collection, { customer_id: customerId })
-    const normalizedMobile = inputMobile || resolveNormalizedMobile(existing?.mobile_number)
-
-    // Determine email: NEVER overwrite a real email with a pattern email
-    let email
-    if (record.email) {
-      email = record.email
-    } else if (existing?.email && !/^\d+@email\.com$/i.test(existing.email)) {
-      email = existing.email
-    } else {
-      email = normalizedMobile ? getSyntheticEmail(normalizedMobile) : (existing?.email || null)
-    }
-
-    const loginType = existing?.login_type || record?.loginType || null
-    const now = new Date()
-
-    const doc = {
-      email,
-      mobile_number: normalizedMobile,
-      customer_id: customerId,
-      login_type: loginType,
-      firstname: record.firstname || existing?.firstname || null,
-      lastname: record.lastname || existing?.lastname || null,
-      status: 'active',
-      updated_at: now
-    }
-
-    if (existing) {
-      const { login_type, ...updateDoc } = doc
-      await collection.updateOne({ customer_id: customerId }, { $set: updateDoc })
-    } else {
-      try {
-        await collection.insertOne({ ...doc, created_at: now })
-      } catch (insertErr) {
-        if (isUniqueConstraintError(insertErr)) {
-          const { login_type, ...updateDoc } = doc
-          await collection.updateOne({ customer_id: customerId }, { $set: updateDoc })
-        } else {
-          throw insertErr
-        }
-      }
-    }
-    logger.info(`Identity upserted for customer_id=${customerId}, email=${email}`)
-    return doc
-  } catch (e) {
-    if (!isUniqueConstraintError(e)) {
-      logger.warn('identity upsert failed (non-critical): ' + e.message)
-    }
-    return null
-  }
-}
-
-async function upsertIdentityStrict (dbClient, record, token, logger, profile, fallbackEmail, createdCustomer = null) {
-  const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
-
-  let customerId = null
-  const profileOrCreateId = profile?.id ?? createdCustomer?.id
-  if (profileOrCreateId !== undefined && profileOrCreateId !== null && profileOrCreateId !== '') {
-    const parsed = Number(profileOrCreateId)
-    customerId = Number.isNaN(parsed) ? null : parsed
-  }
-  if (!customerId) {
-    customerId = parseCustomerIdFromToken(token)
-  }
-  if (!customerId) {
-    throw Object.assign(new Error('could not resolve customer id for local DB persistence'), { statusCode: 500 })
-  }
-
-  const inputMobile = resolveNormalizedMobile(record.mobile)
-
-  const existing = await findOneOrNull(collection, { customer_id: customerId })
-  const normalizedMobile = inputMobile || resolveNormalizedMobile(existing?.mobile_number)
-
-  const email = profile?.email || createdCustomer?.email || fallbackEmail || existing?.email || null
-  const loginType = existing?.login_type || record?.loginType || null
-  const now = new Date()
-
-  const doc = {
-    email,
-    mobile_number: normalizedMobile,
-    customer_id: customerId,
-    firstname: profile?.firstname || createdCustomer?.firstname || record.firstname || existing?.firstname || null,
-    lastname: profile?.lastname || createdCustomer?.lastname || record.lastname || existing?.lastname || null,
-    status: 'active',
-    updated_at: now
-  }
-
-  await collection.updateOne(
-    { customer_id: customerId },
-    { $set: doc, $setOnInsert: { login_type: loginType, created_at: now } },
-    { upsert: true }
-  )
-
-  logger.info(`Identity strictly upserted for customer_id=${customerId}, email=${email}`)
-}
-
 // ── Resolve Commerce email from identifier ──────────────────────────────
 
-async function resolveEmail (dbClient, record, logger) {
+async function resolveEmail (record, logger) {
   if (record.loginType === 'mobile') {
     if (!record.mobile) throw Object.assign(new Error('mobile not present in OTP record'), { statusCode: 400 })
-    const identityCollection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
     let normalizedMobile = record.mobile
-    try { normalizedMobile = normalizeMobile(record.mobile) } catch (_) { /* keep raw */ }
-    const identity = await findOneOrNull(identityCollection, { mobile_number: normalizedMobile, status: 'active' })
-    const email = identity?.email || getSyntheticEmail(normalizedMobile)
-    logger.info(`Resolved email=${email} (from ${identity ? 'identity table' : 'pattern'})`)
+    try {
+      normalizedMobile = normalizeMobile(record.mobile)
+    } catch (err) {
+      logger.debug?.('Using raw mobile for email resolution after normalization failure: ' + err.message)
+    }
+    const email = record.email || getSyntheticEmail(normalizedMobile)
+    logger.info(`Resolved email=${email} (from otp record/pattern)`)
     return email
   }
   return record.email
@@ -276,10 +169,14 @@ async function main (params) {
     await assertModuleEnabled(dbClient)
 
     // ── Validate OTP ──────────────────────────────────────────────────
-    const record = await validateOtp(dbClient, inParams.otpReferenceId, inParams.otpValue, logger)
+    const record = await Promise.resolve(validateOtp(dbClient, inParams.otpReferenceId, inParams.otpValue, logger))
     logger.info(`OTP validated. flowType=${record.flowType}, loginType=${record.loginType}`)
 
-    const emailToUse = await resolveEmail(dbClient, record, logger)
+    if (record.is_disabled) {
+      return errorResponse(403, 'Your account is disabled. Please contact support.', logger)
+    }
+
+    const emailToUse = await resolveEmail(record, logger)
 
     // ── flowType: login ─────────────────────────────────────────────
     if (record.flowType === 'login') {
@@ -287,7 +184,6 @@ async function main (params) {
       if (!token) {
         return errorResponse(404, 'user not found in Commerce', logger)
       }
-      const persistedIdentity = await upsertIdentity(dbClient, record, token, logger)
 
       let loginProfile = null
       try {
@@ -303,7 +199,7 @@ async function main (params) {
           success: true,
           customer_token: token,
           message: 'login successful',
-          customer: toCustomerResponse(loginProfile, record, emailToUse, null, persistedIdentity)
+          customer: toCustomerResponse(loginProfile, record, emailToUse)
         }
       }
     }
@@ -330,13 +226,6 @@ async function main (params) {
       profile = await fetchCustomerProfile(inParams, token, logger)
     } catch (profileErr) {
       logger.warn('Could not fetch customer profile after registration: ' + profileErr.message)
-    }
-
-    try {
-      await upsertIdentityStrict(dbClient, record, token, logger, profile, emailToUse, createdCustomer)
-    } catch (dbErr) {
-      logger.error('Local DB persistence failed after Commerce registration: ' + dbErr.message)
-      return errorResponse(500, `registration failed: could not store user in local DB (${dbErr.message})`, logger)
     }
 
     actionEnd(rawDb, traceId, 'validateOtp', { statusCode: 200, flowType: 'register' })

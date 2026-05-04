@@ -1,37 +1,35 @@
 const { Core } = require('@adobe/aio-sdk')
 const { stringParameters } = require('../utils')
 const { badRequest } = require('../lib/http')
-const { getCollection, closeDb, APP_CONFIG_COLLECTION, findOneOrNull, assertModuleEnabled } = require('../lib/db')
+const { getCollection, closeDb, APP_CONFIG_COLLECTION, assertModuleEnabled } = require('../lib/db')
 const { getRequestParams } = require('../lib/params')
-const { CUSTOMER_IDENTITY_COLLECTION, inferLoginTypeFromParams, normalizeMobile, normalizeEmailInput } = require('../lib/customer')
+const { inferLoginTypeFromParams, normalizeMobile, normalizeEmailInput } = require('../lib/customer')
 const { getAioDbToken } = require('../lib/imsHelper')
 const { hasValue } = require('../lib/params')
 const { generateOtp } = require('../lib/otpService')
+const { graphQLRequest } = require('../lib/graphql')
 const update = require('./services/update')
 const { generateTraceId, actionStart, actionEnd } = require('../lib/logger')
 
 // ── Registration conflict checks ────────────────────────────────────────
 
-async function checkRegistrationConflict (dbClient, params, logger) {
-  const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
-  const email = hasValue(params.email) ? String(params.email).trim().toLowerCase() : null
-  const mobile = hasValue(params.mobile) ? String(params.mobile).trim()
-    : (hasValue(params.mobile_number) ? String(params.mobile_number).trim() : null)
-
-  if (email) {
-    const existing = await findOneOrNull(collection, { email })
-    if (existing) return 'email already exists'
-  }
-  if (mobile) {
-    let normalizedMobile = mobile
-    try { normalizedMobile = normalizeMobile(mobile) } catch (_) { /* keep raw */ }
-    const candidates = [...new Set([mobile, normalizedMobile].filter(Boolean))]
-    for (const m of candidates) {
-      const existing = await findOneOrNull(collection, { mobile_number: m, status: 'active' })
-      if (existing) return 'mobile already exists'
+async function checkRegistrationConflict (params, logger) {
+  const isCustomerExistsQuery = `query IsCustomerExists($email: String!, $mobile_number: String!) {
+    isCustomerExists(email: $email, mobile_number: $mobile_number) {
+      is_customer_exists
+      is_disabled
     }
+  }`
+
+  const gqlResp = await graphQLRequest(params, isCustomerExistsQuery, {
+    email: params.email || '',
+    mobile_number: params.mobile || params.mobile_number || ''
+  }, logger)
+
+  return {
+    isCustomerExists: !!gqlResp?.data?.isCustomerExists?.is_customer_exists,
+    isDisabled: !!gqlResp?.data?.isCustomerExists?.is_disabled
   }
-  return null
 }
 
 // ── Main action ─────────────────────────────────────────────────────────
@@ -80,7 +78,7 @@ exports.main = async (params) => {
         if (hasValue(requestParams.mobile) || hasValue(requestParams.mobile_number)) {
           const rawMobile = hasValue(requestParams.mobile) ? requestParams.mobile : requestParams.mobile_number
           try {
-            const normalizedMobile = normalizeMobile(rawMobile)
+            const normalizedMobile = rawMobile
             requestParams.mobile = normalizedMobile
             requestParams.mobile_number = normalizedMobile
           } catch (e) {
@@ -97,9 +95,13 @@ exports.main = async (params) => {
         }
 
         // Check for duplicate email/mobile before generating OTP
-        const conflict = await checkRegistrationConflict(dbClient, requestParams, logger)
-        if (conflict) {
-          return { statusCode: 409, body: { error: conflict } }
+        const customerStatus = await checkRegistrationConflict(requestParams, logger)
+        console.log('Customer status from conflict check', customerStatus);
+        if (customerStatus.isDisabled) {
+          return { statusCode: 403, body: { error: 'Your account is disabled. Please contact support.' } }
+        }
+        if (customerStatus.isCustomerExists) {
+          return { statusCode: 409, body: { error: 'customer already exists' } }
         }
 
         const result = await generateOtp(dbClient, {
@@ -109,7 +111,9 @@ exports.main = async (params) => {
           email: requestParams.email || null,
           firstname: requestParams.firstname || requestParams.firstName || null,
           lastname: requestParams.lastname || requestParams.lastName || null,
-          customer_id: requestParams.customer_id || null
+          customer_id: requestParams.customer_id || null,
+          is_customer_exists: customerStatus.isCustomerExists,
+          is_disabled: customerStatus.isDisabled
         }, logger)
 
         actionEnd(rawDb, traceId, 'customer', { statusCode: 200, operation: 'register' })

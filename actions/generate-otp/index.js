@@ -15,12 +15,13 @@
 
 const { Core } = require('@adobe/aio-sdk')
 const { errorResponse } = require('../lib/http')
-const { getCollection, closeDb, assertModuleEnabled, findOneOrNull } = require('../lib/db')
+const { getCollection, closeDb, assertModuleEnabled } = require('../lib/db')
 const { getRequestParams, hasValue } = require('../lib/params')
-const { inferLoginTypeFromParams, normalizeMobile, normalizeEmailInput, CUSTOMER_IDENTITY_COLLECTION } = require('../lib/customer')
+const { inferLoginTypeFromParams, normalizeMobile, normalizeEmailInput } = require('../lib/customer')
 const { generateOtp } = require('../lib/otpService')
 const { getAioDbToken } = require('../lib/imsHelper')
 const { generateTraceId, actionStart, actionEnd } = require('../lib/logger')
+const { graphQLRequest } = require('../lib/graphql')
 
 async function main (params) {
   const logger = Core.Logger('generateOtp', { level: params.LOG_LEVEL || 'info' })
@@ -67,25 +68,32 @@ async function main (params) {
 
     const appConfig = await assertModuleEnabled(dbClient)
 
-    // ── Check if user exists in identity table ────────────────────────
-    const identityCollection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
-    let userExists = false
-
-    if (loginType === 'mobile' || loginType === 'both') {
-      const identity = await findOneOrNull(identityCollection, { mobile_number: inParams.mobile, status: 'active' })
-      userExists = !!identity
+    // ── Check if customer exists via GraphQL ──────────────────────────
+    const isCustomerExistsQuery = `query IsCustomerExists($email: String!, $mobile_number: String!) {
+      isCustomerExists(email: $email, mobile_number: $mobile_number) {
+        is_customer_exists
+        is_disabled
+      }
+    }`
+    const gqlVariables = {
+      email: inParams.email || '',
+      mobile_number: inParams.mobile || inParams.mobile_number || ''
     }
-    if (!userExists && (loginType === 'email' || loginType === 'both')) {
-      const email = String(inParams.email).trim().toLowerCase()
-      const identity = await findOneOrNull(identityCollection, { email, status: 'active' })
-      userExists = !!identity
+    const gqlResp = await graphQLRequest(inParams, isCustomerExistsQuery, gqlVariables, logger)
+    const customerStatus = gqlResp?.data?.isCustomerExists
+    const isCustomerExists = !!customerStatus?.is_customer_exists
+    const isDisabled = !!customerStatus?.is_disabled
+
+    // ── Block disabled customers ──────────────────────────────────────
+    if (isDisabled) {
+      return errorResponse(403, 'Your account is disabled. Please contact support.', logger)
     }
 
     // ── Determine flowType ────────────────────────────────────────────
     console.log("autologin: " +appConfig.autoLogin);
     const autoLogin = !!(appConfig.auto_register || appConfig.auto_login)
     let flowType
-    if (userExists) {
+    if (isCustomerExists) {
       flowType = 'login'
       logger.info(`User exists → flowType=login`)
     } else if (autoLogin) {
@@ -99,10 +107,12 @@ async function main (params) {
     const result = await generateOtp(dbClient, {
       flowType,
       loginType,
-      mobile: inParams.mobile || null,
+      mobile: inParams.mobile || inParams.mobile_number || null,
       email: inParams.email || null,
       firstname: inParams.firstname || inParams.firstName || null,
-      lastname: inParams.lastname || inParams.lastName || null
+      lastname: inParams.lastname || inParams.lastName || null,
+      is_customer_exists: isCustomerExists,
+      is_disabled: isDisabled
     }, logger)
 
     actionEnd(rawDb, traceId, 'generateOtp', { statusCode: 200, flowType })
