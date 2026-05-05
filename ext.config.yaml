@@ -145,3 +145,34 @@ runtimeManifest:
             require-adobe-auth: false
             include-ims-credentials: true
             final: false
+        cleanup-otps:
+          function: actions/cleanup-otps/index.js
+          web: 'yes'
+          runtime: nodejs:22
+          inputs:
+            LOG_LEVEL: debug
+            OTP_RETENTION_DAYS: 7
+            DB_TYPE: $DB_TYPE
+            MYSQL_HOST: $MYSQL_HOST
+            MYSQL_PORT: $MYSQL_PORT
+            MYSQL_USER: $MYSQL_USER
+            MYSQL_PASSWORD: $MYSQL_PASSWORD
+            MYSQL_DATABASE: $MYSQL_DATABASE
+            IMS_OAUTH_S2S_CLIENT_ID: $IMS_OAUTH_S2S_CLIENT_ID
+            IMS_OAUTH_S2S_CLIENT_SECRET: $IMS_OAUTH_S2S_CLIENT_SECRET
+            IMS_OAUTH_S2S_ORG_ID: $IMS_OAUTH_S2S_ORG_ID
+            IMS_OAUTH_S2S_SCOPES: $IMS_OAUTH_S2S_SCOPES
+          annotations:
+            require-adobe-auth: false
+            include-ims-credentials: true
+            final: false
+      triggers:
+        otp-cleanup-nightly:
+          feed: /whisk.system/alarms/alarm
+          inputs:
+            cron: '0 0 * * *'
+            trigger_payload: '{"source":"otp-cleanup-nightly"}'
+      rules:
+        otp-cleanup-nightly-rule:
+          trigger: otp-cleanup-nightly
+          action: cleanup-otps
