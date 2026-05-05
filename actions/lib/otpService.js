@@ -12,6 +12,7 @@ const { getAppConfig, findOneOrNull, APP_CONFIG_DEFAULTS } = require('./db')
 const { generateOtpValue, createReferenceId, levenshtein } = require('./otp')
 const { sendSmsOtp } = require('./sms')
 const { sendEmailOtp } = require('./email')
+const { normalizeMobile } = require('../utils')
 
 /**
  * Generate an OTP, store it in the otps collection, and dispatch via SMS/Email.
@@ -72,7 +73,7 @@ async function generateOtp (dbClient, opts, logger) {
 
     try {
       if (mobileTarget) {
-        await sendSmsOtp(appConfig, mobileTarget, otpValue, otpValidityMinutes, logger)
+        await sendSmsOtp(appConfig, normalizeMobile(mobileTarget), otpValue, otpValidityMinutes, logger)
       } else if (emailTarget) {
         await sendEmailOtp(appConfig, emailTarget, otpValue, otpValidityMinutes, logger)
       } else {

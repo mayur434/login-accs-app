@@ -102,21 +102,18 @@ async function generateCommerceToken (email, params, logger) {
 }
 
 async function getCustomerStatus (params, email, logger) {
-  const query = `query IsCustomerExists($email: String!, $mobile_number: String!) {
-    isCustomerExists(email: $email, mobile_number: $mobile_number) {
-      is_customer_exists
-      is_disabled
+  // Probe via generateCustomerToken – Commerce has no public exists-check query
+  try {
+    const mutation = `mutation { generateCustomerToken(email: "${email.replace(/"/g, '')}", password: "${INTERNAL_CUSTOMER_PASSWORD}") { token } }`
+    const resp = await commerceGraphQLRequest(params, mutation, {}, logger)
+    const exists = !!resp?.data?.generateCustomerToken?.token
+    return { isCustomerExists: exists, isDisabled: false }
+  } catch (e) {
+    const msg = String(e?.message || '').toLowerCase()
+    if (msg.includes('disabled') || msg.includes('locked')) {
+      return { isCustomerExists: true, isDisabled: true }
     }
-  }`
-
-  const response = await graphQLRequest(params, query, {
-    email: email || '',
-    mobile_number: ''
-  }, logger)
-
-  return {
-    isCustomerExists: !!response?.data?.isCustomerExists?.is_customer_exists,
-    isDisabled: !!response?.data?.isCustomerExists?.is_disabled
+    return { isCustomerExists: false, isDisabled: false }
   }
 }
 

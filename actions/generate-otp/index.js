@@ -17,7 +17,7 @@ const { Core } = require('@adobe/aio-sdk')
 const { errorResponse } = require('../lib/http')
 const { getCollection, closeDb, assertModuleEnabled } = require('../lib/db')
 const { getRequestParams, hasValue } = require('../lib/params')
-const { inferLoginTypeFromParams, normalizeMobile, normalizeEmailInput } = require('../lib/customer')
+const { inferLoginTypeFromParams, normalizeEmailInput, getCommerceMobileValue } = require('../lib/customer')
 const { generateOtp } = require('../lib/otpService')
 const { getAioDbToken } = require('../lib/imsHelper')
 const { generateTraceId, actionStart, actionEnd } = require('../lib/logger')
@@ -39,13 +39,8 @@ async function main (params) {
 
     if (hasValue(inParams.mobile) || hasValue(inParams.mobile_number)) {
       const rawMobile = hasValue(inParams.mobile) ? inParams.mobile : inParams.mobile_number
-      try {
-        const normalizedMobile = rawMobile
-        inParams.mobile = normalizedMobile
-        inParams.mobile_number = normalizedMobile
-      } catch (e) {
-        return errorResponse(400, e.message || 'invalid indian mobile number', logger)
-      }
+      inParams.mobile = rawMobile
+      inParams.mobile_number = rawMobile
     }
 
     if (hasValue(inParams.email)) {
@@ -77,7 +72,8 @@ async function main (params) {
     }`
     const gqlVariables = {
       email: inParams.email || '',
-      mobile_number: inParams.mobile || inParams.mobile_number || ''
+      // Commerce stores only 10-digit mobile — extract last 10 digits for the lookup
+      mobile_number: getCommerceMobileValue(inParams.mobile || inParams.mobile_number) || ''
     }
     const gqlResp = await graphQLRequest(inParams, isCustomerExistsQuery, gqlVariables, logger)
     const customerStatus = gqlResp?.data?.isCustomerExists

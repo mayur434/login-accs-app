@@ -130,6 +130,54 @@
         }
       }
     },
+    "/resend-otp": {
+      "post": {
+        "operationId": "resendOtpAction",
+        "summary": "Resend OTP using an existing reference ID",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ResendOtpRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GenerateOtpResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Module disabled",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/google-sso": {
       "post": {
         "operationId": "googleSsoAction",
@@ -285,6 +333,13 @@
           "firstName": { "type": "string" },
           "lastname": { "type": "string" },
           "lastName": { "type": "string" }
+        }
+      },
+      "ResendOtpRequest": {
+        "type": "object",
+        "required": ["otpReferenceId"],
+        "properties": {
+          "otpReferenceId": { "type": "string" }
         }
       },
       "GenerateOtpResponse": {
