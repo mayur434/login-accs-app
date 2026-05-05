@@ -1,6 +1,6 @@
 const { badRequest, conflict, serverError, success } = require('../../lib/http')
-const { findOneOrNull, isUniqueConstraintError } = require('../../lib/db')
-const { commerceGraphQLRequest } = require('../../lib/graphql')
+const { isUniqueConstraintError } = require('../../lib/db')
+const { commerceGraphQLRequest, graphQLRequest } = require('../../lib/graphql')
 const { hasValue } = require('../../lib/params')
 const {
   normalizeMobile,
@@ -8,8 +8,7 @@ const {
   parseCustomerIdFromToken,
   getSyntheticEmail,
   getCommerceMobileValue,
-  buildLoginType,
-  CUSTOMER_IDENTITY_COLLECTION
+  buildLoginType
 } = require('../../lib/customer')
 const { generateCustomerToken } = require('../../lib/commerce')
 
@@ -62,7 +61,7 @@ const lastname =
       ) {
         createCustomerWrapper: createCustomerV2(input: {
           firstname: $firstname, lastname: $lastname, email: $email, password: $password,
-          custom_attributes: [{ attribute_code: "mobile_number", value: $mobile }]
+          vs_mobile_number: $mobile
         }) { customer { id firstname lastname email } }
         generateCustomerToken: generateCustomerToken(email: $email, password: $password) { token }
       }`
@@ -99,6 +98,25 @@ async function resolveCustomerId(params, createResponse, prepared, logger, exist
   return parseCustomerIdFromToken(token)
 }
 
+async function getCustomerStatus (params, prepared, logger) {
+  const query = `query IsCustomerExists($email: String!, $mobile_number: String!) {
+    isCustomerExists(email: $email, mobile_number: $mobile_number) {
+      is_customer_exists
+      is_disabled
+    }
+  }`
+
+  const response = await graphQLRequest(params, query, {
+    email: prepared.resolvedEmail || '',
+    mobile_number: prepared.normalizedMobile || ''
+  }, logger)
+
+  return {
+    isCustomerExists: !!response?.data?.isCustomerExists?.is_customer_exists,
+    isDisabled: !!response?.data?.isCustomerExists?.is_disabled
+  }
+}
+
 // ── Exported handler ────────────────────────────────────────────────────
 
 module.exports = async function register(dbClient, params, logger) {
@@ -106,16 +124,9 @@ module.exports = async function register(dbClient, params, logger) {
     const { error, prepared } = validateAndPrepare(params)
     if (error) return error
 
-    const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
-
-    // Check for existing identity
-    const byMobile = prepared.normalizedMobile
-      ? await findOneOrNull(collection, { mobile_number: prepared.normalizedMobile, status: 'active' })
-      : null
-    if (byMobile) return conflict('mobile_number already exists')
-
-    const byEmail = await findOneOrNull(collection, { email: prepared.resolvedEmail, status: 'active' })
-    if (byEmail) return conflict('email already exists')
+    const customerStatus = await getCustomerStatus(params, prepared, logger)
+    if (customerStatus.isDisabled) return conflict('customer is disabled')
+    if (customerStatus.isCustomerExists) return conflict('customer already exists')
 
     // log request email, and db email
     logger.debug('Registering customer with email:', {
@@ -141,31 +152,6 @@ module.exports = async function register(dbClient, params, logger) {
     )
     if (!customerId) throw new Error('customer id missing in createCustomer response')
 
-    // Persist identity document
-    const now = new Date()
-    const doc = {
-      email: prepared.resolvedEmail,
-      mobile_number: prepared.normalizedMobile,
-      customer_id: customerId,
-      firstname: firstName,
-      lastname: lastName,
-      status: 'active',
-      updated_at: now
-    }
-
-    try {
-      await collection.updateOne(
-        { customer_id: customerId },
-        { $set: doc, $setOnInsert: { login_type: prepared.loginType, created_at: now } },
-        { upsert: true }
-      )
-    } catch (dbError) {
-      if (isUniqueConstraintError(dbError)) {
-        return conflict('email, mobile_number, or customer_id already exists')
-      }
-      throw dbError
-    }
-
     return {
       statusCode: 200,
       body: {
@@ -177,7 +163,7 @@ module.exports = async function register(dbClient, params, logger) {
           lastname: lastName,
           email: customerData?.email,
           mobile_number: prepared.normalizedMobile || null,
-          login_type: prepared.loginType,
+          login_type: prepared.loginType
         }
       }
     }

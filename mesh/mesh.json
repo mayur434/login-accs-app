@@ -41,7 +41,9 @@
           "http://localhost",
           "http://localhost:3000",
           "https://main--storefront-otp-project-private--moin-mohd17.aem.page",
-          "https://feature-otplogin--storefront-otp-project-private--moin-mohd17.aem.page"
+          "https://feature-otplogin--storefront-otp-project-private--moin-mohd17.aem.page",
+          "https://e-com-flow-paas--storefront-otp-project-private--moin-mohd17.aem.live",
+          "https://e-com-flow-paas--storefront-otp-project-private--moin-mohd17.aem.page"
         ]
       }
     }

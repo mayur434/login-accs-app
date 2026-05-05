@@ -1,6 +1,6 @@
 const { badRequest, forbidden, notFound, conflict, serverError } = require('../../lib/http')
-const { findOneOrNull, isUniqueConstraintError, getAppConfig } = require('../../lib/db')
-const { commerceGraphQLRequest } = require('../../lib/graphql')
+const { getAppConfig } = require('../../lib/db')
+const { commerceGraphQLRequest, graphQLRequest } = require('../../lib/graphql')
 const { hasValue } = require('../../lib/params')
 const {
   normalizeMobile,
@@ -8,14 +8,28 @@ const {
   extractCustomerId,
   getCommerceMobileValue,
   getSyntheticEmail,
-  CUSTOMER_IDENTITY_COLLECTION,
   INTERNAL_CUSTOMER_PASSWORD
 } = require('../../lib/customer')
+const { fetchCustomerProfile } = require('../../lib/commerce')
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 function isPatternEmail (email) {
   return /^\d+@email\.com$/i.test(String(email || ''))
+}
+
+function extractProfileMobile (profile) {
+  const attrs = profile?.custom_attributes
+  if (!Array.isArray(attrs)) return null
+  const mobileAttr = attrs.find((attr) => String(attr?.attribute_code || attr?.code || '').trim() === 'mobile_number')
+  return mobileAttr?.value ? normalizeMobile(String(mobileAttr.value)) : null
+}
+
+function resolveLoginType (email, mobile) {
+  if (email && mobile) return 'both'
+  if (mobile) return 'mobile'
+  if (email) return 'email'
+  return null
 }
 
 // ── Input preparation ───────────────────────────────────────────────────
@@ -63,26 +77,65 @@ function getPreparedInput (params) {
 
 // ── Uniqueness checks ───────────────────────────────────────────────────
 
-async function checkUniqueness (collection, customerId, prepared, currentEmail) {
-  if (prepared.hasMobile) {
-    const existing = await findOneOrNull(collection, { mobile_number: prepared.normalizedMobile })
-    if (existing && Number(existing.customer_id) !== customerId) {
-      return conflict('mobile number already exists')
+async function getCustomerStatus (params, email, mobileNumber, logger) {
+  const query = `query IsCustomerExists($email: String!, $mobile_number: String!) {
+    isCustomerExists(email: $email, mobile_number: $mobile_number) {
+      is_customer_exists
+      is_disabled
     }
+  }`
+
+  const response = await graphQLRequest(params, query, {
+    email: email || '',
+    mobile_number: mobileNumber || ''
+  }, logger)
+
+  return {
+    isCustomerExists: !!response?.data?.isCustomerExists?.is_customer_exists,
+    isDisabled: !!response?.data?.isCustomerExists?.is_disabled
   }
-  if (prepared.hasEmail) {
-    const existing = await findOneOrNull(collection, { email: prepared.resolvedEmail })
-    if (existing && Number(existing.customer_id) !== customerId) {
-      return conflict('email already exists')
-    }
+}
+
+function toConflictFromStatus (status, existsMessage, disabledMessage) {
+  if (status.isDisabled) return conflict(disabledMessage)
+  if (status.isCustomerExists) return conflict(existsMessage)
+  return null
+}
+
+async function checkUniqueness (params, prepared, currentEmail, currentMobile, logger) {
+  if (prepared.hasMobile && prepared.normalizedMobile !== currentMobile) {
+    const mobileStatus = await getCustomerStatus(params, '', prepared.normalizedMobile, logger)
+    const mobileConflict = toConflictFromStatus(
+      mobileStatus,
+      'mobile number already exists',
+      'mobile number belongs to a disabled customer'
+    )
+    if (mobileConflict) return mobileConflict
   }
+
+  if (prepared.hasEmail && prepared.resolvedEmail !== currentEmail) {
+    const emailStatus = await getCustomerStatus(params, prepared.resolvedEmail, '', logger)
+    const emailConflict = toConflictFromStatus(
+      emailStatus,
+      'email already exists',
+      'email belongs to a disabled customer'
+    )
+    if (emailConflict) return emailConflict
+  }
+
   if (prepared.hasMobile && !prepared.hasEmail && isPatternEmail(currentEmail)) {
     const newPatternEmail = getSyntheticEmail(prepared.normalizedMobile)
-    const existing = await findOneOrNull(collection, { email: newPatternEmail })
-    if (existing && Number(existing.customer_id) !== customerId) {
-      return conflict('email already exists (pattern email conflict for new mobile)')
+    if (newPatternEmail !== currentEmail) {
+      const patternStatus = await getCustomerStatus(params, newPatternEmail, '', logger)
+      const patternConflict = toConflictFromStatus(
+        patternStatus,
+        'email already exists (pattern email conflict for new mobile)',
+        'email belongs to a disabled customer'
+      )
+      if (patternConflict) return patternConflict
     }
   }
+
   return null
 }
 
@@ -142,25 +195,16 @@ async function updateCommerceProfile (params, customerToken, prepared, currentEm
   }
 }
 
-function buildDbUpdatePayload (prepared, currentEmail) {
-  const dbUpdate = {}
-  if (prepared.hasMobile) dbUpdate.mobile_number = prepared.normalizedMobile
+function buildUpdatedCustomerResponse (customerId, currentProfile, prepared, currentEmail, currentMobile) {
+  let nextEmail = currentEmail
   if (prepared.hasEmail) {
-    dbUpdate.email = prepared.resolvedEmail
+    nextEmail = prepared.resolvedEmail
   } else if (prepared.hasMobile && isPatternEmail(currentEmail)) {
-    dbUpdate.email = getSyntheticEmail(prepared.normalizedMobile)
+    nextEmail = getSyntheticEmail(prepared.normalizedMobile)
   }
-  if (prepared.hasFirstName) dbUpdate.firstname = prepared.firstName
-  if (prepared.hasLastName) dbUpdate.lastname = prepared.lastName
-  dbUpdate.updated_at = new Date()
-  return dbUpdate
-}
-
-function buildUpdatedCustomerResponse (customerId, customerRecord, prepared, dbUpdate, currentEmail) {
-  const nextEmail = dbUpdate.email || currentEmail
-  const nextMobile = prepared.hasMobile ? prepared.normalizedMobile : (customerRecord.mobile_number || null)
-  const nextFirstName = prepared.hasFirstName ? prepared.firstName : (customerRecord.firstname || null)
-  const nextLastName = prepared.hasLastName ? prepared.lastName : (customerRecord.lastname || null)
+  const nextMobile = prepared.hasMobile ? prepared.normalizedMobile : currentMobile
+  const nextFirstName = prepared.hasFirstName ? prepared.firstName : (currentProfile.firstname || null)
+  const nextLastName = prepared.hasLastName ? prepared.lastName : (currentProfile.lastname || null)
 
   return {
     customer_id: customerId,
@@ -168,22 +212,9 @@ function buildUpdatedCustomerResponse (customerId, customerRecord, prepared, dbU
     email: nextEmail,
     firstname: nextFirstName,
     lastname: nextLastName,
-    login_type: customerRecord.login_type || null,
-    status: customerRecord.status || 'active'
+    login_type: resolveLoginType(nextEmail, nextMobile),
+    status: 'active'
   }
-}
-
-async function applyIdentityUpdate (collection, customerId, dbUpdate) {
-  try {
-    await collection.updateOne(
-      { customer_id: customerId },
-      { $set: dbUpdate }
-    )
-  } catch (updateError) {
-    if (isUniqueConstraintError(updateError)) return conflict('email or mobile number already exists')
-    throw updateError
-  }
-  return null
 }
 
 async function runCommerceUpdate (params, customerToken, prepared, currentEmail, logger) {
@@ -217,27 +248,22 @@ module.exports = async function update (dbClient, params, logger) {
     const appConfig = await getAppConfig(dbClient)
     if (!appConfig.allow_key_info_update) return forbidden('key info updates are disabled')
 
-    // 5. Look up existing identity record
-    const collection = await dbClient.collection(CUSTOMER_IDENTITY_COLLECTION)
-    const customerRecord = await findOneOrNull(collection, { customer_id: customerId })
-    if (!customerRecord) return notFound('customer identity not found')
+    // 5. Look up current Commerce profile
+    const currentProfile = await fetchCustomerProfile(params, customerToken, logger)
+    if (!currentProfile) return notFound('customer not found in Commerce')
 
-    const currentEmail = customerRecord.email || null
+    const currentEmail = currentProfile.email || null
+    const currentMobile = extractProfileMobile(currentProfile)
 
-    // 6. Check uniqueness in identity table
-    const conflictError = await checkUniqueness(collection, customerId, prepared, currentEmail)
+    // 6. Check uniqueness with GraphQL customer existence query
+    const conflictError = await checkUniqueness(params, prepared, currentEmail, currentMobile, logger)
     if (conflictError) return conflictError
 
     // 7. Update Commerce — mobile FIRST, email LAST (email change revokes token)
     const commerceError = await runCommerceUpdate(params, customerToken, prepared, currentEmail, logger)
     if (commerceError) return commerceError
 
-    // 8. Commerce succeeded → update App Builder DB (DocDB / MySQL)
-    const dbUpdate = buildDbUpdatePayload(prepared, currentEmail)
-    const dbConflict = await applyIdentityUpdate(collection, customerId, dbUpdate)
-    if (dbConflict) return dbConflict
-
-    const updatedCustomer = buildUpdatedCustomerResponse(customerId, customerRecord, prepared, dbUpdate, currentEmail)
+    const updatedCustomer = buildUpdatedCustomerResponse(customerId, currentProfile, prepared, currentEmail, currentMobile)
 
     return {
       statusCode: 200,

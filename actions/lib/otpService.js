@@ -26,7 +26,7 @@ const { sendEmailOtp } = require('./email')
  * @param {string}  [opts.lastname]     — last name (stored for register flow)
  * @param {string}  [opts.customer_id]  — existing customer id (if known)
  * @param {object}  logger
- * @returns {{ otpReferenceId, otpValue? }}  otpValue only when otp_in_response is true
+ * @returns {Promise<{ otpReferenceId: string, otpValue?: string }>} otpValue only when otp_in_response is true
  */
 async function generateOtp (dbClient, opts, logger) {
   const otpCollection = await dbClient.collection('otps')
@@ -57,6 +57,8 @@ async function generateOtp (dbClient, opts, logger) {
     customer_id: opts.customer_id || null,
     firstname: opts.firstname || null,
     lastname: opts.lastname || null,
+    is_customer_exists: opts.is_customer_exists || false,
+    is_disabled: opts.is_disabled || false,
     createdAt: Date.now(),
     expiresAt: Date.now() + (otpValidityMinutes * 60 * 1000),
     otpExpirationValidityMinutes: otpValidityMinutes,
@@ -97,7 +99,7 @@ async function generateOtp (dbClient, opts, logger) {
  * @param {string} otpReferenceId
  * @param {string} otpValue
  * @param {object} logger
- * @returns {{ flowType, loginType, mobile, email, firstname, lastname, customer_id, ... }}
+ * @returns {Promise<{ flowType: string, loginType: string, mobile: string|null, email: string|null, firstname: string|null, lastname: string|null, customer_id: string|null, is_customer_exists: boolean, is_disabled: boolean }>}
  */
 async function validateOtp (dbClient, otpReferenceId, otpValue, logger) {
   const otpCollection = await dbClient.collection('otps')
@@ -133,7 +135,9 @@ async function validateOtp (dbClient, otpReferenceId, otpValue, logger) {
     email: record.email,
     firstname: record.firstname,
     lastname: record.lastname,
-    customer_id: record.customer_id
+    customer_id: record.customer_id,
+    is_customer_exists: record.is_customer_exists || false,
+    is_disabled: record.is_disabled || false
   }
 }
 
