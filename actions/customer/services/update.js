@@ -54,8 +54,12 @@ function getPreparedInput (params) {
     if (hasValue(params.lastname)) lastNameInput = String(params.lastname).trim()
     const hasLastName = !!lastNameInput
 
-    if (!hasMobile && !hasEmail && !hasFirstName && !hasLastName) {
-      return { error: badRequest("provide at least one field: 'mobile_number', 'new_email', 'firstname', or 'lastname'") }
+    const dobInput = hasValue(params.dob) ? String(params.dob).trim() : null
+    const doaInput = hasValue(params.doa) ? String(params.doa).trim() : null
+    const genderInput = hasValue(params.gender) ? String(params.gender).trim() : null
+                                                                                  
+    if (!hasMobile && !hasEmail && !hasFirstName && !hasLastName && !dobInput && !doaInput && !genderInput) {
+      return { error: badRequest("provide at least one field: 'mobile_number', 'new_email', 'firstname', 'lastname', 'dob', 'doa', or 'gender'") }
     }
 
     return {
@@ -67,7 +71,10 @@ function getPreparedInput (params) {
         normalizedMobile,
         resolvedEmail,
         firstName: firstNameInput,
-        lastName: lastNameInput
+        lastName: lastNameInput,
+        dob: dobInput,
+        doa: doaInput,
+        gender: genderInput
       }
     }
   } catch (e) {
@@ -147,13 +154,16 @@ async function updateCommerceProfile (params, customerToken, prepared, currentEm
   let emailResult = null
 
   // 1. Profile update FIRST — does NOT invalidate token
-  if (prepared.hasMobile || prepared.hasFirstName || prepared.hasLastName) {
+  if (prepared.hasMobile || prepared.hasFirstName || prepared.hasLastName || prepared.dob || prepared.doa || prepared.gender) {
     const input = {}
     if (prepared.hasMobile) {
       input.custom_attributes = [{ attribute_code: 'mobile_number', value: getCommerceMobileValue(prepared.normalizedMobile) }]
     }
     if (prepared.hasFirstName) input.firstname = prepared.firstName
     if (prepared.hasLastName) input.lastname = prepared.lastName
+    if (prepared.dob) input.dob = prepared.dob
+    if (prepared.doa) input.doa = prepared.doa
+    if (prepared.gender) input.gender = prepared.gender
 
     const mutation = `
       mutation updateCustomerV2($input: CustomerUpdateInput!) {
@@ -208,7 +218,7 @@ function buildUpdatedCustomerResponse (customerId, currentProfile, prepared, cur
 
   return {
     customer_id: customerId,
-    mobile_number: nextMobile,
+    mobile_number: nextMobile ? nextMobile.replace(/^\+91/, '') : null,
     email: nextEmail,
     firstname: nextFirstName,
     lastname: nextLastName,

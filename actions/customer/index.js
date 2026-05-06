@@ -3,10 +3,10 @@ const { stringParameters } = require('../utils')
 const { badRequest } = require('../lib/http')
 const { getCollection, closeDb, APP_CONFIG_COLLECTION, assertModuleEnabled } = require('../lib/db')
 const { getRequestParams } = require('../lib/params')
-const { inferLoginTypeFromParams, normalizeMobile, normalizeEmailInput } = require('../lib/customer')
+const { inferLoginTypeFromParams, normalizeMobile, normalizeEmailInput, extractCustomerId } = require('../lib/customer')
 const { getAioDbToken } = require('../lib/imsHelper')
 const { hasValue } = require('../lib/params')
-const { generateOtp } = require('../lib/otpService')
+const { generateOtp, validateOtp } = require('../lib/otpService')
 const { graphQLRequest } = require('../lib/graphql')
 const update = require('./services/update')
 const { generateTraceId, actionStart, actionEnd } = require('../lib/logger')
@@ -120,7 +120,88 @@ exports.main = async (params) => {
         return { statusCode: 200, body: result }
       }
 
+      case 'requestUpdateOtp': {
+        // ── Step 1: Send OTP to the new mobile/email before updating ──
+        const customerToken = requestParams.customer_token || requestParams.customerToken || requestParams.token
+        if (!customerToken) return badRequest('customer_token is required')
+
+        const hasMobile = hasValue(requestParams.mobile_number)
+        const hasEmail = hasValue(requestParams.new_email) || hasValue(requestParams.email)
+        if (!hasMobile && !hasEmail) return badRequest("provide 'mobile_number' or 'email' (or 'new_email') to request an update OTP")
+
+        let newMobile = null
+        if (hasMobile) {
+          try {
+            newMobile = normalizeMobile(String(requestParams.mobile_number).trim())
+          } catch (e) {
+            return badRequest(e.message || 'invalid mobile number')
+          }
+        }
+
+        let newEmail = null
+        if (hasEmail) {
+          try {
+            const rawEmail = requestParams.new_email || requestParams.email
+            newEmail = normalizeEmailInput(String(rawEmail).trim())
+          } catch (e) {
+            return badRequest(e.message || 'invalid email')
+          }
+        }
+
+        const loginType = newMobile && newEmail ? 'both' : newMobile ? 'mobile' : 'email'
+
+        const otpResult = await generateOtp(dbClient, {
+          flowType: 'update_mobile_email',
+          loginType,
+          mobile: newMobile || null,
+          email: newEmail || null,
+          customer_id: extractCustomerId(requestParams) || null
+        }, logger)
+
+        actionEnd(rawDb, traceId, 'customer', { statusCode: 200, operation: 'requestUpdateOtp' })
+        return { statusCode: 200, body: otpResult }
+      }
+
       case 'updateCustomerDetails': {
+        // ── If mobile or email is being changed, OTP proof is required ──
+        const hasSensitiveUpdate = hasValue(requestParams.mobile_number) ||
+          hasValue(requestParams.new_email) || hasValue(requestParams.email)
+
+        if (hasSensitiveUpdate) {
+          const { otpReferenceId, otpValue } = requestParams
+          if (!otpReferenceId || !otpValue) {
+            return badRequest("'otpReferenceId' and 'otpValue' are required when updating mobile or email")
+          }
+
+          const record = await validateOtp(dbClient, otpReferenceId, otpValue, logger)
+
+          if (record.flowType !== 'update_mobile_email') {
+            return badRequest('invalid OTP: not issued for a mobile/email update')
+          }
+
+          const customerId = extractCustomerId(requestParams)
+          if (customerId && record.customer_id && String(record.customer_id) !== String(customerId)) {
+            return badRequest('OTP does not belong to this customer')
+          }
+
+          if (hasValue(requestParams.mobile_number) && record.mobile) {
+            let submittedMobile = null
+            try { submittedMobile = normalizeMobile(String(requestParams.mobile_number).trim()) } catch { /* invalid */ }
+            if (submittedMobile !== record.mobile) {
+              return badRequest('mobile number does not match the OTP request')
+            }
+          }
+
+          const submittedEmailRaw = requestParams.new_email || requestParams.email
+          if (hasValue(submittedEmailRaw) && record.email) {
+            let submittedEmail = null
+            try { submittedEmail = normalizeEmailInput(String(submittedEmailRaw).trim()) } catch { /* invalid */ }
+            if (submittedEmail !== record.email) {
+              return badRequest('email does not match the OTP request')
+            }
+          }
+        }
+
         const result = await update(dbClient, requestParams, logger)
         actionEnd(rawDb, traceId, 'customer', { statusCode: result.statusCode, operation: 'updateCustomerDetails' })
         return result

@@ -39,8 +39,8 @@ async function tryLogin (email, params, logger) {
 }
 
 async function createUser (email, mobile, opts, params, logger) {
-  const firstname = opts.firstname || 'Guest'
-  const lastname = opts.lastname || 'User'
+  const firstname = opts.firstname || 'guest'
+  const lastname = opts.lastname || 'user'
 
   const input = {
     firstname,
@@ -113,12 +113,13 @@ function toCustomerResponse (profile, record, fallbackEmail, createdCustomer = n
     record?.loginType ||
     resolvePrimaryLoginType(email, normalizedMobile)
 
+  const mobileForResponse = normalizedMobile ? normalizedMobile.replace(/^\+91/, '') : null
   return {
     customer_id: customerId,
     firstname: firstName,
     lastname: lastName,
     email,
-    mobile_number: normalizedMobile,
+    mobile_number: mobileForResponse,
     login_type: loginType
   }
 }

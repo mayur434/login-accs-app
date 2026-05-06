@@ -80,8 +80,8 @@ async function createCommerceCustomer (email, firstname, lastname, params, logge
     createCustomerV2(input: $input) { customer { id firstname lastname email } }
   }`
   const input = {
-    firstname: firstname || 'Guest',
-    lastname: lastname || 'User',
+    firstname: firstname || 'guest',
+    lastname: lastname || 'user',
     email,
     password: INTERNAL_CUSTOMER_PASSWORD
   }
@@ -161,8 +161,8 @@ exports.main = async (params) => {
     // sub is Google's stable unique identifier for the user
     const googleSub = googlePayload.sub
     const name = googlePayload.name || ''
-    const firstname = googlePayload.given_name || name.split(' ')[0] || 'Guest'
-    const lastname = googlePayload.family_name || name.split(' ').slice(1).join(' ') || 'User'
+    const firstname = googlePayload.given_name || name.split(' ')[0] || 'guest'
+    const lastname = googlePayload.family_name || name.split(' ').slice(1).join(' ') || 'user'
 
     logger.info(`Google SSO login: email=${normalizedEmail}, sub=${googleSub}`)
 

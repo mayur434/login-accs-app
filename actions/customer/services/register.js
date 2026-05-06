@@ -47,12 +47,12 @@ async function createCommerceCustomerAndToken(params, prepared, logger) {
   const firstname =
   params.firstname?.trim() ||
   params.firstName?.trim() ||
-  'Guest'
+  'guest'
 
 const lastname =
   params.lastname?.trim() ||
   params.lastName?.trim() ||
-  'User'
+  'user'
   const commerceMobile = getCommerceMobileValue(prepared.normalizedMobile)
 
   const mutation = commerceMobile
@@ -162,7 +162,7 @@ module.exports = async function register(dbClient, params, logger) {
           firstname: firstName,
           lastname: lastName,
           email: customerData?.email,
-          mobile_number: prepared.normalizedMobile || null,
+          mobile_number: prepared.normalizedMobile ? prepared.normalizedMobile.replace(/^\+91/, '') : null,
           login_type: prepared.loginType
         }
       }

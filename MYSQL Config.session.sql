@@ -1,6 +1,6 @@
 -- Turn OFF OTP bypass — SMS will be dispatched instead of returning OTP in response
 -- UPDATE app_config 
--- SET otp_in_response = 0 
+-- SET otp_in_response = 0
 -- WHERE _id = 'app_config';
 
 -- DELETE FROM customer_mobile_identity
