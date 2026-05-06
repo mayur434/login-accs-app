@@ -175,11 +175,11 @@ describe('customer helpers', () => {
 
   describe('getSyntheticEmail', () => {
     test('generates pattern email from normalized mobile', () => {
-      expect(getSyntheticEmail('+919876543210')).toBe('919876543210@email.com')
+      expect(getSyntheticEmail('+919876543210')).toBe('9876543210@vijaysales.com')
     })
 
     test('strips non-digit chars', () => {
-      expect(getSyntheticEmail('+91-9876-543210')).toBe('919876543210@email.com')
+      expect(getSyntheticEmail('+91-9876-543210')).toBe('9876543210@vijaysales.com')
     })
   })
 

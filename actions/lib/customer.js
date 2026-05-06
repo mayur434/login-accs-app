@@ -125,7 +125,9 @@ function extractBearerToken (params) {
 // ── Mobile / email helpers ──────────────────────────────────────────────
 
 function getSyntheticEmail (normalizedMobile) {
-  return `${normalizedMobile.replaceAll(/\D/g, '')}@email.com`
+  const digits = normalizedMobile.replaceAll(/\D/g, '')
+  const local = digits.startsWith('91') && digits.length > 10 ? digits.slice(2) : digits
+  return `${local}@vijaysales.com`
 }
 
 function getCommerceMobileValue (mobileNumber) {
