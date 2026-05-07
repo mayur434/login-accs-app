@@ -370,7 +370,7 @@
         "properties": {
           "operation": {
             "type": "string",
-            "enum": ["register", "updateCustomerDetails"]
+            "enum": ["register", "requestUpdateOtp", "updateCustomerDetails"]
           },
           "email": { "type": "string" },
           "mobile": { "type": "string" },
@@ -381,7 +381,12 @@
           "lastName": { "type": "string" },
           "customer_token": { "type": "string" },
           "customer_id": { "type": "string" },
-          "new_email": { "type": "string" }
+          "new_email": { "type": "string" },
+          "otpReferenceId": { "type": "string" },
+          "otpValue": { "type": "string" },
+          "dob": { "type": "string" },
+          "gender": { "type": "string" },
+          "doa": { "type": "string" }
         }
       },
       "CustomerResponse": {
@@ -407,7 +412,10 @@
           "mobile_number": { "type": "string" },
           "login_type": { "type": "string" },
           "login_provider": { "type": "string" },
-          "status": { "type": "string" }
+          "status": { "type": "string" },
+          "dob": { "type": "string" },
+          "gender": { "type": "string" },
+          "doa": { "type": "string" }
         }
       },
       "GoogleSsoRequest": {

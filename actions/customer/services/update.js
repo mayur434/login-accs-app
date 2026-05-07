@@ -25,6 +25,13 @@ function extractProfileMobile (profile) {
   return mobileAttr?.value ? normalizeMobile(String(mobileAttr.value)) : null
 }
 
+function extractProfileDoa (profile) {
+  const attrs = profile?.custom_attributes
+  if (!Array.isArray(attrs)) return null
+  const doaAttr = attrs.find((attr) => String(attr?.attribute_code || attr?.code || '').trim() === 'doa')
+  return doaAttr?.value || null
+}
+
 function resolveLoginType (email, mobile) {
   if (email && mobile) return 'both'
   if (mobile) return 'mobile'
@@ -162,8 +169,11 @@ async function updateCommerceProfile (params, customerToken, prepared, currentEm
     if (prepared.hasFirstName) input.firstname = prepared.firstName
     if (prepared.hasLastName) input.lastname = prepared.lastName
     if (prepared.dob) input.dob = prepared.dob
-    if (prepared.doa) input.doa = prepared.doa
     if (prepared.gender) input.gender = prepared.gender
+    if (prepared.doa) {
+      if (!input.custom_attributes) input.custom_attributes = []
+      input.custom_attributes.push({ attribute_code: 'doa', value: prepared.doa })
+    }
 
     const mutation = `
       mutation updateCustomerV2($input: CustomerUpdateInput!) {
@@ -223,7 +233,10 @@ function buildUpdatedCustomerResponse (customerId, currentProfile, prepared, cur
     firstname: nextFirstName,
     lastname: nextLastName,
     login_type: resolveLoginType(nextEmail, nextMobile),
-    status: 'active'
+    status: 'active',
+    dob: prepared.dob || currentProfile.date_of_birth || null,
+    gender: prepared.gender || (currentProfile.gender ? String(currentProfile.gender) : null),
+    doa: prepared.doa || extractProfileDoa(currentProfile) || null
   }
 }
 

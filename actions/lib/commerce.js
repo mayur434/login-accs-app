@@ -27,6 +27,8 @@ async function fetchCustomerProfile (params, customerToken, logger) {
         firstname
         lastname
         email
+        date_of_birth
+        gender
         custom_attributes {
           attribute_code
           value
@@ -41,7 +43,7 @@ async function fetchCustomerProfile (params, customerToken, logger) {
   } catch (err) {
     // Some Commerce versions may not expose custom_attributes in customer query.
     logger?.debug && logger.debug('customer custom_attributes query failed, retrying basic profile: ' + err.message)
-    const basicQuery = `query { customer { id firstname lastname email } }`
+    const basicQuery = `query { customer { id firstname lastname email date_of_birth gender } }`
     const payload = await commerceGraphQLRequest(params, basicQuery, {}, logger, customerToken)
     return payload?.data?.customer || null
   }
