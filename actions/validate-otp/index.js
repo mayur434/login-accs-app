@@ -129,13 +129,7 @@ function toCustomerResponse (profile, record, fallbackEmail, createdCustomer = n
 async function resolveEmail (record, logger) {
   if (record.loginType === 'mobile') {
     if (!record.mobile) throw Object.assign(new Error('mobile not present in OTP record'), { statusCode: 400 })
-    let normalizedMobile = record.mobile
-    try {
-      normalizedMobile = normalizeMobile(record.mobile)
-    } catch (err) {
-      logger.debug?.('Using raw mobile for email resolution after normalization failure: ' + err.message)
-    }
-    const email = record.email || getSyntheticEmail(normalizedMobile)
+    const email = record.email || record.mobile
     logger.info(`Resolved email=${email} (from otp record/pattern)`)
     return email
   }
