@@ -61,9 +61,6 @@ async function main (params) {
     const rawDb = dbClient._rawDbClient || dbClient
     actionStart(rawDb, traceId, 'generateOtp')
 
-    const appConfig = await assertModuleEnabled(dbClient)
-
-    // ── Check if customer exists via GraphQL ──────────────────────────
     const isCustomerExistsQuery = `query IsCustomerExists($email: String!, $mobile_number: String!) {
       isCustomerExists(email: $email, mobile_number: $mobile_number) {
         is_customer_exists
@@ -72,10 +69,14 @@ async function main (params) {
     }`
     const gqlVariables = {
       email: inParams.email || '',
-      // Commerce stores only 10-digit mobile — extract last 10 digits for the lookup
       mobile_number: getCommerceMobileValue(inParams.mobile || inParams.mobile_number) || ''
     }
-    const gqlResp = await graphQLRequest(inParams, isCustomerExistsQuery, gqlVariables, logger)
+
+    const [appConfig, gqlResp] = await Promise.all([
+      assertModuleEnabled(dbClient),
+      graphQLRequest(inParams, isCustomerExistsQuery, gqlVariables, logger)
+    ])
+
     const customerStatus = gqlResp?.data?.isCustomerExists
     const isCustomerExists = !!customerStatus?.is_customer_exists
     const isDisabled = !!customerStatus?.is_disabled
@@ -109,7 +110,7 @@ async function main (params) {
       lastname: inParams.lastname || inParams.lastName || null,
       is_customer_exists: isCustomerExists,
       is_disabled: isDisabled
-    }, logger)
+    }, logger, appConfig)
 
     actionEnd(rawDb, traceId, 'generateOtp', { statusCode: 200, flowType })
     return { statusCode: 200, body: result }

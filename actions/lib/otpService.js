@@ -27,11 +27,12 @@ const { normalizeMobile } = require('../utils')
  * @param {string}  [opts.lastname]     — last name (stored for register flow)
  * @param {string}  [opts.customer_id]  — existing customer id (if known)
  * @param {object}  logger
+ * @param {object}  [appConfigOverride] — pre-fetched appConfig to avoid redundant DB read
  * @returns {Promise<{ otpReferenceId: string, otpValue?: string }>} otpValue only when otp_in_response is true
  */
-async function generateOtp (dbClient, opts, logger) {
+async function generateOtp (dbClient, opts, logger, appConfigOverride) {
   const otpCollection = await dbClient.collection('otps')
-  const appConfig = await getAppConfig(dbClient)
+  const appConfig = appConfigOverride || await getAppConfig(dbClient)
 
   if (!appConfig.is_enabled) {
     throw Object.assign(new Error('otp module is disabled'), { statusCode: 403 })

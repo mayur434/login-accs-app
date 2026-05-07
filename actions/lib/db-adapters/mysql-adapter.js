@@ -23,7 +23,43 @@ const mysql = require('mysql2/promise')
 
 // ── Connection ──────────────────────────────────────────────────────────
 
+// Module-level pool cache — reused across warm container invocations
+let cachedPool = null
+let cachedPoolKey = ''
+let migrationDone = false
+
+function getPoolKey (params) {
+  const host = params.MYSQL_HOST || process.env.MYSQL_HOST || 'localhost'
+  const port = params.MYSQL_PORT || process.env.MYSQL_PORT || 3306
+  const db = params.MYSQL_DATABASE || process.env.MYSQL_DATABASE || 'login_module'
+  return `${host}:${port}/${db}`
+}
+
 async function connect (params) {
+  const key = getPoolKey(params)
+
+  // Reuse existing pool if same connection params (warm container)
+  if (cachedPool && cachedPoolKey === key) {
+    // Verify pool is still alive
+    try {
+      const conn = await cachedPool.getConnection()
+      conn.release()
+      const dbClient = {
+        _pool: cachedPool,
+        collection: (name) => createCollectionHandle(cachedPool, name),
+        createCollection: (name) => ensureTable(cachedPool, name),
+        listCollections: () => listTables(cachedPool),
+        close: () => {} // Don't close cached pool
+      }
+      return { dbClient }
+    } catch (_) {
+      // Pool is dead, recreate
+      try { await cachedPool.end() } catch (_) {}
+      cachedPool = null
+      migrationDone = false
+    }
+  }
+
   const pool = mysql.createPool({
     host: params.MYSQL_HOST || process.env.MYSQL_HOST || 'localhost',
     port: Number(params.MYSQL_PORT || process.env.MYSQL_PORT || 3306),
@@ -47,15 +83,22 @@ async function connect (params) {
   const conn = await pool.getConnection()
   conn.release()
 
-  // Keep legacy environments compatible by adding critical columns when missing.
-  await migrateCriticalColumns(pool)
+  // Run migration only once per container lifetime
+  if (!migrationDone) {
+    await migrateCriticalColumns(pool)
+    migrationDone = true
+  }
+
+  // Cache the pool
+  cachedPool = pool
+  cachedPoolKey = key
 
   const dbClient = {
     _pool: pool,
     collection: (name) => createCollectionHandle(pool, name),
     createCollection: (name) => ensureTable(pool, name),
     listCollections: () => listTables(pool),
-    close: () => pool.end()
+    close: () => {} // Don't close cached pool
   }
 
   return { dbClient }

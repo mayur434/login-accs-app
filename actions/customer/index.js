@@ -7,7 +7,7 @@ const { inferLoginTypeFromParams, normalizeMobile, normalizeEmailInput, extractC
 const { getAioDbToken } = require('../lib/imsHelper')
 const { hasValue } = require('../lib/params')
 const { generateOtp, validateOtp } = require('../lib/otpService')
-const { graphQLRequest } = require('../lib/graphql')
+const { commerceGraphQLRequest } = require('../lib/graphql')
 const update = require('./services/update')
 const { generateTraceId, actionStart, actionEnd } = require('../lib/logger')
 
@@ -21,7 +21,7 @@ async function checkRegistrationConflict (params, logger) {
     }
   }`
 
-  const gqlResp = await graphQLRequest(params, isCustomerExistsQuery, {
+  const gqlResp = await commerceGraphQLRequest(params, isCustomerExistsQuery, {
     email: params.email || '',
     mobile_number: params.mobile || params.mobile_number || ''
   }, logger)
@@ -65,7 +65,7 @@ exports.main = async (params) => {
     const rawDb = dbClient._rawDbClient || dbClient
     actionStart(rawDb, traceId, 'customer')
 
-    await assertModuleEnabled(dbClient)
+    const appConfig = await assertModuleEnabled(dbClient)
 
     switch (operation) {
       case 'register': {
@@ -114,7 +114,7 @@ exports.main = async (params) => {
           customer_id: requestParams.customer_id || null,
           is_customer_exists: customerStatus.isCustomerExists,
           is_disabled: customerStatus.isDisabled
-        }, logger)
+        }, logger, appConfig)
 
         actionEnd(rawDb, traceId, 'customer', { statusCode: 200, operation: 'register' })
         return { statusCode: 200, body: result }
@@ -156,7 +156,7 @@ exports.main = async (params) => {
           mobile: newMobile || null,
           email: newEmail || null,
           customer_id: extractCustomerId(requestParams) || null
-        }, logger)
+        }, logger, appConfig)
 
         actionEnd(rawDb, traceId, 'customer', { statusCode: 200, operation: 'requestUpdateOtp' })
         return { statusCode: 200, body: otpResult }

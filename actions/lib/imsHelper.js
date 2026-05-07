@@ -2,17 +2,29 @@
 // Helper to get IMS token for DB access.
 // Actions are publicly accessible — tokens are ALWAYS self-generated
 // from S2S credentials injected via include-ims-credentials annotation.
+// Token is cached in-memory (persists across warm container invocations).
 
 const { Core } = require('@adobe/aio-sdk')
 const { generateAccessToken } = Core.AuthClient
 
+// ── In-memory cache (persists across warm container invocations) ─────────
+let cachedToken = null
+let cachedTokenExpiry = 0
+
+const TOKEN_TTL_MS = 23 * 60 * 60 * 1000 // 23 hours (IMS tokens valid 24h)
+const BUFFER_MS = 5 * 60 * 1000           // Refresh 5 min before expiry
+
 /**
- * Generate IMS access token from S2S credentials.
- * Reads from action params first, falls back to process.env (local dev).
+ * Generate IMS access token from S2S credentials with in-memory caching.
  * @param {object} params - action params (may contain IMS_OAUTH_S2S_* keys)
  * @returns {Promise<string>} access token, or empty string if credentials missing
  */
 async function generateSelfToken(params = {}) {
+  // Fast path: return cached token if still valid
+  if (cachedToken && Date.now() < (cachedTokenExpiry - BUFFER_MS)) {
+    return cachedToken
+  }
+
   const clientId = params.IMS_OAUTH_S2S_CLIENT_ID || process.env.IMS_OAUTH_S2S_CLIENT_ID
   const clientSecret = params.IMS_OAUTH_S2S_CLIENT_SECRET || process.env.IMS_OAUTH_S2S_CLIENT_SECRET
   const orgId = params.IMS_OAUTH_S2S_ORG_ID || process.env.IMS_OAUTH_S2S_ORG_ID
@@ -39,7 +51,13 @@ async function generateSelfToken(params = {}) {
     imsCredentials.scopes = []
   }
   const tokenResponse = await generateAccessToken(imsCredentials)
-  return tokenResponse.access_token
+  const token = tokenResponse.access_token
+
+  // Cache in memory
+  cachedToken = token
+  cachedTokenExpiry = Date.now() + TOKEN_TTL_MS
+
+  return token
 }
 
 /**

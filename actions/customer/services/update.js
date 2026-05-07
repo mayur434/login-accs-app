@@ -1,6 +1,6 @@
 const { badRequest, forbidden, notFound, conflict, serverError } = require('../../lib/http')
 const { getAppConfig } = require('../../lib/db')
-const { commerceGraphQLRequest, graphQLRequest } = require('../../lib/graphql')
+const { commerceGraphQLRequest } = require('../../lib/graphql')
 const { hasValue } = require('../../lib/params')
 const {
   normalizeMobile,
@@ -99,7 +99,7 @@ async function getCustomerStatus (params, email, mobileNumber, logger) {
     }
   }`
 
-  const response = await graphQLRequest(params, query, {
+  const response = await commerceGraphQLRequest(params, query, {
     email: email || '',
     mobile_number: mobileNumber || ''
   }, logger)

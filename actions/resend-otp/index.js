@@ -41,7 +41,7 @@ async function main (params) {
     const rawDb = dbClient._rawDbClient || dbClient
     actionStart(rawDb, traceId, 'resendOtp')
 
-    await assertModuleEnabled(dbClient)
+    const appConfig = await assertModuleEnabled(dbClient)
 
     // ── Fetch existing OTP record ─────────────────────────────────────────
     const otpCollection = await dbClient.collection('otps')
@@ -68,7 +68,7 @@ async function main (params) {
       customer_id: existingRecord.customer_id || null,
       is_customer_exists: existingRecord.is_customer_exists || false,
       is_disabled: existingRecord.is_disabled || false
-    }, logger)
+    }, logger, appConfig)
 
     actionEnd(rawDb, traceId, 'resendOtp', { statusCode: 200 })
     return { statusCode: 200, body: result }
