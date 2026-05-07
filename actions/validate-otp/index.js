@@ -12,7 +12,7 @@
 const { Core } = require('@adobe/aio-sdk')
 const { errorResponse } = require('../lib/http')
 const { getCollection, closeDb, assertModuleEnabled } = require('../lib/db')
-const { graphQLRequest } = require('../lib/graphql')
+const { commerceGraphQLRequest } = require('../lib/graphql')
 const { getRequestParams } = require('../lib/params')
 const {
   INTERNAL_CUSTOMER_PASSWORD,
@@ -28,9 +28,9 @@ const { generateTraceId, actionStart, actionEnd } = require('../lib/logger')
 // ── Commerce helpers ────────────────────────────────────────────────────
 
 async function tryLogin (email, params, logger) {
-  const mutation = `mutation generateCustomerToken($email: String!){ generateCustomerToken(email: $email, password: "${INTERNAL_CUSTOMER_PASSWORD}"){ token } }`
+  const mutation = `mutation generateCustomerToken($email: String!, $password: String!){ generateCustomerToken(email: $email, password: $password){ token } }`
   try {
-    const resp = await graphQLRequest(params, mutation, { email }, logger)
+    const resp = await commerceGraphQLRequest(params, mutation, { email, password: INTERNAL_CUSTOMER_PASSWORD }, logger)
     if (resp?.data?.generateCustomerToken?.token) return resp.data.generateCustomerToken.token
   } catch (e) {
     logger.debug?.('generateCustomerToken failed: ' + e.message)
@@ -61,7 +61,7 @@ async function createUser (email, mobile, opts, params, logger) {
   }
 
   const mutation = `mutation createCustomerV2($input: CustomerCreateInput!){ createCustomerV2(input: $input){ customer{ id firstname lastname email } } }`
-  return graphQLRequest(params, mutation, { input }, logger)
+  return commerceGraphQLRequest(params, mutation, { input }, logger)
 }
 
 function extractCreateCustomerErrorMessage (err) {
