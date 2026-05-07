@@ -111,6 +111,9 @@ exports.main = async (params) => {
           email: requestParams.email || null,
           firstname: requestParams.firstname || requestParams.firstName || null,
           lastname: requestParams.lastname || requestParams.lastName || null,
+          dob: requestParams.dob || null,
+          gender: requestParams.gender || null,
+          doa: requestParams.doa || null,
           customer_id: requestParams.customer_id || null,
           is_customer_exists: customerStatus.isCustomerExists,
           is_disabled: customerStatus.isDisabled

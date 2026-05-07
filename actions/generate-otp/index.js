@@ -108,6 +108,9 @@ async function main (params) {
       email: inParams.email || null,
       firstname: inParams.firstname || inParams.firstName || null,
       lastname: inParams.lastname || inParams.lastName || null,
+      dob: inParams.dob || null,
+      gender: inParams.gender || null,
+      doa: inParams.doa || null,
       is_customer_exists: isCustomerExists,
       is_disabled: isDisabled
     }, logger, appConfig)

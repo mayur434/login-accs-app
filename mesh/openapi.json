@@ -332,7 +332,10 @@
           "firstname": { "type": "string" },
           "firstName": { "type": "string" },
           "lastname": { "type": "string" },
-          "lastName": { "type": "string" }
+          "lastName": { "type": "string" },
+          "dob": { "type": "string" },
+          "gender": { "type": "string" },
+          "doa": { "type": "string" }
         }
       },
       "ResendOtpRequest": {

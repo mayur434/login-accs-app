@@ -59,6 +59,9 @@ async function generateOtp (dbClient, opts, logger, appConfigOverride) {
     customer_id: opts.customer_id || null,
     firstname: opts.firstname || null,
     lastname: opts.lastname || null,
+    dob: opts.dob || null,
+    gender: opts.gender || null,
+    doa: opts.doa || null,
     is_customer_exists: opts.is_customer_exists || false,
     is_disabled: opts.is_disabled || false,
     createdAt: Date.now(),
@@ -137,6 +140,8 @@ async function validateOtp (dbClient, otpReferenceId, otpValue, logger) {
     email: record.email,
     firstname: record.firstname,
     lastname: record.lastname,
+    dob: record.dob,
+    doa: record.doa,
     customer_id: record.customer_id,
     is_customer_exists: record.is_customer_exists || false,
     is_disabled: record.is_disabled || false

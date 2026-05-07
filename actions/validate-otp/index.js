@@ -49,18 +49,36 @@ async function createUser (email, mobile, opts, params, logger) {
     password: INTERNAL_CUSTOMER_PASSWORD
   }
 
+  // dob — same field name as updateCustomerV2
+  if (opts.dob) {
+    input.date_of_birth = opts.dob
+  }
+
+  // gender — pass as string (same as update flow)
+  if (opts.gender) {
+    input.gender = opts.gender
+  }
+
+  // custom_attributes: mobile_number + doa
+  const customAttributes = []
   if (mobile) {
     try {
       const mobileValue = getCommerceMobileValue(normalizeMobile(mobile))
       if (mobileValue) {
-        input.vs_mobile_number = mobileValue;
+        customAttributes.push({ attribute_code: 'mobile_number', value: mobileValue })
       }
     } catch (err) {
       logger.debug?.('Skipping mobile attribute after normalization failure: ' + err.message)
     }
   }
+  if (opts.doa) {
+    customAttributes.push({ attribute_code: 'doa', value: opts.doa })
+  }
+  if (customAttributes.length) {
+    input.custom_attributes = customAttributes
+  }
 
-  const mutation = `mutation createCustomerV2($input: CustomerCreateInput!){ createCustomerV2(input: $input){ customer{ id firstname lastname email } } }`
+  const mutation = `mutation createCustomerV2($input: CustomerCreateInput!){ createCustomerV2(input: $input){ customer{ id firstname lastname email date_of_birth gender custom_attributes { code ...on AttributeValue { value } } } } }`
   return commerceGraphQLRequest(params, mutation, { input }, logger)
 }
 
@@ -120,7 +138,10 @@ function toCustomerResponse (profile, record, fallbackEmail, createdCustomer = n
     lastname: lastName,
     email,
     mobile_number: mobileForResponse,
-    login_type: loginType
+    login_type: loginType,
+    dob: profile?.date_of_birth || record?.dob || null,
+    gender: profile?.gender != null ? String(profile.gender) : (record?.gender || null),
+    doa: record?.doa || null
   }
 }
 
@@ -129,7 +150,13 @@ function toCustomerResponse (profile, record, fallbackEmail, createdCustomer = n
 async function resolveEmail (record, logger) {
   if (record.loginType === 'mobile') {
     if (!record.mobile) throw Object.assign(new Error('mobile not present in OTP record'), { statusCode: 400 })
-    const email = record.email || record.mobile
+     let normalizedMobile = record.mobile
+    try {
+      normalizedMobile = normalizeMobile(record.mobile)
+    } catch (err) {
+      logger.debug?.('Using raw mobile for email resolution after normalization failure: ' + err.message)
+    }
+    const email = record.email || getSyntheticEmail(normalizedMobile)
     logger.info(`Resolved email=${email} (from otp record/pattern)`)
     return email
   }
@@ -175,7 +202,7 @@ async function main (params) {
 
     // ── flowType: login ─────────────────────────────────────────────
     if (record.flowType === 'login') {
-      const token = await tryLogin(emailToUse, inParams, logger)
+      const token = await tryLogin(record.loginType == "mobile"? record.mobile : emailToUse, inParams, logger)
       if (!token) {
         return errorResponse(404, 'user not found in Commerce', logger)
       }
