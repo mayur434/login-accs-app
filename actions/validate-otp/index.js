@@ -63,9 +63,9 @@ async function createAndLogin (email, mobile, opts, params, logger) {
   const customAttributes = []
   if (mobile) {
     try {
-      const mobileValue = getCommerceMobileValue(normalizeMobile(mobile))
+      const mobileValue = mobile;
       if (mobileValue) {
-        customAttributes.push({ attribute_code: 'mobile_number', value: mobileValue })
+        input.vs_mobile_number = mobileValue;
       }
     } catch (err) {
       logger.debug?.('Skipping mobile attribute after normalization failure: ' + err.message)
