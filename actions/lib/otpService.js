@@ -118,8 +118,9 @@ async function validateOtp (dbClient, otpReferenceId, otpValue, logger) {
   }
 
   if (Date.now() > record.expiresAt) {
-    await otpCollection.deleteOne({ otpReferenceId })
-    throw Object.assign(new Error('otp expired'), { statusCode: 400 })
+    // Mark as expired but preserve the record so resend-otp can reuse the stored identity data
+    await otpCollection.updateOne({ otpReferenceId }, { $set: { expired: true } })
+    throw Object.assign(new Error('otp expired'), { statusCode: 410 })
   }
 
   const distance = levenshtein(String(otpValue), String(record.otp))

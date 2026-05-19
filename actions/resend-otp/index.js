@@ -55,6 +55,7 @@ async function main (params) {
       return errorResponse(400, 'otp already used, cannot resend', logger)
     }
 
+    // Allow resend for expired OTPs (expired flag is set when validation was attempted on an expired OTP)
     logger.info(`Resending OTP for flowType=${existingRecord.flowType}, loginType=${existingRecord.loginType}`)
 
     // ── Generate fresh OTP using stored record data ───────────────────────

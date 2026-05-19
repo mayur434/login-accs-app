@@ -349,7 +349,8 @@
         "type": "object",
         "properties": {
           "otpReferenceId": { "type": "string" },
-          "otpValue": { "type": "string" }
+          "otpValue": { "type": "string" },
+          "error": { "type": "string" }
         }
       },
       "ValidateOtpRequest": {
@@ -365,6 +366,8 @@
           "success": { "type": "boolean" },
           "customer_token": { "type": "string" },
           "message": { "type": "string" },
+          "error": { "type": "string" },
+          "expired": { "type": "boolean" },
           "customer": { "$ref": "#/components/schemas/Customer" }
         }
       },
