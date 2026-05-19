@@ -1,6 +1,6 @@
 const { Core } = require('@adobe/aio-sdk')
 const { stringParameters } = require('../utils')
-const { badRequest } = require('../lib/http')
+const { badRequest, conflict } = require('../lib/http')
 const { getCollection, closeDb, APP_CONFIG_COLLECTION, assertModuleEnabled } = require('../lib/db')
 const { getRequestParams } = require('../lib/params')
 const { inferLoginTypeFromParams, normalizeMobile, normalizeEmailInput, extractCustomerId } = require('../lib/customer')
@@ -152,6 +152,32 @@ exports.main = async (params) => {
         }
 
         const loginType = newMobile && newEmail ? 'both' : newMobile ? 'mobile' : 'email'
+
+        // ── Check if new email/mobile already belongs to another account ─────
+        const isCustomerExistsQuery = `query IsCustomerExists($email: String!, $mobile_number: String!) {
+          isCustomerExists(email: $email, mobile_number: $mobile_number) {
+            is_customer_exists
+            is_disabled
+          }
+        }`
+
+        if (newEmail) {
+          const emailCheckResp = await commerceGraphQLRequest(requestParams, isCustomerExistsQuery, {
+            email: newEmail, mobile_number: ''
+          }, logger)
+          const emailStatus = emailCheckResp?.data?.isCustomerExists
+          if (emailStatus?.is_disabled) return conflict('email belongs to a disabled account')
+          if (emailStatus?.is_customer_exists) return conflict('email already in use by another account')
+        }
+
+        if (newMobile) {
+          const mobileCheckResp = await commerceGraphQLRequest(requestParams, isCustomerExistsQuery, {
+            email: '', mobile_number: newMobile
+          }, logger)
+          const mobileStatus = mobileCheckResp?.data?.isCustomerExists
+          if (mobileStatus?.is_disabled) return conflict('mobile belongs to a disabled account')
+          if (mobileStatus?.is_customer_exists) return conflict('mobile number already in use by another account')
+        }
 
         const otpResult = await generateOtp(dbClient, {
           flowType: 'update_mobile_email',
