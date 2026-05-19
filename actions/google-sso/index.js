@@ -73,11 +73,51 @@ async function verifyGoogleToken (googleToken, clientId) {
   return payload
 }
 
+function isIdToken (token) {
+  // ID tokens are JWTs: three base64url segments separated by dots
+  return /^[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+$/.test(token)
+}
+
+async function verifyGoogleAccessToken (accessToken, clientId) {
+  // Validate audience via tokeninfo to prevent token substitution attacks
+  const tokenInfoRes = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${encodeURIComponent(accessToken)}`)
+  if (!tokenInfoRes.ok) {
+    throw Object.assign(new Error(`Google access token invalid (HTTP ${tokenInfoRes.status})`), { statusCode: 401 })
+  }
+  const tokenInfo = await tokenInfoRes.json()
+  if (tokenInfo.audience !== clientId) {
+    throw Object.assign(new Error('Google access token audience mismatch'), { statusCode: 401 })
+  }
+
+  // Fetch user profile
+  const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  })
+  if (!userInfoRes.ok) {
+    throw Object.assign(new Error(`Failed to fetch Google user info (HTTP ${userInfoRes.status})`), { statusCode: 401 })
+  }
+  return userInfoRes.json() // returns { sub, email, email_verified, name, given_name, family_name }
+}
+
 // ── Commerce helpers ────────────────────────────────────────────────────
 
-async function createCommerceCustomer (email, firstname, lastname, params, logger) {
-  const mutation = `mutation CreateCustomer($input: CustomerCreateInput!) {
-    createCustomerV2(input: $input) { customer { id firstname lastname email } }
+async function generateCommerceToken (email, params, logger) {
+  const mutation = `mutation GenerateToken($email: String!, $password: String!) {
+    generateCustomerToken(email: $email, password: $password) { token }
+  }`
+  try {
+    const resp = await graphQLRequest(params, mutation, { email, password: INTERNAL_CUSTOMER_PASSWORD }, logger)
+    return resp?.data?.generateCustomerToken?.token || null
+  } catch (e) {
+    logger.debug('generateCustomerToken failed: ' + e.message)
+    return null
+  }
+}
+
+async function createAndLogin (email, firstname, lastname, params, logger) {
+  const mutation = `mutation CreateAndLogin($input: CustomerCreateInput!, $email: String!, $password: String!) {
+    createCustomerWrapper: createCustomerV2(input: $input) { customer { id firstname lastname email } }
+    generateCustomerToken: generateCustomerToken(email: $email, password: $password) { token }
   }`
   const input = {
     firstname: firstname || 'guest',
@@ -85,20 +125,7 @@ async function createCommerceCustomer (email, firstname, lastname, params, logge
     email,
     password: INTERNAL_CUSTOMER_PASSWORD
   }
-  return commerceGraphQLRequest(params, mutation, { input }, logger)
-}
-
-async function generateCommerceToken (email, params, logger) {
-  const mutation = `mutation GenerateToken($email: String!) {
-    generateCustomerToken(email: $email, password: "${INTERNAL_CUSTOMER_PASSWORD}") { token }
-  }`
-  try {
-    const resp = await graphQLRequest(params, mutation, { email }, logger)
-    return resp?.data?.generateCustomerToken?.token || null
-  } catch (e) {
-    logger.debug('generateCustomerToken failed: ' + e.message)
-    return null
-  }
+  return commerceGraphQLRequest(params, mutation, { input, email, password: INTERNAL_CUSTOMER_PASSWORD }, logger)
 }
 
 async function getCustomerStatus (params, email, logger) {
@@ -143,10 +170,14 @@ exports.main = async (params) => {
     const clientId = params.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID
     if (!clientId) return serverError('GOOGLE_CLIENT_ID is not configured')
 
-    // ── Verify Google token ──────────────────────────────────────────
+    // ── Verify Google token (ID token or access token) ────────────────
     let googlePayload
     try {
-      googlePayload = await verifyGoogleToken(googleToken, clientId)
+      if (isIdToken(googleToken)) {
+        googlePayload = await verifyGoogleToken(googleToken, clientId)
+      } else {
+        googlePayload = await verifyGoogleAccessToken(googleToken, clientId)
+      }
     } catch (e) {
       const code = e.statusCode || 401
       return { statusCode: code, body: { error: e.message } }
@@ -220,12 +251,14 @@ exports.main = async (params) => {
       }
     }
 
-    // ── New user: create Commerce customer ────────────────────────────
+    // ── New user: create Commerce customer + token in one mutation ──────
     logger.info('New Google SSO user — creating Commerce customer...')
     let createdCustomer = null
+    let token = null
     try {
-      const createResp = await createCommerceCustomer(normalizedEmail, firstname, lastname, inParams, logger)
-      createdCustomer = createResp?.data?.createCustomerV2?.customer || null
+      const createResp = await createAndLogin(normalizedEmail, firstname, lastname, inParams, logger)
+      createdCustomer = createResp?.data?.createCustomerWrapper?.customer || null
+      token = createResp?.data?.generateCustomerToken?.token || null
     } catch (createErr) {
       const msg = String(createErr?.message || '')
       if (!msg.toLowerCase().includes('already exists')) {
@@ -236,7 +269,9 @@ exports.main = async (params) => {
       logger.warn('Customer already exists in Commerce — skipping creation')
     }
 
-    const token = await generateCommerceToken(normalizedEmail, inParams, logger)
+    if (!token) {
+      token = await generateCommerceToken(normalizedEmail, inParams, logger)
+    }
     if (!token) {
       actionEnd(rawDb, traceId, 'google-sso', { statusCode: 500 })
       return serverError('customer created but Commerce token generation failed')

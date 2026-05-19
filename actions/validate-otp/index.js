@@ -38,7 +38,7 @@ async function tryLogin (email, params, logger) {
   return null
 }
 
-async function createUser (email, mobile, opts, params, logger) {
+async function createAndLogin (email, mobile, opts, params, logger) {
   const firstname = opts.firstname || 'guest'
   const lastname = opts.lastname || 'user'
 
@@ -63,9 +63,9 @@ async function createUser (email, mobile, opts, params, logger) {
   const customAttributes = []
   if (mobile) {
     try {
-      const mobileValue = getCommerceMobileValue(normalizeMobile(mobile))
+      const mobileValue = mobile;
       if (mobileValue) {
-        customAttributes.push({ attribute_code: 'mobile_number', value: mobileValue })
+        input.vs_mobile_number = mobileValue;
       }
     } catch (err) {
       logger.debug?.('Skipping mobile attribute after normalization failure: ' + err.message)
@@ -78,8 +78,11 @@ async function createUser (email, mobile, opts, params, logger) {
     input.custom_attributes = customAttributes
   }
 
-  const mutation = `mutation createCustomerV2($input: CustomerCreateInput!){ createCustomerV2(input: $input){ customer{ id firstname lastname email date_of_birth gender custom_attributes { code ...on AttributeValue { value } } } } }`
-  return commerceGraphQLRequest(params, mutation, { input }, logger)
+  const mutation = `mutation CreateAndLogin($input: CustomerCreateInput!, $email: String!, $password: String!) {
+    createCustomerWrapper: createCustomerV2(input: $input) { customer { id firstname lastname email date_of_birth gender custom_attributes { code ...on AttributeValue { value } } } }
+    generateCustomerToken: generateCustomerToken(email: $email, password: $password) { token }
+  }`
+  return commerceGraphQLRequest(params, mutation, { input, email, password: INTERNAL_CUSTOMER_PASSWORD }, logger)
 }
 
 function extractCreateCustomerErrorMessage (err) {
@@ -229,16 +232,17 @@ async function main (params) {
     // ── flowType: register ──────────────────────────────────────────
     logger.info('Register flow: creating customer in Commerce...')
     let createdCustomer = null
+    let token = null
     try {
-      const createResp = await createUser(emailToUse, record.mobile, record, inParams, logger)
-      createdCustomer = createResp?.data?.createCustomerV2?.customer || null
+      const createResp = await createAndLogin(emailToUse, record.mobile, record, inParams, logger)
+      createdCustomer = createResp?.data?.createCustomerWrapper?.customer || null
+      token = createResp?.data?.generateCustomerToken?.token || null
     } catch (createErr) {
       const msg = extractCreateCustomerErrorMessage(createErr)
       logger.error('Commerce customer creation failed: ' + msg)
       return errorResponse(500, `registration failed: ${msg}`, logger)
     }
 
-    const token = await tryLogin(emailToUse, inParams, logger)
     if (!token) {
       return errorResponse(500, 'registration failed: customer created but token generation failed', logger)
     }
