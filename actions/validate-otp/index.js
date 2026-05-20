@@ -198,7 +198,7 @@ async function main (params) {
     logger.info(`OTP validated. flowType=${record.flowType}, loginType=${record.loginType}`)
 
     if (record.is_disabled) {
-      return errorResponse(403, 'Your account is disabled. Please contact support.', logger)
+      return { statusCode: 403, body: { message: 'Your account has been locked. Please contact our support team for your account activation.' } }
     }
 
     const emailToUse = await resolveEmail(record, logger)
@@ -280,6 +280,18 @@ async function main (params) {
     // Return 200 with an error field for expired OTP so the API Mesh maps it through ValidateOtpResponse
     if (code === 410) {
       return { statusCode: 200, body: { error: 'otp expired. please resend to get a new otp.', expired: true } }
+    }
+    // Wrong OTP value — return as 200 so mesh exposes it under body.msg
+    if (code === 401) {
+      return { statusCode: 200, body: { success: false, msg: 'OTP mismatched' } }
+    }
+    // OTP reference not found or already consumed — return as 200 so mesh exposes it under body.msg
+    if (code === 400 && (err.message === 'invalid otpReferenceId' || err.message === 'otp already used')) {
+      return { statusCode: 200, body: { success: false, msg: 'OTP Validation Failed' } }
+    }
+    // Server-side failures — return errorBody.msg matching frontend check
+    if (code >= 500) {
+      return { statusCode: code, body: { msg: 'Internal server error' } }
     }
     return errorResponse(code, err.message || 'server error', logger)
   } finally {
