@@ -4,7 +4,7 @@
 
 const { normalizeMobile } = require('../utils')
 
-const INTERNAL_CUSTOMER_PASSWORD = 'pass@123'
+const INTERNAL_CUSTOMER_PASSWORD = 'password@123'
 const CUSTOMER_IDENTITY_COLLECTION = 'customer_mobile_identity'
 
 // ── ID parsing ──────────────────────────────────────────────────────────

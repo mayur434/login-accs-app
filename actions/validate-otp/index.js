@@ -198,8 +198,9 @@ async function main (params) {
     logger.info(`OTP validated. flowType=${record.flowType}, loginType=${record.loginType}`)
 
     if (record.is_disabled) {
-      return { statusCode: 403, body: { message: 'Your account has been locked. Please contact our support team for your account activation.' } }
+      return { statusCode: 403, body: { error: 'Your account has been locked. Please contact our support team for your account activation.' } }
     }
+
 
     const emailToUse = await resolveEmail(record, logger)
 
@@ -277,23 +278,23 @@ async function main (params) {
     const code = err.statusCode || 500
     const rawDb = dbClient?._rawDbClient || dbClient
     if (rawDb && traceId) actionEnd(rawDb, traceId, 'validateOtp', { statusCode: code, error: err.message })
-    // Return 200 with an error field for expired OTP so the API Mesh maps it through ValidateOtpResponse
+    // Return proper status codes with { error } field for API Mesh ErrorResponse
     if (code === 410) {
-      return { statusCode: 200, body: { error: 'otp expired. please resend to get a new otp.', expired: true } }
+      return { statusCode: 410, body: { error: 'otp expired. please resend to get a new otp.' } }
     }
-    // Wrong OTP value — return as 200 so mesh exposes it under body.msg
     if (code === 401) {
-      return { statusCode: 200, body: { success: false, msg: 'OTP mismatched' } }
+      return { statusCode: 401, body: { error: 'OTP mismatched' } }
     }
-    // OTP reference not found or already consumed — return as 200 so mesh exposes it under body.msg
     if (code === 400 && (err.message === 'invalid otpReferenceId' || err.message === 'otp already used')) {
-      return { statusCode: 200, body: { success: false, msg: 'OTP Validation Failed' } }
+      return { statusCode: 400, body: { error: 'OTP Validation Failed' } }
     }
-    // Server-side failures — return errorBody.msg matching frontend check
+    if (code === 403) {
+      return { statusCode: 403, body: { error: err.message || 'account disabled' } }
+    }
     if (code >= 500) {
-      return { statusCode: code, body: { msg: 'Internal server error' } }
+      return { statusCode: 500, body: { error: 'Internal server error' } }
     }
-    return errorResponse(code, err.message || 'server error', logger)
+    return { statusCode: code, body: { error: err.message || 'server error' } }
   } finally {
     await closeDb(dbClient, logger)
   }

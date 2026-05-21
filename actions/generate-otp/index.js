@@ -34,7 +34,7 @@ async function main (params) {
     inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers || {}
 
     if (!loginType) {
-      return errorResponse(400, "provide at least one identifier: 'email' or 'mobile'", logger)
+      return { statusCode: 400, body: { error: `${loginType == "mobile"? "Mobile Number": "Email ID"} cannot be empty` } }
     }
 
     if (hasValue(inParams.mobile) || hasValue(inParams.mobile_number)) {
@@ -83,7 +83,7 @@ async function main (params) {
 
     // ── Block disabled customers ──────────────────────────────────────
     if (isDisabled) {
-      return errorResponse(403, 'Your account is disabled. Please contact support.', logger)
+      return { statusCode: 403, body: { error: 'Your account has been locked. Please contact our support team for your account activation' } }
     }
 
     // ── Determine flowType ────────────────────────────────────────────
@@ -121,7 +121,28 @@ async function main (params) {
     const code = err.statusCode || 500
     const rawDb = dbClient?._rawDbClient || dbClient
     if (rawDb && traceId) actionEnd(rawDb, traceId, 'generateOtp', { statusCode: code, error: err.message })
-    return errorResponse(code, err.message || 'server error', logger)
+
+    // Return proper status codes with { error } field for API Mesh ErrorResponse
+    const msg = err.message || ''
+    if (code === 400 && msg.includes('mobile')) {
+      return { statusCode: 400, body: { error: 'Mobile Number cannot be empty' } }
+    }
+    if (code === 400 && msg.includes('email')) {
+      return { statusCode: 400, body: { error: 'Email ID cannot be empty' } }
+    }
+    if (code === 400) {
+      return { statusCode: 400, body: { error: msg || 'Invalid input' } }
+    }
+    if (code === 403) {
+      return { statusCode: 403, body: { error: 'Your account has been locked. Please contact our support team for your account activation' } }
+    }
+    if (code === 429 || msg.toLowerCase().includes('max attempts') || msg.toLowerCase().includes('exceeded')) {
+      return { statusCode: 429, body: { error: 'User has exceeded max attempts of generating OTP' } }
+    }
+    if (code === 502 || msg.includes('failed to deliver')) {
+      return { statusCode: 502, body: { error: 'Generate OTP API failed due to header status failure' } }
+    }
+    return { statusCode: 500, body: { error: 'Generate OTP API failed due to header status failure' } }
   } finally {
     await closeDb(dbClient, logger)
   }
