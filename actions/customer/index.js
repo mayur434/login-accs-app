@@ -98,7 +98,7 @@ exports.main = async (params) => {
         const customerStatus = await checkRegistrationConflict(requestParams, logger)
         console.log('Customer status from conflict check', customerStatus);
         if (customerStatus.isDisabled) {
-          return { statusCode: 403, body: { error: 'Your account is disabled. Please contact support.' } }
+          return { statusCode: 403, body: { error: 'Your account has been locked. Please contact our support team for your account activation' } }
         }
         if (customerStatus.isCustomerExists) {
           return { statusCode: 409, body: { error: 'customer already exists' } }
@@ -135,7 +135,7 @@ exports.main = async (params) => {
         let newMobile = null
         if (hasMobile) {
           try {
-            newMobile = normalizeMobile(String(requestParams.mobile_number).trim())
+            newMobile = (String(requestParams.mobile_number).trim())
           } catch (e) {
             return badRequest(e.message || 'invalid mobile number')
           }
@@ -202,7 +202,24 @@ exports.main = async (params) => {
             return badRequest("'otpReferenceId' and 'otpValue' are required when updating mobile or email")
           }
 
-          const record = await validateOtp(dbClient, otpReferenceId, otpValue, logger)
+          let record
+          try {
+            record = await validateOtp(dbClient, otpReferenceId, otpValue, logger)
+          } catch (otpErr) {
+            const otpCode = otpErr.statusCode || 400
+            const otpMsg = otpErr.message || ''
+            if (otpCode === 410 || otpMsg === 'otp expired') {
+              return { statusCode: 410, body: { error: 'otp expired. please resend to get a new otp.' } }
+            }
+            if (otpCode === 401 || otpMsg === 'invalid otp') {
+              return { statusCode: 401, body: { error: 'OTP mismatched' } }
+            }
+            if (otpMsg === 'invalid otpReferenceId' || otpMsg === 'otp already used') {
+              return { statusCode: 400, body: { error: 'OTP Validation Failed' } }
+            }
+            return { statusCode: otpCode, body: { error: otpMsg || 'OTP validation failed' } }
+          }
+
 
           if (record.flowType !== 'update_mobile_email') {
             return badRequest('invalid OTP: not issued for a mobile/email update')
@@ -215,7 +232,7 @@ exports.main = async (params) => {
 
           if (hasValue(requestParams.mobile_number) && record.mobile) {
             let submittedMobile = null
-            try { submittedMobile = normalizeMobile(String(requestParams.mobile_number).trim()) } catch { /* invalid */ }
+            try { submittedMobile = (String(requestParams.mobile_number).trim()) } catch { /* invalid */ }
             if (submittedMobile !== record.mobile) {
               return badRequest('mobile number does not match the OTP request')
             }

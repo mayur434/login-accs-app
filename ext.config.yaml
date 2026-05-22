@@ -191,13 +191,3 @@ runtimeManifest:
             require-adobe-auth: false
             include-ims-credentials: true
             final: false
-      triggers:
-        otp-cleanup-nightly:
-          feed: /whisk.system/alarms/alarm
-          inputs:
-            cron: '0 0 * * *'
-            trigger_payload: '{"source":"otp-cleanup-nightly"}'
-      rules:
-        otp-cleanup-nightly-rule:
-          trigger: otp-cleanup-nightly
-          action: cleanup-otps

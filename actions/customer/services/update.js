@@ -121,8 +121,8 @@ async function checkUniqueness (params, prepared, currentEmail, currentMobile, l
     const mobileStatus = await getCustomerStatus(params, '', prepared.normalizedMobile, logger)
     const mobileConflict = toConflictFromStatus(
       mobileStatus,
-      'mobile number already exists',
-      'mobile number belongs to a disabled customer'
+      'mobile number already in use by another account',
+      'mobile number belongs to a disabled account'
     )
     if (mobileConflict) return mobileConflict
   }
@@ -131,8 +131,8 @@ async function checkUniqueness (params, prepared, currentEmail, currentMobile, l
     const emailStatus = await getCustomerStatus(params, prepared.resolvedEmail, '', logger)
     const emailConflict = toConflictFromStatus(
       emailStatus,
-      'email already exists',
-      'email belongs to a disabled customer'
+      'email already in use by another account',
+      'email belongs to a disabled account'
     )
     if (emailConflict) return emailConflict
   }
@@ -164,7 +164,7 @@ async function updateCommerceProfile (params, customerToken, prepared, currentEm
   if (prepared.hasMobile || prepared.hasFirstName || prepared.hasLastName || prepared.dob || prepared.doa || prepared.gender) {
     const input = {}
     if (prepared.hasMobile) {
-      input.custom_attributes = [{ attribute_code: 'mobile_number', value: getCommerceMobileValue(prepared.normalizedMobile) }]
+      input.vs_mobile_number = getCommerceMobileValue(prepared.normalizedMobile);
     }
     if (prepared.hasFirstName) input.firstname = prepared.firstName
     if (prepared.hasLastName) input.lastname = prepared.lastName
@@ -183,6 +183,7 @@ async function updateCommerceProfile (params, customerToken, prepared, currentEm
       }
     `
     profileResult = await commerceGraphQLRequest(params, mutation, { input }, logger, customerToken)
+    logger.debug('Commerce profile update result', profileResult)
   }
 
   // 2. Email change LAST — INVALIDATES the customer token
@@ -211,11 +212,11 @@ async function updateCommerceProfile (params, customerToken, prepared, currentEm
   return {
     newCommerceEmail,
     emailResult: emailResult?.data?.updateCustomerEmail || null,
-    profileResult: profileResult?.data?.updateCustomerV2 || null
+    profileResult: profileResult?.data?.updateCustomer || null
   }
 }
 
-function buildUpdatedCustomerResponse (customerId, currentProfile, prepared, currentEmail, currentMobile) {
+function buildUpdatedCustomerResponse (customerId, currentProfile, prepared, currentEmail, currentMobile, updatedProfile) {
   let nextEmail = currentEmail
   if (prepared.hasEmail) {
     nextEmail = prepared.resolvedEmail
@@ -244,10 +245,11 @@ async function runCommerceUpdate (params, customerToken, prepared, currentEmail,
   try {
     const commerceResult = await updateCommerceProfile(params, customerToken, prepared, currentEmail, logger)
     logger.debug('Commerce update result', commerceResult)
-    return null
+    const updatedProfile = commerceResult?.profileResult?.customer || null
+    return { error: null, updatedProfile }
   } catch (commerceError) {
     logger.error(commerceError)
-    return serverError(commerceError.message || 'failed to update in Commerce')
+    return { error: serverError(commerceError.message || 'failed to update in Commerce'), updatedProfile: null }
   }
 }
 
@@ -283,10 +285,10 @@ module.exports = async function update (dbClient, params, logger) {
     if (conflictError) return conflictError
 
     // 7. Update Commerce — mobile FIRST, email LAST (email change revokes token)
-    const commerceError = await runCommerceUpdate(params, customerToken, prepared, currentEmail, logger)
+    const { error: commerceError, updatedProfile } = await runCommerceUpdate(params, customerToken, prepared, currentEmail, logger)
     if (commerceError) return commerceError
 
-    const updatedCustomer = buildUpdatedCustomerResponse(customerId, currentProfile, prepared, currentEmail, currentMobile)
+    const updatedCustomer = buildUpdatedCustomerResponse(customerId, currentProfile, prepared, currentEmail, currentMobile, updatedProfile)
 
     return {
       statusCode: 200,
