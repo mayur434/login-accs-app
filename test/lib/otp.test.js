@@ -1,21 +1,21 @@
 /**
- * Unit tests for actions/lib/otp.js
+ * Unit tests for lib/otp.js
  */
 
-const { generateOtpValue, createReferenceId, levenshtein } = require('../../actions/lib/otp')
+const { generateOtpValue, createReferenceId, levenshtein } = require('../../lib/otp')
 
 describe('otp helpers', () => {
   describe('generateOtpValue', () => {
-    test('returns a 4-digit string', () => {
+    test('returns a 6-digit string', () => {
       const otp = generateOtpValue()
-      expect(otp).toMatch(/^\d{4}$/)
+      expect(otp).toMatch(/^\d{6}$/)
     })
 
-    test('returns value between 1000 and 9999', () => {
+    test('returns value between 100000 and 999999', () => {
       for (let i = 0; i < 100; i++) {
         const num = parseInt(generateOtpValue(), 10)
-        expect(num).toBeGreaterThanOrEqual(1000)
-        expect(num).toBeLessThanOrEqual(9999)
+        expect(num).toBeGreaterThanOrEqual(100000)
+        expect(num).toBeLessThanOrEqual(999999)
       }
     })
 
@@ -24,7 +24,7 @@ describe('otp helpers', () => {
       for (let i = 0; i < 50; i++) {
         values.add(generateOtpValue())
       }
-      // With 50 random 4-digit numbers, we expect at least 10 unique values
+      // With 50 random 6-digit numbers, we expect at least 10 unique values
       expect(values.size).toBeGreaterThan(10)
     })
   })

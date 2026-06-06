@@ -45,7 +45,8 @@ const mapLoad = (r) => ({
   googleSsoEnabled: Boolean(r.google_sso_enabled),
   googleClientId: r.google_client_id || '',
   googleClientSecret: r.google_client_secret || '',
-  googleClientSecretConfigured: Boolean(r.google_client_secret_configured)
+  googleClientSecretConfigured: Boolean(r.google_client_secret_configured),
+  perfLogging: Boolean(r.perf_logging)
 })
 
 const mapSave = (s) => {
@@ -59,7 +60,8 @@ const mapSave = (s) => {
     sms_fallback_enabled: s.smsFallbackEnabled,
     email_template_enabled: s.emailTemplateEnabled,
     google_sso_enabled: s.googleSsoEnabled,
-    google_client_id: s.googleClientId
+    google_client_id: s.googleClientId,
+    perf_logging: s.perfLogging
   }
   if (s.googleClientSecret && s.googleClientSecret.trim() !== '') {
     payload.google_client_secret = s.googleClientSecret
@@ -88,6 +90,7 @@ const AdminUi = (props) => {
   const [googleClientId, setGoogleClientId] = useState('')
   const [googleClientSecret, setGoogleClientSecret] = useState('')
   const [googleClientSecretConfigured, setGoogleClientSecretConfigured] = useState(false)
+  const [perfLogging, setPerfLogging] = useState(false)
 
   const formDisabled = isLoading || isSaving
 
@@ -103,7 +106,8 @@ const AdminUi = (props) => {
       emailTemplateEnabled !== s.emailTemplateEnabled ||
       googleSsoEnabled !== s.googleSsoEnabled ||
       googleClientId !== s.googleClientId ||
-      googleClientSecret !== s.googleClientSecret
+      googleClientSecret !== s.googleClientSecret ||
+      perfLogging !== s.perfLogging
   })()
 
   // ── Load on mount ──
@@ -126,6 +130,7 @@ const AdminUi = (props) => {
     setGoogleClientId(l.googleClientId)
     setGoogleClientSecret(l.googleClientSecret)
     setGoogleClientSecretConfigured(l.googleClientSecretConfigured)
+    setPerfLogging(l.perfLogging)
   }
 
   async function handleSave () {
@@ -140,7 +145,8 @@ const AdminUi = (props) => {
       emailTemplateEnabled,
       googleSsoEnabled,
       googleClientId,
-      googleClientSecret
+      googleClientSecret,
+      perfLogging
     })
     if (ok) {
       savedRef.current = {
@@ -154,7 +160,8 @@ const AdminUi = (props) => {
         emailTemplateEnabled,
         googleSsoEnabled,
         googleClientId,
-        googleClientSecret
+        googleClientSecret,
+        perfLogging
       }
     }
   }
@@ -298,6 +305,16 @@ const AdminUi = (props) => {
               </Text>
             </Flex>
           )}
+        </Flex>
+      </Section>
+
+      {/* ───── Advanced / Debugging ───── */}
+      <Section title='Advanced' description='Debugging and performance monitoring tools.'>
+        <Flex alignItems='center' gap='size-100'>
+          <Switch isSelected={perfLogging} isDisabled={formDisabled} onChange={onToggle(setPerfLogging)}>
+            Performance Logging
+          </Switch>
+          <InfoTip label='Logs every DB operation with timing into query_performance_logger table. Increases DB load — enable only when diagnosing issues.' />
         </Flex>
       </Section>
 

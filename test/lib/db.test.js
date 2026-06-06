@@ -1,5 +1,5 @@
 /**
- * Unit tests for actions/lib/db.js
+ * Unit tests for lib/db.js
  *
  * Tests pure utility functions without requiring a live database.
  */
@@ -11,10 +11,15 @@ const {
   isUnauthorizedDbError,
   assertModuleEnabled,
   normalizeAppConfig,
+  invalidateAppConfigCache,
   APP_CONFIG_DEFAULTS,
   APP_CONFIG_ID,
   APP_CONFIG_COLLECTION
-} = require('../../actions/lib/db')
+} = require('../../lib/db')
+
+beforeEach(() => {
+  invalidateAppConfigCache()
+})
 
 describe('db.js utilities', () => {
   describe('constants', () => {

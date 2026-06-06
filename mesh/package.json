@@ -11,6 +11,12 @@
     "describe": "aio api-mesh:describe"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "graphql-import-node": "^0.0.5"
-  }
+  },
+  "main": "local-gateway.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
 }

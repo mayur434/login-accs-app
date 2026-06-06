@@ -18,7 +18,7 @@ jest.mock('@adobe/aio-sdk', () => ({
   }
 }))
 
-jest.mock('../actions/lib/imsHelper', () => ({
+jest.mock('../lib/imsHelper', () => ({
   getAioDbToken: jest.fn().mockResolvedValue('mock-ims-token')
 }))
 
@@ -29,8 +29,8 @@ const mockCollection = {
   deleteOne: jest.fn()
 }
 
-jest.mock('../actions/lib/db', () => {
-  const actualDb = jest.requireActual('../actions/lib/db')
+jest.mock('../lib/db', () => {
+  const actualDb = jest.requireActual('../lib/db')
   return {
     ...actualDb,
     getCollection: jest.fn().mockResolvedValue({
@@ -43,7 +43,7 @@ jest.mock('../actions/lib/db', () => {
 })
 
 const { main } = require('../actions/config/index')
-const { findOneOrNull } = require('../actions/lib/db')
+const { findOneOrNull } = require('../lib/db')
 
 beforeEach(() => {
   jest.clearAllMocks()
@@ -87,7 +87,7 @@ describe('config action', () => {
   describe('POST — validation', () => {
     test('rejects empty body', async () => {
       const result = await main({ ...baseParams, __ow_method: 'POST' })
-      expect(result.statusCode).toBe(400)
+      expect(result.body.statusCode).toBe(400)
       expect(result.body.error).toContain('at least one configuration field')
     })
 
@@ -97,7 +97,7 @@ describe('config action', () => {
         __ow_method: 'POST',
         is_enabled: 'yes'
       })
-      expect(result.statusCode).toBe(400)
+      expect(result.body.statusCode).toBe(400)
       expect(result.body.error).toContain('is_enabled must be boolean')
     })
 
@@ -107,7 +107,7 @@ describe('config action', () => {
         __ow_method: 'POST',
         otp_expiration_validity: -1
       })
-      expect(result.statusCode).toBe(400)
+      expect(result.body.statusCode).toBe(400)
       expect(result.body.error).toContain('otp_expiration_validity must be a positive integer')
     })
 
@@ -117,7 +117,7 @@ describe('config action', () => {
         __ow_method: 'POST',
         sms_api_host: 123
       })
-      expect(result.statusCode).toBe(400)
+      expect(result.body.statusCode).toBe(400)
       expect(result.body.error).toContain('sms_api_host must be a string')
     })
 

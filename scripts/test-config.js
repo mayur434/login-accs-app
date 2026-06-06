@@ -12,12 +12,12 @@ require('dotenv').config()
 const {
   getCollection, closeDb, normalizeAppConfig, findOneOrNull,
   APP_CONFIG_ID, APP_CONFIG_COLLECTION, APP_CONFIG_DEFAULTS
-} = require('../actions/lib/db')
+} = require('../lib/db')
 
 async function testBackend (dbType) {
   process.env.DB_TYPE = dbType
   // Clear adapter cache so factory re-evaluates DB_TYPE
-  delete require.cache[require.resolve('../actions/lib/db-adapters')]
+  delete require.cache[require.resolve('../lib/db-adapters')]
 
   const params = {
     DB_TYPE: dbType,
@@ -105,7 +105,7 @@ async function testBackend (dbType) {
 
 async function testAction (dbType) {
   process.env.DB_TYPE = dbType
-  delete require.cache[require.resolve('../actions/lib/db-adapters')]
+  delete require.cache[require.resolve('../lib/db-adapters')]
   // Clear config action module cache
   delete require.cache[require.resolve('../actions/config/index')]
   const { main } = require('../actions/config/index')

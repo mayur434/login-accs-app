@@ -8,13 +8,13 @@ const {
   normalizeMobile,
   stringParameters,
   checkMissingRequestInputs
-} = require('../actions/utils')
+} = require('../lib/utils')
 
 describe('utils', () => {
   describe('errorResponse', () => {
     test('returns standard response with statusCode and body', () => {
       const result = errorResponse(400, 'bad input')
-      expect(result).toEqual({ statusCode: 400, body: { error: 'bad input' } })
+      expect(result).toEqual({ statusCode: 200, body: { success: false, statusCode: 400, error: 'bad input', message: 'bad input' } })
     })
 
     test('logs via logger.info when provided', () => {
@@ -130,19 +130,19 @@ describe('utils', () => {
 
   describe('normalizeMobile', () => {
     test('normalizes 10-digit Indian mobile', () => {
-      expect(normalizeMobile('9876543210')).toBe('+919876543210')
+      expect(normalizeMobile('9876543210')).toBe('9876543210')
     })
 
     test('normalizes 12-digit with 91 prefix', () => {
-      expect(normalizeMobile('919876543210')).toBe('+919876543210')
+      expect(normalizeMobile('919876543210')).toBe('9876543210')
     })
 
     test('normalizes with +91 prefix', () => {
-      expect(normalizeMobile('+919876543210')).toBe('+919876543210')
+      expect(normalizeMobile('+919876543210')).toBe('9876543210')
     })
 
     test('strips non-digit characters', () => {
-      expect(normalizeMobile('+91 9876-543210')).toBe('+919876543210')
+      expect(normalizeMobile('+91 9876-543210')).toBe('9876543210')
     })
 
     test('throws for non-Indian number start digit', () => {

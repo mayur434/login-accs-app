@@ -62,30 +62,37 @@ beforeEach(() => {
 // ════════════════════════════════════════════════════════════════════════
 
 describe('register service', () => {
-  const register = require('../actions/customer/services/register')
+  const register = require('../actions/api/customer/services/register')
 
   test('returns 400 when password missing', async () => {
     const result = await register(mockDbClient, { email: 'a@b.com' }, mockLogger)
-    expect(result.statusCode).toBe(400)
+    expect(result.body.statusCode).toBe(400)
     expect(result.body.error).toContain('password')
   })
 
   test('returns 400 when no email and no mobile', async () => {
     const result = await register(mockDbClient, { password: 'pass@123' }, mockLogger)
-    expect(result.statusCode).toBe(400)
+    expect(result.body.statusCode).toBe(400)
     expect(result.body.error).toContain('email,mobile_number')
   })
 
   test('returns 409 when mobile already exists', async () => {
-    // First findOne (mobile check) returns a doc; second (email check) not called
-    setupFindOneReturns({ mobile_number: '+919876543210', status: 'active', customer_id: 1 })
+    // getCustomerStatus returns is_customer_exists: true via GraphQL
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue(JSON.stringify({
+        data: { isCustomerExists: { is_customer_exists: true, is_disabled: false } }
+      }))
+    })
 
     const result = await register(mockDbClient, {
       password: 'pass@123',
-      mobile_number: '9876543210'
+      mobile_number: '9876543210',
+      GRAPHQL_ENDPOINT: 'https://commerce.example.com/graphql'
     }, mockLogger)
-    expect(result.statusCode).toBe(409)
-    expect(result.body.error).toContain('mobile_number already exists')
+    expect(result.body.statusCode).toBe(409)
+    expect(result.body.error).toContain('customer already exists')
   })
 
   test('returns 400 for invalid mobile number', async () => {
@@ -95,7 +102,7 @@ describe('register service', () => {
       password: 'pass@123',
       mobile_number: '123'
     }, mockLogger)
-    expect(result.statusCode).toBe(400)
+    expect(result.body.statusCode).toBe(400)
     expect(result.body.error).toContain('invalid')
   })
 
@@ -123,11 +130,11 @@ describe('register service', () => {
 // ════════════════════════════════════════════════════════════════════════
 
 describe('update service', () => {
-  const update = require('../actions/customer/services/update')
+  const update = require('../actions/api/customer/services/update')
 
   // Mock getAppConfig for update service
-  jest.mock('../actions/lib/db', () => {
-    const actualDb = jest.requireActual('../actions/lib/db')
+  jest.mock('../lib/db', () => {
+    const actualDb = jest.requireActual('../lib/db')
     return {
       ...actualDb,
       getAppConfig: jest.fn().mockResolvedValue({ allow_key_info_update: true }),
@@ -135,7 +142,7 @@ describe('update service', () => {
     }
   })
 
-  const { findOneOrNull, getAppConfig } = require('../actions/lib/db')
+  const { findOneOrNull, getAppConfig } = require('../lib/db')
 
   beforeEach(() => {
     getAppConfig.mockResolvedValue({ allow_key_info_update: true })
@@ -146,7 +153,7 @@ describe('update service', () => {
       customer_token: 'abc',
       mobile_number: '9876543210'
     }, mockLogger)
-    expect(result.statusCode).toBe(400)
+    expect(result.body.statusCode).toBe(400)
     expect(result.body.error).toContain('customer_id')
   })
 
@@ -155,7 +162,7 @@ describe('update service', () => {
       customer_id: 42,
       mobile_number: '9876543210'
     }, mockLogger)
-    expect(result.statusCode).toBe(400)
+    expect(result.body.statusCode).toBe(400)
     expect(result.body.error).toContain('customer_token')
   })
 
@@ -164,7 +171,7 @@ describe('update service', () => {
       customer_id: 42,
       customer_token: 'abc'
     }, mockLogger)
-    expect(result.statusCode).toBe(400)
+    expect(result.body.statusCode).toBe(400)
     expect(result.body.error).toContain('at least one field')
   })
 
@@ -176,20 +183,29 @@ describe('update service', () => {
       customer_token: 'abc',
       mobile_number: '9876543210'
     }, mockLogger)
-    expect(result.statusCode).toBe(403)
-    expect(result.body.error).toContain('key info updates are disabled')
+    expect(result.body.statusCode).toBe(403)
+    expect(result.body.error).toContain('mobile number updates are disabled')
   })
 
   test('returns 404 when customer identity not found', async () => {
-    findOneOrNull.mockResolvedValue(null)
+    getAppConfig.mockResolvedValue({ allow_key_info_update: true })
+    // fetchCustomerProfile returns null via GraphQL
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue(JSON.stringify({
+        data: { customer: null }
+      }))
+    })
 
     const result = await update(mockDbClient, {
       customer_id: 42,
       customer_token: 'abc',
-      mobile_number: '9876543210'
+      mobile_number: '9876543210',
+      GRAPHQL_ENDPOINT: 'https://commerce.example.com/graphql'
     }, mockLogger)
-    expect(result.statusCode).toBe(404)
-    expect(result.body.error).toContain('customer identity not found')
+    expect(result.body.statusCode).toBe(404)
+    expect(result.body.error).toContain('customer not found')
   })
 
   test('returns 400 for invalid mobile number', async () => {
@@ -198,21 +214,28 @@ describe('update service', () => {
       customer_token: 'abc',
       mobile_number: '123'
     }, mockLogger)
-    expect(result.statusCode).toBe(400)
+    expect(result.body.statusCode).toBe(400)
     expect(result.body.error).toContain('invalid')
   })
 
   test('updates firstname and lastname', async () => {
-    findOneOrNull.mockResolvedValue({
-      customer_id: 42,
-      email: 'existing@example.com',
-      mobile_number: '+919876543210',
-      firstname: 'Old',
-      lastname: 'Name',
-      status: 'active'
+    // 1st fetch: fetchCustomerProfile returns existing profile
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue(JSON.stringify({
+        data: {
+          customer: {
+            id: 42,
+            firstname: 'Old',
+            lastname: 'Name',
+            email: 'existing@example.com',
+            custom_attributes: [{ attribute_code: 'mobile_number', value: '+919876543210' }]
+          }
+        }
+      }))
     })
-    mockCollection.updateOne.mockResolvedValue({ modifiedCount: 1 })
-
+    // 2nd fetch: updateCommerceProfile mutation
     fetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -241,12 +264,9 @@ describe('update service', () => {
     expect(result.statusCode).toBe(200)
     expect(result.body.customer.firstname).toBe('John')
     expect(result.body.customer.lastname).toBe('Doe')
-    expect(mockCollection.updateOne).toHaveBeenCalledWith(
-      { customer_id: 42 },
-      { $set: expect.objectContaining({ firstname: 'John', lastname: 'Doe' }) }
-    )
 
-    const requestBody = JSON.parse(fetch.mock.calls[0][1].body)
+    // The update mutation is the 2nd fetch call
+    const requestBody = JSON.parse(fetch.mock.calls[1][1].body)
     expect(requestBody.query).toContain('updateCustomerV2')
     expect(requestBody.variables.input.firstname).toBe('John')
     expect(requestBody.variables.input.lastname).toBe('Doe')
@@ -279,7 +299,7 @@ describe('update service', () => {
       GRAPHQL_ENDPOINT: 'https://commerce.example.com/graphql'
     }, mockLogger)
 
-    expect(result.statusCode).toBe(400)
+    expect(result.body.statusCode).toBe(400)
     expect(result.body.error).toContain('at least one field')
   })
 })

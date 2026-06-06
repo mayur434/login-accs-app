@@ -1,8 +1,8 @@
 /**
- * Unit tests for actions/lib/db-adapters/index.js
+ * Unit tests for lib/db-adapters/index.js
  */
 
-const { getAdapter } = require('../../actions/lib/db-adapters/index')
+const { getAdapter } = require('../../lib/db-adapters/index')
 
 describe('db adapter factory', () => {
   test('returns docdb adapter by default', () => {

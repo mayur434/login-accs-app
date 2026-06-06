@@ -12,8 +12,8 @@ require('dotenv').config()
 const {
   getCollection, closeDb, getAppConfig, findOneOrNull,
   APP_CONFIG_DEFAULTS, APP_CONFIG_ID, APP_CONFIG_COLLECTION
-} = require('../actions/lib/db')
-const { generateOtpValue, createReferenceId, levenshtein } = require('../actions/lib/otp')
+} = require('../lib/db')
+const { generateOtpValue, createReferenceId, levenshtein } = require('../lib/otp')
 
 const backend = (process.argv[2] || 'mysql').toLowerCase()
 process.env.DB_TYPE = backend

@@ -1,11 +1,11 @@
 /**
- * Unit tests for actions/lib/graphql.js
+ * Unit tests for lib/graphql.js
  */
 
 jest.mock('node-fetch')
 const fetch = require('node-fetch')
 
-const { graphQLRequest, commerceGraphQLRequest } = require('../../actions/lib/graphql')
+const { graphQLRequest, commerceGraphQLRequest } = require('../../lib/graphql')
 
 const mockLogger = {
   info: jest.fn(),

@@ -17,7 +17,10 @@
         "handler": {
           "openapi": {
             "source": "./openapi.json",
-            "baseUrl": "{env.ACTION_BASE_URL}"
+            "baseUrl": "{env.ACTION_BASE_URL}",
+            "operationHeaders": {
+              "Authorization": "{context.headers.authorization}"
+            }
           }
         }
       }

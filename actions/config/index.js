@@ -1,18 +1,14 @@
-const { Core } = require('@adobe/aio-sdk')
-const { getRequestParams } = require('../lib/params')
-const { stringParameters } = require('../utils')
-const { success, badRequest, methodNotAllowed, serverError } = require('../lib/http')
-const { getAioDbToken } = require('../lib/imsHelper')
+const { runAction } = require('../../lib/actionRunner')
+const { success, badRequest, methodNotAllowed, serverError } = require('../../lib/http')
 const {
-  getCollection, closeDb, normalizeAppConfig, findOneOrNull,
-  APP_CONFIG_ID, APP_CONFIG_COLLECTION, APP_CONFIG_DEFAULTS
-} = require('../lib/db')
-const { generateTraceId, actionStart, actionEnd } = require('../lib/logger')
+  normalizeAppConfig, findOneOrNull,
+  APP_CONFIG_ID, APP_CONFIG_COLLECTION, APP_CONFIG_DEFAULTS, invalidateAppConfigCache,
+  putConfigToState
+} = require('../../lib/db')
 
 // ── Validation ──────────────────────────────────────────────────────────
 
 function validateUpdatePayload (params) {
-  // Backward compatibility: accept auto_login and map to auto_register
   const autoRegisterValue = params.auto_register !== undefined ? params.auto_register : params.auto_login
 
   const fields = {
@@ -21,7 +17,6 @@ function validateUpdatePayload (params) {
     otp_in_response: { value: params.otp_in_response, type: 'boolean' },
     auto_register: { value: autoRegisterValue, type: 'boolean' },
     allow_key_info_update: { value: params.allow_key_info_update, type: 'boolean' },
-    // SMS communication
     sms_api_host: { value: params.sms_api_host, type: 'string' },
     sms_endpoint: { value: params.sms_endpoint, type: 'string' },
     sms_api_key: { value: params.sms_api_key, type: 'string' },
@@ -37,7 +32,6 @@ function validateUpdatePayload (params) {
     sms_template_enabled: { value: params.sms_template_enabled, type: 'boolean' },
     sms_template_id: { value: params.sms_template_id, type: 'string' },
     sms_template_string: { value: params.sms_template_string, type: 'string' },
-    // Email communication
     email_smtp_host: { value: params.email_smtp_host, type: 'string' },
     email_smtp_port: { value: params.email_smtp_port, type: 'integer' },
     email_smtp_user: { value: params.email_smtp_user, type: 'string' },
@@ -48,10 +42,10 @@ function validateUpdatePayload (params) {
     email_template_enabled: { value: params.email_template_enabled, type: 'boolean' },
     email_template_id: { value: params.email_template_id, type: 'string' },
     email_template_string: { value: params.email_template_string, type: 'string' },
-    // Google SSO
     google_sso_enabled: { value: params.google_sso_enabled, type: 'boolean' },
     google_client_id: { value: params.google_client_id, type: 'string' },
-    google_client_secret: { value: params.google_client_secret, type: 'string' }
+    google_client_secret: { value: params.google_client_secret, type: 'string' },
+    perf_logging: { value: params.perf_logging, type: 'boolean' }
   }
 
   const provided = {}
@@ -59,7 +53,6 @@ function validateUpdatePayload (params) {
 
   for (const [key, { value, type }] of Object.entries(fields)) {
     if (value === undefined) continue
-
     if (type === 'boolean' && typeof value !== 'boolean') {
       errors.push(`${key} must be boolean true/false`)
     } else if (type === 'integer' && (!Number.isInteger(value) || value <= 0)) {
@@ -72,66 +65,41 @@ function validateUpdatePayload (params) {
   }
 
   if (errors.length) return { error: badRequest(errors.join('; ')) }
+  if (Object.keys(provided).length === 0) return { error: badRequest('Provide at least one configuration field to update') }
 
-  if (Object.keys(provided).length === 0) {
-    return {
-      error: badRequest('Provide at least one configuration field to update')
-    }
-  }
-
-  const updateFields = {
-    ...provided,
-    updatedAt: Date.now()
-  }
-
-  return { updateFields }
+  return { updateFields: { ...provided, updatedAt: Date.now() } }
 }
 
 function sanitizeConfigForResponse (config) {
   if (!config) return config
-
   const out = { ...config }
-
   out.sms_api_key_configured = !!out.sms_api_key
   out.sms_ics_password_configured = !!out.sms_ics_password
   out.email_smtp_password_configured = !!out.email_smtp_password
   out.google_client_secret_configured = !!out.google_client_secret
-
   out.sms_api_key = ''
   out.sms_ics_password = ''
   out.email_smtp_password = ''
   out.google_client_secret = ''
-
   return out
 }
 
-// ── Migrate legacy docs that may be missing newer boolean fields ────────
-
 async function getDocDbConfig (collection) {
   let config = await findOneOrNull(collection, { _id: APP_CONFIG_ID })
-
   if (!config) return normalizeAppConfig(null)
 
   const patchFields = {}
-  // Normalize: migrate legacy auto_login field to auto_register
   if (config.auto_login !== undefined && config.auto_register === undefined) {
     patchFields.auto_register = config.auto_login
   }
-
   for (const key of ['otp_in_response', 'auto_register', 'allow_key_info_update', 'sms_template_enabled', 'email_template_enabled', 'sms_fallback_enabled', 'google_sso_enabled']) {
-    // Only patch if the field is truly missing (undefined/null). MySQL returns
-    // TINYINT(1) as 0/1 which are valid stored values — do not overwrite them.
     if (config[key] === undefined || config[key] === null) {
       patchFields[key] = APP_CONFIG_DEFAULTS[key]
     }
   }
 
   if (Object.keys(patchFields).length) {
-    await collection.updateOne(
-      { _id: APP_CONFIG_ID },
-      { $set: { ...patchFields, updatedAt: Date.now() } },
-      { upsert: true }
-    )
+    await collection.updateOne({ _id: APP_CONFIG_ID }, { $set: { ...patchFields, updatedAt: Date.now() } }, { upsert: true })
     config = await findOneOrNull(collection, { _id: APP_CONFIG_ID })
   }
 
@@ -140,65 +108,32 @@ async function getDocDbConfig (collection) {
 
 // ── Main ────────────────────────────────────────────────────────────────
 
-async function main (params) {
-  const logger = Core.Logger('app_config', { level: params.LOG_LEVEL || 'info' })
-  let dbClient
-  const traceId = generateTraceId()
+exports.main = runAction('app_config', APP_CONFIG_COLLECTION, async ({ params, dbClient, logger }) => {
   const method = ((params.__ow_method || (params.__ow_headers || {})['x-http-method-override'] || 'GET') + '').toUpperCase()
+  const collection = await dbClient.collection(APP_CONFIG_COLLECTION)
 
-  try {
-    logger.debug(stringParameters(params))
-    const inParams = getRequestParams(params)
-    inParams.__ow_headers = params.__ow_headers || inParams.__ow_headers || {}
-    const aioDbToken = await getAioDbToken(inParams)
-
-    const { dbClient: connectedClient, collection } = await getCollection(
-      { ...inParams, AIO_DB_TOKEN: aioDbToken },
-      APP_CONFIG_COLLECTION,
-      { traceId }
-    )
-    dbClient = connectedClient
-    const rawDb = dbClient._rawDbClient || dbClient
-    actionStart(rawDb, traceId, 'app_config', { method })
-
-    if (method === 'GET') {
-      const result = success(sanitizeConfigForResponse(await getDocDbConfig(collection)))
-      actionEnd(rawDb, traceId, 'app_config', { statusCode: 200, method })
-      return result
-    }
-
-    if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
-      const { error, updateFields } = validateUpdatePayload(inParams)
-      if (error) return error
-
-      await collection.updateOne(
-        { _id: APP_CONFIG_ID },
-        { $set: updateFields },
-        { upsert: true }
-      )
-
-      const updatedConfig = await findOneOrNull(collection, { _id: APP_CONFIG_ID })
-      const result = success(sanitizeConfigForResponse(normalizeAppConfig(updatedConfig)))
-      actionEnd(rawDb, traceId, 'app_config', { statusCode: 200, method })
-      return result
-    }
-
-    if (method === 'DELETE') {
-      await collection.deleteOne({ _id: APP_CONFIG_ID })
-      actionEnd(rawDb, traceId, 'app_config', { statusCode: 200, method })
-      return success({ success: true, message: 'app_config deleted' })
-    }
-
-    actionEnd(rawDb, traceId, 'app_config', { statusCode: 405, method })
-    return methodNotAllowed(`method ${method} not allowed`)
-  } catch (error) {
-    logger.error(error)
-    const rawDb = dbClient?._rawDbClient || dbClient
-    if (rawDb && traceId) actionEnd(rawDb, traceId, 'app_config', { statusCode: 500, error: error.message })
-    return serverError()
-  } finally {
-    await closeDb(dbClient, logger)
+  if (method === 'GET') {
+    return success(sanitizeConfigForResponse(await getDocDbConfig(collection)))
   }
-}
 
-exports.main = main
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+    const { error, updateFields } = validateUpdatePayload(params)
+    if (error) return error
+
+    await collection.updateOne({ _id: APP_CONFIG_ID }, { $set: updateFields }, { upsert: true })
+    invalidateAppConfigCache()
+
+    const updatedConfig = await findOneOrNull(collection, { _id: APP_CONFIG_ID })
+    const normalized = normalizeAppConfig(updatedConfig)
+    await putConfigToState(normalized)
+    return success(sanitizeConfigForResponse(normalized))
+  }
+
+  if (method === 'DELETE') {
+    await collection.deleteOne({ _id: APP_CONFIG_ID })
+    invalidateAppConfigCache()
+    return success({ success: true, message: 'app_config deleted' })
+  }
+
+  return methodNotAllowed(`method ${method} not allowed`)
+}, { requireModule: false })

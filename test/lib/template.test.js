@@ -1,8 +1,8 @@
 /**
- * Unit tests for actions/lib/template.js
+ * Unit tests for lib/template.js
  */
 
-const { resolveTemplate } = require('../../actions/lib/template')
+const { resolveTemplate } = require('../../lib/template')
 
 describe('template resolver', () => {
   test('replaces single placeholder', () => {

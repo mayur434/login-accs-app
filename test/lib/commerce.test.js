@@ -1,11 +1,11 @@
 /**
- * Unit tests for actions/lib/commerce.js
+ * Unit tests for lib/commerce.js
  */
 
 jest.mock('node-fetch')
 const fetch = require('node-fetch')
 
-const { generateCustomerToken, fetchCustomerProfile } = require('../../actions/lib/commerce')
+const { generateCustomerToken, fetchCustomerProfile } = require('../../lib/commerce')
 
 const mockLogger = {
   info: jest.fn(),

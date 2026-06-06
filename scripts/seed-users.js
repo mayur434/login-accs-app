@@ -4,8 +4,8 @@ const path = require('node:path')
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') })
 
 const { Core } = require('@adobe/aio-sdk')
-const mysqlAdapter = require('../actions/lib/db-adapters/mysql-adapter')
-const docdbAdapter = require('../actions/lib/db-adapters/docdb-adapter')
+const mysqlAdapter = require('../lib/db-adapters/mysql-adapter')
+const docdbAdapter = require('../lib/db-adapters/docdb-adapter')
 
 const { generateAccessToken } = Core.AuthClient
 

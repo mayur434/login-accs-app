@@ -1,8 +1,8 @@
 /**
- * Unit tests for actions/lib/params.js
+ * Unit tests for lib/params.js
  */
 
-const { hasValue, getRequestParams, normalizeRequestParams } = require('../../actions/lib/params')
+const { hasValue, getRequestParams, normalizeRequestParams } = require('../../lib/params')
 
 describe('params helpers', () => {
   describe('hasValue', () => {

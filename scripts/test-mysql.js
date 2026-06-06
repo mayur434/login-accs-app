@@ -98,10 +98,10 @@ async function getImsToken () {
 
 async function getRawDbClient (backend, imsToken) {
   if (backend === 'mysql') {
-    const adapter = require('../actions/lib/db-adapters/mysql-adapter')
+    const adapter = require('../lib/db-adapters/mysql-adapter')
     return (await adapter.connect({})).dbClient
   }
-  const adapter = require('../actions/lib/db-adapters/docdb-adapter')
+  const adapter = require('../lib/db-adapters/docdb-adapter')
   return (await adapter.connect({ AIO_DB_TOKEN: imsToken })).dbClient
 }
 
@@ -289,7 +289,7 @@ async function testAdapterLayer (backend, buildParams, imsToken) {
     })
     assert(false, `${backend} unique constraint on email`, 'did not throw')
   } catch (e) {
-    const { isUniqueConstraintError } = require('../actions/lib/db')
+    const { isUniqueConstraintError } = require('../lib/db')
     assert(isUniqueConstraintError(e), `${backend} unique constraint detected`)
   }
 
@@ -316,7 +316,7 @@ async function testDbFacade (backend, buildParams) {
     getCollection, closeDb, getAppConfig, findOneOrNull,
     isDocumentNotFoundError, isUniqueConstraintError, isCollectionNotFoundError,
     normalizeAppConfig
-  } = require('../actions/lib/db')
+  } = require('../lib/db')
 
   let dbClient
   try {
@@ -513,8 +513,8 @@ async function testOtpService (backend, buildParams, imsToken) {
 
   clearActionCache()
 
-  const { getCollection, closeDb } = require('../actions/lib/db')
-  const { generateOtp, validateOtp } = require('../actions/lib/otpService')
+  const { getCollection, closeDb } = require('../lib/db')
+  const { generateOtp, validateOtp } = require('../lib/otpService')
   const logger = Core.Logger('test', { level: 'error' })
 
   const p = buildParams()

@@ -169,24 +169,27 @@ npm run lint           # ESLint
 ## Project Structure
 
 ```
+lib/              # Shared libraries (actionRunner, http, db, graphql, commerce, otp, params, customer, sms, email, template)
+  db-adapters/    # Database backend adapters (DocDB, MySQL)
 actions/
-  lib/            # Shared libraries (http, db, graphql, commerce, otp, params, customer, sms, email, template)
-    db-adapters/  # Database backend adapters (DocDB, MySQL)
-  config/         # Module config CRUD — Admin UI SDK only
-  customer/       # Customer router (register/update) — via API Mesh
-    services/     # Service handlers (register, update)
-  generate-otp/   # OTP generation endpoint — via API Mesh
-  validate-otp/   # OTP validation endpoint — via API Mesh
+  api/            # Unified Mesh-facing router (single action, all customer endpoints)
+    index.js      # Path-based router (/generate-otp, /validate-otp, /customer, /google-sso, /config)
+    generate-otp/ # OTP generation handler
+    validate-otp/ # OTP validation handler (login, register, update flows)
+    customer/     # Customer router (register/updateCustomerDetails)
+      services/   # Service handlers (register, update)
+    google-sso/   # Google SSO handler
+  config/         # Module config CRUD — Admin UI + Mesh GET
+  cleanup-otps/   # Nightly cron — purge expired OTPs
+  seed-state-cache/ # Post-deploy cache warmup
   registration/   # Extension menu registration — Admin UI SDK
-  init-identity/  # DB index initialization (used by setup-db)
 mesh/             # API Mesh config (self-contained package)
-  mesh.json       # Mesh sources (Commerce GraphQL + LoginModule REST)
-  openapi.json    # OTP + Customer endpoints (single spec)
-  .env.mesh     # Environment variables — COMMERCE_GRAPHQL_ENDPOINT, ACTION_BASE_URL (git-ignored)
-  package.json  # Mesh-specific npm scripts (dev, create, update, get, describe)
+  mesh.json       # Mesh sources (Commerce GraphQL + LoginModule OpenAPI)
+  openapi.json    # API spec (operations → GraphQL mutations/queries)
+  .env            # Mesh env vars — ACTION_BASE_URL, GRAPHQL_ENDPOINT (git-ignored)
 web-src/          # React + Spectrum Admin UI (Commerce Admin extension)
-scripts/          # Setup and dev scripts
-test/             # Unit tests
+scripts/          # Setup, post-deploy, and dev scripts
+test/             # Unit tests (227 tests)
 ```
 
 ## Documents
@@ -195,7 +198,7 @@ test/             # Unit tests
 - [Testing Guide](TESTING_GUIDE.md) — running tests, writing new tests, mocking, and CI
 - [Manual Testing Guide](MANUAL_TESTING_GUIDE.md) — comprehensive manual test cases for all actions with permutations
 - [Dev & Integration Testing Guide](DEV_INTEGRATION_GUIDE.md) — cURL samples, Postman setup, request/response reference, end-to-end flows
-- [App API Documentation (Postman)](https://documenter.getpostman.com/view/38215772/2sBXijJBVG) — interactive API reference with request/response examples
+- [App API Documentation (Postman)](https://documenter.getpostman.com/view/38215772/2sBXwqqW73) — interactive API reference with request/response examples
 - [Technical Documentation](TECHNICAL_README.md) — architecture, mesh config, S2S auth, shared libraries, and engineering notes
 - [DocDB Backend Guide](DOCDB_README.md) — DocDB setup, collections, IMS auth, and troubleshooting
 - [MySQL Backend Guide](MYSQL_README.md) — MySQL setup, table schemas, SQL translation, and troubleshooting

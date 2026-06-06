@@ -5,9 +5,7 @@
     "version": "3.1.0"
   },
   "servers": [
-    {
-      "url": "https://placeholder.adobeioruntime.net/api/v1/web/login-module"
-    }
+    { "url": "{env.ACTION_BASE_URL}" }
   ],
   "paths": {
     "/generate-otp": {
@@ -28,38 +26,6 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/GenerateOtpResponse" }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "403": {
-            "description": "Module disabled",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "404": {
-            "description": "User not found",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           }
@@ -86,46 +52,6 @@
                 "schema": { "$ref": "#/components/schemas/ValidateOtpResponse" }
               }
             }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "401": {
-            "description": "Invalid OTP",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "403": {
-            "description": "Module disabled",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "404": {
-            "description": "User not found",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
           }
         }
       }
@@ -150,38 +76,6 @@
                 "schema": { "$ref": "#/components/schemas/GoogleSsoResponse" }
               }
             }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "401": {
-            "description": "Invalid Google token",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "404": {
-            "description": "User not found in Commerce",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
           }
         }
       }
@@ -196,14 +90,6 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/AppConfigPublic" }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           }
@@ -230,38 +116,6 @@
                 "schema": { "$ref": "#/components/schemas/CustomerResponse" }
               }
             }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "403": {
-            "description": "Module disabled",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
           }
         }
       }
@@ -269,12 +123,6 @@
   },
   "components": {
     "schemas": {
-      "ErrorResponse": {
-        "type": "object",
-        "properties": {
-          "error": { "type": "string" }
-        }
-      },
       "GenerateOtpRequest": {
         "type": "object",
         "properties": {
@@ -291,7 +139,10 @@
         "type": "object",
         "properties": {
           "otpReferenceId": { "type": "string" },
-          "otpValue": { "type": "string" }
+          "otpValue": { "type": "string" },
+          "success": { "type": "boolean" },
+          "statusCode": { "type": "integer" },
+          "error": { "type": "string" }
         }
       },
       "ValidateOtpRequest": {
@@ -307,6 +158,8 @@
           "success": { "type": "boolean" },
           "customer_token": { "type": "string" },
           "message": { "type": "string" },
+          "statusCode": { "type": "integer" },
+          "error": { "type": "string" },
           "customer": { "$ref": "#/components/schemas/Customer" }
         }
       },
@@ -314,8 +167,7 @@
         "type": "object",
         "properties": {
           "operation": {
-            "type": "string",
-            "enum": ["register", "updateCustomerDetails"]
+            "type": "string"
           },
           "email": { "type": "string" },
           "mobile": { "type": "string" },
@@ -337,6 +189,7 @@
           "message": { "type": "string" },
           "otpReferenceId": { "type": "string" },
           "otpValue": { "type": "string" },
+          "statusCode": { "type": "integer" },
           "error": { "type": "string" },
           "customer": { "$ref": "#/components/schemas/Customer" }
         }
@@ -371,6 +224,8 @@
           "success": { "type": "boolean" },
           "customer_token": { "type": "string" },
           "message": { "type": "string" },
+          "statusCode": { "type": "integer" },
+          "error": { "type": "string" },
           "customer": { "$ref": "#/components/schemas/Customer" }
         }
       },

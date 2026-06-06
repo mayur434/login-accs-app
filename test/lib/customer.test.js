@@ -1,5 +1,5 @@
 /**
- * Unit tests for actions/lib/customer.js
+ * Unit tests for lib/customer.js
  */
 
 const {
@@ -16,7 +16,7 @@ const {
   normalizeMobile,
   INTERNAL_CUSTOMER_PASSWORD,
   CUSTOMER_IDENTITY_COLLECTION
-} = require('../../actions/lib/customer')
+} = require('../../lib/customer')
 
 describe('customer helpers', () => {
   describe('constants', () => {
@@ -236,19 +236,19 @@ describe('customer helpers', () => {
 
   describe('normalizeMobile', () => {
     test('normalizes 10-digit Indian mobile', () => {
-      expect(normalizeMobile('9876543210')).toBe('+919876543210')
+      expect(normalizeMobile('9876543210')).toBe('9876543210')
     })
 
     test('normalizes 12-digit with country code', () => {
-      expect(normalizeMobile('919876543210')).toBe('+919876543210')
+      expect(normalizeMobile('919876543210')).toBe('9876543210')
     })
 
     test('normalizes with + prefix', () => {
-      expect(normalizeMobile('+919876543210')).toBe('+919876543210')
+      expect(normalizeMobile('+919876543210')).toBe('9876543210')
     })
 
     test('strips non-digit characters', () => {
-      expect(normalizeMobile('+91 9876-543210')).toBe('+919876543210')
+      expect(normalizeMobile('+91 9876-543210')).toBe('9876543210')
     })
 
     test('throws for invalid mobile (wrong start digit)', () => {

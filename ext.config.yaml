@@ -4,6 +4,8 @@ operations:
       impl: index.html
 actions: actions
 web: web-src
+hooks:
+  post-app-deploy: node scripts/post-deploy.js
 runtimeManifest:
   database:
     auto-provision: false
@@ -12,13 +14,14 @@ runtimeManifest:
     login-module:
       license: Apache-2.0
       actions:
-        generate-otp:
-          function: actions/generate-otp/index.js
+        api:
+          function: actions/api/index.js
           web: 'yes'
           runtime: nodejs:22
           inputs:
             LOG_LEVEL: debug
             GRAPHQL_ENDPOINT: $GRAPHQL_ENDPOINT
+            GOOGLE_CLIENT_ID: $GOOGLE_CLIENT_ID
             DB_TYPE: $DB_TYPE
             MYSQL_HOST: $MYSQL_HOST
             MYSQL_PORT: $MYSQL_PORT
@@ -33,31 +36,10 @@ runtimeManifest:
             MAGENTO_STORE_CODE: $MAGENTO_STORE_CODE
             MAGENTO_STORE_VIEW_CODE: $MAGENTO_STORE_VIEW_CODE
             MAGENTO_WEBSITE_CODE: $MAGENTO_WEBSITE_CODE
-          annotations:
-            require-adobe-auth: false
-            include-ims-credentials: true
-            final: false
-        validate-otp:
-          function: actions/validate-otp/index.js
-          web: 'yes'
-          runtime: nodejs:22
-          inputs:
-            LOG_LEVEL: debug
-            GRAPHQL_ENDPOINT: $GRAPHQL_ENDPOINT
-            DB_TYPE: $DB_TYPE
-            MYSQL_HOST: $MYSQL_HOST
-            MYSQL_PORT: $MYSQL_PORT
-            MYSQL_USER: $MYSQL_USER
-            MYSQL_PASSWORD: $MYSQL_PASSWORD
-            MYSQL_DATABASE: $MYSQL_DATABASE
-            IMS_OAUTH_S2S_CLIENT_ID: $IMS_OAUTH_S2S_CLIENT_ID
-            IMS_OAUTH_S2S_CLIENT_SECRET: $IMS_OAUTH_S2S_CLIENT_SECRET
-            IMS_OAUTH_S2S_ORG_ID: $IMS_OAUTH_S2S_ORG_ID
-            IMS_OAUTH_S2S_SCOPES: $IMS_OAUTH_S2S_SCOPES
-            MAGENTO_ENVIRONMENT_ID: $MAGENTO_ENVIRONMENT_ID
-            MAGENTO_STORE_CODE: $MAGENTO_STORE_CODE
-            MAGENTO_STORE_VIEW_CODE: $MAGENTO_STORE_VIEW_CODE
-            MAGENTO_WEBSITE_CODE: $MAGENTO_WEBSITE_CODE
+            INTERNAL_CUSTOMER_PASSWORD: $INTERNAL_CUSTOMER_PASSWORD
+            OTP_LENGTH: $OTP_LENGTH
+            STATE_CONFIG_TTL_SECONDS: $STATE_CONFIG_TTL_SECONDS
+            IMS_TOKEN_TTL_SECONDS: $IMS_TOKEN_TTL_SECONDS
           annotations:
             require-adobe-auth: false
             include-ims-credentials: true
@@ -79,72 +61,12 @@ runtimeManifest:
             IMS_OAUTH_S2S_CLIENT_SECRET: $IMS_OAUTH_S2S_CLIENT_SECRET
             IMS_OAUTH_S2S_ORG_ID: $IMS_OAUTH_S2S_ORG_ID
             IMS_OAUTH_S2S_SCOPES: $IMS_OAUTH_S2S_SCOPES
+            STATE_CONFIG_TTL_SECONDS: $STATE_CONFIG_TTL_SECONDS
+            IMS_TOKEN_TTL_SECONDS: $IMS_TOKEN_TTL_SECONDS
           annotations:
             require-adobe-auth: false
             include-ims-credentials: true
             final: true
-        customer:
-          function: actions/customer/index.js
-          web: 'yes'
-          runtime: nodejs:22
-          inputs:
-            LOG_LEVEL: debug
-            apikey: $SERVICE_API_KEY
-            GRAPHQL_ENDPOINT: $GRAPHQL_ENDPOINT
-            DB_TYPE: $DB_TYPE
-            MYSQL_HOST: $MYSQL_HOST
-            MYSQL_PORT: $MYSQL_PORT
-            MYSQL_USER: $MYSQL_USER
-            MYSQL_PASSWORD: $MYSQL_PASSWORD
-            MYSQL_DATABASE: $MYSQL_DATABASE
-            IMS_OAUTH_S2S_CLIENT_ID: $IMS_OAUTH_S2S_CLIENT_ID
-            IMS_OAUTH_S2S_CLIENT_SECRET: $IMS_OAUTH_S2S_CLIENT_SECRET
-            IMS_OAUTH_S2S_ORG_ID: $IMS_OAUTH_S2S_ORG_ID
-            IMS_OAUTH_S2S_SCOPES: $IMS_OAUTH_S2S_SCOPES
-            MAGENTO_ENVIRONMENT_ID: $MAGENTO_ENVIRONMENT_ID
-            MAGENTO_STORE_CODE: $MAGENTO_STORE_CODE
-            MAGENTO_STORE_VIEW_CODE: $MAGENTO_STORE_VIEW_CODE
-            MAGENTO_WEBSITE_CODE: $MAGENTO_WEBSITE_CODE
-          annotations:
-            require-adobe-auth: false
-            include-ims-credentials: true
-            final: true
-        registration:
-          function: actions/registration/index.js
-          web: 'yes'
-          runtime: nodejs:22
-          inputs:
-            LOG_LEVEL: debug
-          annotations:
-            require-adobe-auth: true
-            include-ims-credentials: true
-            final: true
-        google-sso:
-          function: actions/google-sso/index.js
-          web: 'yes'
-          runtime: nodejs:22
-          inputs:
-            LOG_LEVEL: debug
-            GOOGLE_CLIENT_ID: $GOOGLE_CLIENT_ID
-            GRAPHQL_ENDPOINT: $GRAPHQL_ENDPOINT
-            DB_TYPE: $DB_TYPE
-            MYSQL_HOST: $MYSQL_HOST
-            MYSQL_PORT: $MYSQL_PORT
-            MYSQL_USER: $MYSQL_USER
-            MYSQL_PASSWORD: $MYSQL_PASSWORD
-            MYSQL_DATABASE: $MYSQL_DATABASE
-            IMS_OAUTH_S2S_CLIENT_ID: $IMS_OAUTH_S2S_CLIENT_ID
-            IMS_OAUTH_S2S_CLIENT_SECRET: $IMS_OAUTH_S2S_CLIENT_SECRET
-            IMS_OAUTH_S2S_ORG_ID: $IMS_OAUTH_S2S_ORG_ID
-            IMS_OAUTH_S2S_SCOPES: $IMS_OAUTH_S2S_SCOPES
-            MAGENTO_ENVIRONMENT_ID: $MAGENTO_ENVIRONMENT_ID
-            MAGENTO_STORE_CODE: $MAGENTO_STORE_CODE
-            MAGENTO_STORE_VIEW_CODE: $MAGENTO_STORE_VIEW_CODE
-            MAGENTO_WEBSITE_CODE: $MAGENTO_WEBSITE_CODE
-          annotations:
-            require-adobe-auth: false
-            include-ims-credentials: true
-            final: false
         cleanup-otps:
           function: actions/cleanup-otps/index.js
           web: 'yes'
@@ -162,6 +84,38 @@ runtimeManifest:
             IMS_OAUTH_S2S_CLIENT_SECRET: $IMS_OAUTH_S2S_CLIENT_SECRET
             IMS_OAUTH_S2S_ORG_ID: $IMS_OAUTH_S2S_ORG_ID
             IMS_OAUTH_S2S_SCOPES: $IMS_OAUTH_S2S_SCOPES
+          annotations:
+            require-adobe-auth: false
+            include-ims-credentials: true
+            final: false
+        registration:
+          function: actions/registration/index.js
+          web: 'yes'
+          runtime: nodejs:22
+          inputs:
+            LOG_LEVEL: debug
+          annotations:
+            require-adobe-auth: true
+            include-ims-credentials: true
+            final: true
+        seed-state-cache:
+          function: actions/seed-state-cache/index.js
+          web: 'yes'
+          runtime: nodejs:22
+          inputs:
+            LOG_LEVEL: debug
+            DB_TYPE: $DB_TYPE
+            MYSQL_HOST: $MYSQL_HOST
+            MYSQL_PORT: $MYSQL_PORT
+            MYSQL_USER: $MYSQL_USER
+            MYSQL_PASSWORD: $MYSQL_PASSWORD
+            MYSQL_DATABASE: $MYSQL_DATABASE
+            IMS_OAUTH_S2S_CLIENT_ID: $IMS_OAUTH_S2S_CLIENT_ID
+            IMS_OAUTH_S2S_CLIENT_SECRET: $IMS_OAUTH_S2S_CLIENT_SECRET
+            IMS_OAUTH_S2S_ORG_ID: $IMS_OAUTH_S2S_ORG_ID
+            IMS_OAUTH_S2S_SCOPES: $IMS_OAUTH_S2S_SCOPES
+            STATE_CONFIG_TTL_SECONDS: $STATE_CONFIG_TTL_SECONDS
+            IMS_TOKEN_TTL_SECONDS: $IMS_TOKEN_TTL_SECONDS
           annotations:
             require-adobe-auth: false
             include-ims-credentials: true

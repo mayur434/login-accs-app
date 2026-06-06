@@ -112,6 +112,8 @@ const APP_CONFIG_SEED = {
   google_sso_enabled: true,
   google_client_id: '',
   google_client_secret: '',
+  // Performance logging
+  perf_logging: false,
   updatedAt: Date.now()
 }
 
@@ -162,9 +164,18 @@ const OTP_COLLECTION = 'otps'
 const IDENTITY_COLLECTION = 'customer_mobile_identity'
 const LOGGER_COLLECTION = 'query_performance_logger'
 const IDENTITY_INDEXES = [
-  { field: 'mobile_number', name: 'uniq_mobile_number' },
-  { field: 'email', name: 'uniq_email' },
-  { field: 'customer_id', name: 'uniq_customer_id' }
+  { field: 'mobile_number', name: 'uniq_mobile_number', unique: true },
+  { field: 'email', name: 'uniq_email', unique: true },
+  { field: 'customer_id', name: 'uniq_customer_id', unique: true },
+  { field: 'google_sub', name: 'idx_google_sub', unique: false }
+]
+const OTP_INDEXES = [
+  { field: 'otpReferenceId', name: 'uniq_otpReferenceId', unique: true },
+  { field: 'createdAt', name: 'idx_createdAt', unique: false }
+]
+const LOGGER_INDEXES = [
+  { field: 'trace_id', name: 'idx_trace_id', unique: false },
+  { spec: { timestamp: -1 }, name: 'idx_timestamp_desc', unique: false }
 ]
 
 const ALL_COLLECTIONS = [APP_CONFIG_COLLECTION, OTP_COLLECTION, IDENTITY_COLLECTION, LOGGER_COLLECTION]
@@ -241,7 +252,7 @@ async function mysqlMigrateColumns (pool, tableName) {
 
 async function getDbClient () {
   if (DB_TYPE === 'mysql') {
-    const adapter = require('../actions/lib/db-adapters/mysql-adapter')
+    const adapter = require('../lib/db-adapters/mysql-adapter')
     const { dbClient } = await adapter.connect({})
     return dbClient
   }
@@ -271,7 +282,7 @@ async function getDbClient () {
     throw new Error('Failed to generate IMS access token.')
   }
 
-  const adapter = require('../actions/lib/db-adapters/docdb-adapter')
+  const adapter = require('../lib/db-adapters/docdb-adapter')
   const namespace = process.env.AIO_runtime_namespace || process.env.AIO_RUNTIME_NAMESPACE
   const region = process.env.AIO_DB_REGION || 'apac'
   const { dbClient } = await adapter.connect({ AIO_DB_TOKEN: tokenResponse.access_token, AIO_runtime_namespace: namespace, AIO_DB_REGION: region })
@@ -332,19 +343,60 @@ async function run () {
       console.log('\n[3/6] Column migration — skipped (DocDB is schemaless)')
     }
 
-    // ---- Step 4: Create indexes on customer_mobile_identity ----
-    console.log('\n[4/6] Creating indexes on customer_mobile_identity...')
+    // ---- Step 4: Create indexes on all collections ----
+    console.log('\n[4/6] Creating indexes...')
+
+    // customer_mobile_identity indexes
+    console.log('   → customer_mobile_identity:')
     const identityCol = dbClient.collection(IDENTITY_COLLECTION)
     for (const idx of IDENTITY_INDEXES) {
       try {
         await identityCol.createIndex(
-          { [idx.field]: 1 },
-          { unique: true, name: idx.name }
+          idx.spec || { [idx.field]: 1 },
+          { unique: idx.unique, name: idx.name }
         )
-        console.log(`   ✓ Index created: ${idx.name} (unique on ${idx.field})`)
+        console.log(`   ✓ ${idx.name} (${idx.unique ? 'unique' : 'non-unique'} on ${idx.field || JSON.stringify(idx.spec)})`)
       } catch (e) {
         if (e.message && e.message.includes('already exists')) {
-          console.log(`   ✓ Index already exists: ${idx.name}`)
+          console.log(`   ✓ ${idx.name} (already exists)`)
+        } else {
+          throw e
+        }
+      }
+    }
+
+    // otps indexes
+    console.log('   → otps:')
+    const otpCol = dbClient.collection(OTP_COLLECTION)
+    for (const idx of OTP_INDEXES) {
+      try {
+        await otpCol.createIndex(
+          idx.spec || { [idx.field]: 1 },
+          { unique: idx.unique, name: idx.name }
+        )
+        console.log(`   ✓ ${idx.name} (${idx.unique ? 'unique' : 'non-unique'} on ${idx.field || JSON.stringify(idx.spec)})`)
+      } catch (e) {
+        if (e.message && e.message.includes('already exists')) {
+          console.log(`   ✓ ${idx.name} (already exists)`)
+        } else {
+          throw e
+        }
+      }
+    }
+
+    // query_performance_logger indexes
+    console.log('   → query_performance_logger:')
+    const loggerCol = dbClient.collection(LOGGER_COLLECTION)
+    for (const idx of LOGGER_INDEXES) {
+      try {
+        await loggerCol.createIndex(
+          idx.spec || { [idx.field]: 1 },
+          { name: idx.name }
+        )
+        console.log(`   ✓ ${idx.name} (on ${idx.field || JSON.stringify(idx.spec)})`)
+      } catch (e) {
+        if (e.message && e.message.includes('already exists')) {
+          console.log(`   ✓ ${idx.name} (already exists)`)
         } else {
           throw e
         }
@@ -397,16 +449,39 @@ async function run () {
       }
     }
 
-    // 6b. Verify indexes on customer_mobile_identity
-    const indexes = await identityCol.getIndexes()
-    const indexNames = (indexes || []).map(i => i.name || i)
-    console.log(`   Indexes on ${IDENTITY_COLLECTION}: ${JSON.stringify(indexNames)}`)
+    // 6b. Verify indexes on all collections
+    console.log('   Verifying indexes...')
+
+    const identityIndexes = await identityCol.getIndexes()
+    const identityIdxNames = (identityIndexes || []).map(i => i.name || i)
     for (const idx of IDENTITY_INDEXES) {
-      if (indexNames.includes(idx.name)) {
-        console.log(`   ✓ Index verified: ${idx.name}`)
+      if (identityIdxNames.includes(idx.name)) {
+        console.log(`   ✓ ${IDENTITY_COLLECTION}.${idx.name}`)
       } else {
-        errors.push(`Index missing: ${idx.name}`)
-        console.log(`   ✗ Index NOT found: ${idx.name}`)
+        errors.push(`Index missing: ${IDENTITY_COLLECTION}.${idx.name}`)
+        console.log(`   ✗ ${IDENTITY_COLLECTION}.${idx.name} NOT found`)
+      }
+    }
+
+    const otpIndexes = await otpCol.getIndexes()
+    const otpIdxNames = (otpIndexes || []).map(i => i.name || i)
+    for (const idx of OTP_INDEXES) {
+      if (otpIdxNames.includes(idx.name)) {
+        console.log(`   ✓ ${OTP_COLLECTION}.${idx.name}`)
+      } else {
+        errors.push(`Index missing: ${OTP_COLLECTION}.${idx.name}`)
+        console.log(`   ✗ ${OTP_COLLECTION}.${idx.name} NOT found`)
+      }
+    }
+
+    const loggerIndexes = await loggerCol.getIndexes()
+    const loggerIdxNames = (loggerIndexes || []).map(i => i.name || i)
+    for (const idx of LOGGER_INDEXES) {
+      if (loggerIdxNames.includes(idx.name)) {
+        console.log(`   ✓ ${LOGGER_COLLECTION}.${idx.name}`)
+      } else {
+        errors.push(`Index missing: ${LOGGER_COLLECTION}.${idx.name}`)
+        console.log(`   ✗ ${LOGGER_COLLECTION}.${idx.name} NOT found`)
       }
     }
 
@@ -436,7 +511,7 @@ async function run () {
     } else {
       console.log('\n=== Setup Complete ===')
       console.log('Collections : ' + ALL_COLLECTIONS.join(', '))
-      console.log('Indexes     : ' + IDENTITY_INDEXES.map(i => i.name).join(', '))
+      console.log('Indexes     : ' + [...IDENTITY_INDEXES, ...OTP_INDEXES, ...LOGGER_INDEXES].map(i => i.name).join(', '))
       console.log('Seed data   : app_config document')
       console.log('\nReady to run: aio app dev\n')
     }

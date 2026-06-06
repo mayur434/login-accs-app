@@ -6,9 +6,9 @@
 require('dotenv').config()
 process.env.DB_TYPE = 'mysql'
 
-const { getCollection, closeDb, findOneOrNull, isUniqueConstraintError } = require('../actions/lib/db')
-const { generateOtpValue, createReferenceId } = require('../actions/lib/otp')
-const { CUSTOMER_IDENTITY_COLLECTION, parseCustomerIdFromToken, normalizeMobile, buildLoginType, getSyntheticEmail } = require('../actions/lib/customer')
+const { getCollection, closeDb, findOneOrNull, isUniqueConstraintError } = require('../lib/db')
+const { generateOtpValue, createReferenceId } = require('../lib/otp')
+const { CUSTOMER_IDENTITY_COLLECTION, parseCustomerIdFromToken, normalizeMobile, buildLoginType, getSyntheticEmail } = require('../lib/customer')
 
 ;(async () => {
   console.log('\n' + '='.repeat(55))

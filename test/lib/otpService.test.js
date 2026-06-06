@@ -1,8 +1,8 @@
 /**
- * Tests for actions/lib/otpService.js
+ * Tests for lib/otpService.js
  */
 
-jest.mock('../../actions/lib/db', () => ({
+jest.mock('../../lib/db', () => ({
   getAppConfig: jest.fn(),
   findOneOrNull: jest.fn(),
   APP_CONFIG_DEFAULTS: {
@@ -11,24 +11,24 @@ jest.mock('../../actions/lib/db', () => ({
   }
 }))
 
-jest.mock('../../actions/lib/otp', () => ({
+jest.mock('../../lib/otp', () => ({
   generateOtpValue: jest.fn(() => '1234'),
   createReferenceId: jest.fn(() => 'otp_test_ref'),
   levenshtein: jest.fn((a, b) => (a === b ? 0 : 5))
 }))
 
-jest.mock('../../actions/lib/sms', () => ({
+jest.mock('../../lib/sms', () => ({
   sendSmsOtp: jest.fn()
 }))
 
-jest.mock('../../actions/lib/email', () => ({
+jest.mock('../../lib/email', () => ({
   sendEmailOtp: jest.fn()
 }))
 
-const { generateOtp, validateOtp } = require('../../actions/lib/otpService')
-const { getAppConfig, findOneOrNull } = require('../../actions/lib/db')
-const { sendSmsOtp } = require('../../actions/lib/sms')
-const { sendEmailOtp } = require('../../actions/lib/email')
+const { generateOtp, validateOtp } = require('../../lib/otpService')
+const { getAppConfig, findOneOrNull } = require('../../lib/db')
+const { sendSmsOtp } = require('../../lib/sms')
+const { sendEmailOtp } = require('../../lib/email')
 
 const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
 

@@ -1,5 +1,5 @@
 /**
- * Unit tests for actions/lib/sms.js and actions/lib/email.js
+ * Unit tests for lib/sms.js and lib/email.js
  */
 
 jest.mock('node-fetch', () => jest.fn())
@@ -9,8 +9,8 @@ jest.mock('nodemailer', () => ({
 
 const fetch = require('node-fetch')
 const nodemailer = require('nodemailer')
-const { sendSmsOtp } = require('../../actions/lib/sms')
-const { sendEmailOtp } = require('../../actions/lib/email')
+const { sendSmsOtp } = require('../../lib/sms')
+const { sendEmailOtp } = require('../../lib/email')
 
 const mockLogger = {
   info: jest.fn(),
